@@ -18,7 +18,7 @@ export function ProgressRing({
   incomplete,
 }: ProgressRingProps) {
   const size = 200;
-  const strokeWidth = 18;
+  const strokeWidth = 10; // Thinner ring like reference
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
 
@@ -32,18 +32,22 @@ export function ProgressRing({
     return () => clearTimeout(timer);
   }, [progress]);
 
-  // Calculate the portions
+  // Calculate the portions with gap consideration
   const total = completed + overdue + incomplete;
-  const completedAngle = total > 0 ? (completed / total) * 360 : 0;
-  const overdueAngle = total > 0 ? (overdue / total) * 360 : 0;
-  const incompleteAngle = total > 0 ? (incomplete / total) * 360 : 0;
+  const gapDegrees = 8; // Gap between segments in degrees
+  const segmentCount = [completed, overdue, incomplete].filter(v => v > 0).length;
+  const totalGapDegrees = segmentCount > 1 ? gapDegrees * segmentCount : 0;
+  const availableDegrees = 360 - totalGapDegrees;
+
+  const completedAngle = total > 0 ? (completed / total) * availableDegrees : 0;
+  const overdueAngle = total > 0 ? (overdue / total) * availableDegrees : 0;
+  const incompleteAngle = total > 0 ? (incomplete / total) * availableDegrees : 0;
 
   // Calculate stroke dash for each segment
   const completedDash = (completedAngle / 360) * circumference;
   const overdueDash = (overdueAngle / 360) * circumference;
   const incompleteDash = (incompleteAngle / 360) * circumference;
-
-  const gap = 4;
+  const gapDash = (gapDegrees / 360) * circumference;
   const displayTotal = completed + overdue + incomplete;
 
   // Colors matching UWorld exactly
@@ -98,7 +102,7 @@ export function ProgressRing({
                 stroke={blueColor}
                 strokeWidth={strokeWidth}
                 strokeDasharray={`${incompleteDash} ${circumference - incompleteDash}`}
-                strokeDashoffset={-(completedDash + overdueDash + gap)}
+                strokeDashoffset={-(completedDash + overdueDash + (completed > 0 ? gapDash : 0) + (overdue > 0 ? gapDash : 0))}
                 strokeLinecap="round"
                 className="transition-all duration-1000 ease-out"
                 style={{ transitionDelay: '200ms' }}
@@ -115,7 +119,7 @@ export function ProgressRing({
                 stroke={pinkColor}
                 strokeWidth={strokeWidth}
                 strokeDasharray={`${overdueDash} ${circumference - overdueDash}`}
-                strokeDashoffset={-(completedDash + gap)}
+                strokeDashoffset={-(completedDash + (completed > 0 ? gapDash : 0))}
                 strokeLinecap="round"
                 className="transition-all duration-1000 ease-out"
                 style={{ transitionDelay: '100ms' }}
@@ -132,7 +136,7 @@ export function ProgressRing({
                 stroke={greenColor}
                 strokeWidth={strokeWidth}
                 strokeDasharray={`${completedDash} ${circumference - completedDash}`}
-                strokeDashoffset={gap / 2}
+                strokeDashoffset={0}
                 strokeLinecap="round"
                 className="transition-all duration-1000 ease-out"
               />
