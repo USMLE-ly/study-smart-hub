@@ -1,12 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
+export type SoundTone = 'default' | 'soft' | 'chime' | 'retro';
+
 interface UserSettings {
   soundEnabled: boolean;
   soundVolume: number;
+  soundTone: SoundTone;
   notificationsEnabled: boolean;
   achievementPopups: boolean;
   dailyReminders: boolean;
   focusModeAmbient: boolean;
+  weeklyEmailEnabled: boolean;
+  weeklyEmailDay: number; // 0 = Sunday, 6 = Saturday
 }
 
 interface SettingsContextType {
@@ -17,10 +22,13 @@ interface SettingsContextType {
 const defaultSettings: UserSettings = {
   soundEnabled: true,
   soundVolume: 0.3,
+  soundTone: 'default',
   notificationsEnabled: true,
   achievementPopups: true,
   dailyReminders: true,
   focusModeAmbient: true,
+  weeklyEmailEnabled: false,
+  weeklyEmailDay: 0,
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);

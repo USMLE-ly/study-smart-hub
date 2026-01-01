@@ -1,12 +1,34 @@
 import { useCallback, useRef } from 'react';
+import { SoundTone } from '@/contexts/SettingsContext';
 
 interface SoundOptions {
   volume?: number;
   enabled?: boolean;
+  tone?: SoundTone;
 }
 
+// Tone configurations for different sound styles
+const toneConfigs = {
+  default: {
+    taskComplete: { notes: [523.25, 659.25, 783.99], type: 'sine' as OscillatorType, duration: 0.3 },
+    achievement: { notes: [392, 523.25, 659.25, 783.99, 1046.5], type: 'triangle' as OscillatorType, duration: 0.4 },
+  },
+  soft: {
+    taskComplete: { notes: [440, 523.25, 659.25], type: 'sine' as OscillatorType, duration: 0.4 },
+    achievement: { notes: [329.63, 440, 523.25, 659.25, 880], type: 'sine' as OscillatorType, duration: 0.5 },
+  },
+  chime: {
+    taskComplete: { notes: [1046.5, 1318.5, 1568], type: 'sine' as OscillatorType, duration: 0.25 },
+    achievement: { notes: [783.99, 987.77, 1174.66, 1396.91, 1568], type: 'sine' as OscillatorType, duration: 0.35 },
+  },
+  retro: {
+    taskComplete: { notes: [262, 330, 392], type: 'square' as OscillatorType, duration: 0.15 },
+    achievement: { notes: [262, 330, 392, 523, 659], type: 'square' as OscillatorType, duration: 0.2 },
+  },
+};
+
 export function useSoundEffects(options: SoundOptions = {}) {
-  const { volume = 0.3, enabled = true } = options;
+  const { volume = 0.3, enabled = true, tone = 'default' } = options;
   const audioContextRef = useRef<AudioContext | null>(null);
 
   const getAudioContext = useCallback(() => {
@@ -41,15 +63,15 @@ export function useSoundEffects(options: SoundOptions = {}) {
     }
   }, [enabled, volume, getAudioContext]);
 
-  // Task completion sound - ascending chime
+  // Task completion sound - uses tone configuration
   const playTaskComplete = useCallback(() => {
     if (!enabled) return;
     
     try {
       const ctx = getAudioContext();
-      const notes = [523.25, 659.25, 783.99]; // C5, E5, G5 - major chord ascending
+      const config = toneConfigs[tone].taskComplete;
       
-      notes.forEach((freq, i) => {
+      config.notes.forEach((freq, i) => {
         const oscillator = ctx.createOscillator();
         const gainNode = ctx.createGain();
         
@@ -57,30 +79,30 @@ export function useSoundEffects(options: SoundOptions = {}) {
         gainNode.connect(ctx.destination);
         
         oscillator.frequency.value = freq;
-        oscillator.type = 'sine';
+        oscillator.type = config.type;
         
         const startTime = ctx.currentTime + i * 0.1;
         gainNode.gain.setValueAtTime(0, startTime);
         gainNode.gain.linearRampToValueAtTime(volume * 0.4, startTime + 0.05);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.3);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + config.duration);
         
         oscillator.start(startTime);
-        oscillator.stop(startTime + 0.35);
+        oscillator.stop(startTime + config.duration + 0.05);
       });
     } catch (e) {
       console.warn('Audio playback failed:', e);
     }
-  }, [enabled, volume, getAudioContext]);
+  }, [enabled, volume, getAudioContext, tone]);
 
-  // Achievement unlocked - triumphant fanfare
+  // Achievement unlocked - uses tone configuration
   const playAchievement = useCallback(() => {
     if (!enabled) return;
     
     try {
       const ctx = getAudioContext();
-      const notes = [392, 523.25, 659.25, 783.99, 1046.5]; // G4, C5, E5, G5, C6
+      const config = toneConfigs[tone].achievement;
       
-      notes.forEach((freq, i) => {
+      config.notes.forEach((freq, i) => {
         const oscillator = ctx.createOscillator();
         const gainNode = ctx.createGain();
         
@@ -88,20 +110,20 @@ export function useSoundEffects(options: SoundOptions = {}) {
         gainNode.connect(ctx.destination);
         
         oscillator.frequency.value = freq;
-        oscillator.type = 'triangle';
+        oscillator.type = config.type;
         
         const startTime = ctx.currentTime + i * 0.12;
         gainNode.gain.setValueAtTime(0, startTime);
         gainNode.gain.linearRampToValueAtTime(volume * 0.5, startTime + 0.05);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.4);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + config.duration);
         
         oscillator.start(startTime);
-        oscillator.stop(startTime + 0.45);
+        oscillator.stop(startTime + config.duration + 0.05);
       });
     } catch (e) {
       console.warn('Audio playback failed:', e);
     }
-  }, [enabled, volume, getAudioContext]);
+  }, [enabled, volume, getAudioContext, tone]);
 
   // Button click - subtle pop
   const playClick = useCallback(() => {
