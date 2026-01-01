@@ -1,21 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CalendarIcon, BookOpen, FileText, Layers, GraduationCap } from "lucide-react";
+import { Tag, FileText, Layers, Clock, Info, Check } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -32,199 +28,277 @@ interface AddTaskDialogProps {
   selectedDate?: Date;
 }
 
-const taskTypes = [
-  { id: "practice", label: "Practice Questions", icon: FileText, color: "text-[hsl(330,81%,60%)]" },
-  { id: "flashcard", label: "Review Flashcards", icon: Layers, color: "text-[hsl(38,92%,50%)]" },
-  { id: "tutorial", label: "Watch Tutorial", icon: GraduationCap, color: "text-[hsl(142,71%,45%)]" },
-  { id: "review", label: "Topic Review", icon: BookOpen, color: "text-primary" },
-];
-
-const presetTasks = [
-  { title: "Shelf Review", type: "review" },
-  { title: "Step 2 Review", type: "review" },
-  { title: "Practice Questions Block", type: "practice" },
-  { title: "Anki Flashcards", type: "flashcard" },
-  { title: "Lecture Review", type: "tutorial" },
-];
+interface QuestionMode {
+  id: string;
+  label: string;
+  count: number;
+  checked: boolean;
+}
 
 export function AddTaskDialog({ open, onOpenChange, onAddTask, selectedDate }: AddTaskDialogProps) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [taskType, setTaskType] = useState("practice");
-  const [date, setDate] = useState<Date>(selectedDate || new Date());
-  const [duration, setDuration] = useState([60]); // minutes
+  const [step, setStep] = useState<1 | 2>(1);
+  const [taskName, setTaskName] = useState("");
+  const [taskType, setTaskType] = useState<"practice" | "flashcard" | "focus">("practice");
+  const [preselection, setPreselection] = useState<"shelf" | "step2">("shelf");
+  const [questionModes, setQuestionModes] = useState<QuestionMode[]>([
+    { id: "unused", label: "Unused", count: 4018, checked: true },
+    { id: "incorrect", label: "Incorrect", count: 0, checked: false },
+    { id: "marked", label: "Marked", count: 0, checked: false },
+    { id: "omitted", label: "Omitted", count: 0, checked: false },
+    { id: "correct", label: "Correct", count: 0, checked: false },
+  ]);
+  
+  // Focus Time settings
+  const [focusHours, setFocusHours] = useState([2]);
+  const [focusDescription, setFocusDescription] = useState("");
+
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open) {
+      setStep(1);
+      setTaskName("");
+      setTaskType("practice");
+      setPreselection("shelf");
+      setQuestionModes([
+        { id: "unused", label: "Unused", count: 4018, checked: true },
+        { id: "incorrect", label: "Incorrect", count: 0, checked: false },
+        { id: "marked", label: "Marked", count: 0, checked: false },
+        { id: "omitted", label: "Omitted", count: 0, checked: false },
+        { id: "correct", label: "Correct", count: 0, checked: false },
+      ]);
+      setFocusHours([2]);
+      setFocusDescription("");
+    }
+  }, [open]);
+
+  const toggleQuestionMode = (id: string) => {
+    setQuestionModes(prev => 
+      prev.map(mode => 
+        mode.id === id ? { ...mode, checked: !mode.checked } : mode
+      )
+    );
+  };
 
   const handleSubmit = () => {
-    if (!title.trim()) return;
+    if (!taskName.trim() && taskType !== "focus") return;
+
+    const title = taskType === "focus" 
+      ? `Focus Time: ${focusDescription || "Study Session"}`
+      : taskName.trim();
+
+    const duration = taskType === "focus" 
+      ? focusHours[0] * 60 
+      : taskType === "practice" ? 90 : 60;
 
     onAddTask({
-      title: title.trim(),
-      description: description.trim(),
+      title,
+      description: taskType === "focus" ? focusDescription : "",
       task_type: taskType,
-      scheduled_date: format(date, "yyyy-MM-dd"),
-      estimated_duration_minutes: duration[0],
+      scheduled_date: format(selectedDate || new Date(), "yyyy-MM-dd"),
+      estimated_duration_minutes: duration,
     });
 
-    // Reset form
-    setTitle("");
-    setDescription("");
-    setTaskType("practice");
-    setDuration([60]);
     onOpenChange(false);
   };
 
-  const selectPreset = (preset: { title: string; type: string }) => {
-    setTitle(preset.title);
-    setTaskType(preset.type);
-  };
+  const renderStep1 = () => (
+    <div className="space-y-6">
+      {/* Task Name */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Tag className="h-4 w-4 text-[hsl(330,81%,60%)]" />
+          <Label className="text-sm font-medium">Task Name *</Label>
+        </div>
+        <Input
+          value={taskName}
+          onChange={(e) => setTaskName(e.target.value)}
+          placeholder="Enter task name..."
+          className="h-10"
+        />
+      </div>
 
-  const formatDuration = (mins: number) => {
-    if (mins < 60) return `${mins} mins`;
-    const hours = Math.floor(mins / 60);
-    const remainingMins = mins % 60;
-    if (remainingMins === 0) return `${hours} hr${hours > 1 ? "s" : ""}`;
-    return `${hours} hr${hours > 1 ? "s" : ""}, ${remainingMins} mins`;
-  };
+      {/* Task Type */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Tag className="h-4 w-4 text-muted-foreground" />
+          <Label className="text-sm font-medium">Task Type</Label>
+        </div>
+        <div className="flex gap-4">
+          <button
+            onClick={() => setTaskType("practice")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors",
+              taskType === "practice" 
+                ? "text-primary border border-primary bg-primary/5" 
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {taskType === "practice" && <Check className="h-4 w-4" />}
+            Practice Questions
+          </button>
+          <button
+            onClick={() => setTaskType("flashcard")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors",
+              taskType === "flashcard" 
+                ? "text-primary border border-primary bg-primary/5" 
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {taskType === "flashcard" && <Check className="h-4 w-4" />}
+            Flashcards
+          </button>
+          <button
+            onClick={() => setTaskType("focus")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors",
+              taskType === "focus" 
+                ? "text-primary border border-primary bg-primary/5" 
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {taskType === "focus" && <Check className="h-4 w-4" />}
+            Focus Time
+          </button>
+        </div>
+      </div>
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Add Study Task</DialogTitle>
-          <DialogDescription>
-            Create a new task for your study plan
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-6 py-4">
-          {/* Quick Presets */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Quick Add</Label>
-            <div className="flex flex-wrap gap-2">
-              {presetTasks.map((preset) => (
-                <Button
-                  key={preset.title}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  onClick={() => selectPreset(preset)}
-                >
-                  {preset.title}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {/* Task Name */}
-          <div className="space-y-2">
-            <Label htmlFor="title">Task Name</Label>
-            <Input
-              id="title"
-              placeholder="e.g., Review Cardiology"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
-
-          {/* Task Type */}
+      {/* Conditional content based on task type */}
+      {taskType === "practice" && (
+        <>
+          {/* Preselections */}
           <div className="space-y-3">
-            <Label>Task Type</Label>
-            <RadioGroup
-              value={taskType}
-              onValueChange={setTaskType}
-              className="grid grid-cols-2 gap-3"
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <Label className="text-sm font-medium">Preselections</Label>
+            </div>
+            <RadioGroup 
+              value={preselection} 
+              onValueChange={(val) => setPreselection(val as "shelf" | "step2")}
+              className="flex gap-8"
             >
-              {taskTypes.map((type) => {
-                const Icon = type.icon;
-                return (
-                  <div key={type.id}>
-                    <RadioGroupItem
-                      value={type.id}
-                      id={type.id}
-                      className="peer sr-only"
-                    />
-                    <Label
-                      htmlFor={type.id}
-                      className={cn(
-                        "flex items-center gap-3 rounded-lg border-2 border-border p-3 cursor-pointer transition-all",
-                        "hover:border-primary/50 hover:bg-accent/50",
-                        "peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5"
-                      )}
-                    >
-                      <Icon className={cn("h-5 w-5", type.color)} />
-                      <span className="text-sm font-medium">{type.label}</span>
-                    </Label>
-                  </div>
-                );
-              })}
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="shelf" id="shelf" />
+                <Label htmlFor="shelf" className="text-sm cursor-pointer">Shelf Review</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="step2" id="step2" />
+                <Label htmlFor="step2" className="text-sm cursor-pointer">Step 2 Review</Label>
+              </div>
             </RadioGroup>
           </div>
 
-          {/* Date Picker */}
-          <div className="space-y-2">
-            <Label>Scheduled Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-start text-left">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(date, "EEEE, MMMM d, yyyy")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={date}
-                  onSelect={(d) => d && setDate(d)}
-                  initialFocus
-                  className="pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {/* Duration Slider */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label>Estimated Time</Label>
-              <span className="text-sm font-medium text-primary">
-                {formatDuration(duration[0])}
-              </span>
-            </div>
-            <Slider
-              value={duration}
-              onValueChange={setDuration}
-              min={15}
-              max={480}
-              step={15}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>15 mins</span>
-              <span>8 hours</span>
+          {/* Question Mode */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Question Mode</Label>
+            <div className="grid grid-cols-2 gap-3">
+              {questionModes.map((mode) => (
+                <div key={mode.id} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={mode.id}
+                      checked={mode.checked}
+                      onCheckedChange={() => toggleQuestionMode(mode.id)}
+                    />
+                    <Label htmlFor={mode.id} className="text-sm cursor-pointer">
+                      {mode.label}
+                    </Label>
+                  </div>
+                  <span className={cn(
+                    "text-sm px-2 py-0.5 rounded-full border",
+                    mode.count > 0 
+                      ? "border-primary/30 text-primary" 
+                      : "border-border text-muted-foreground"
+                  )}>
+                    {mode.count}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
+        </>
+      )}
 
-          {/* Description */}
+      {taskType === "flashcard" && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Layers className="h-4 w-4 text-muted-foreground" />
+            <Label className="text-sm font-medium">Flashcard Deck</Label>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Review flashcards will be scheduled based on your spaced repetition settings.
+          </p>
+        </div>
+      )}
+
+      {taskType === "focus" && (
+        <>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <Label className="text-sm font-medium">Focus Duration</Label>
+            </div>
+            <div className="space-y-4">
+              <Slider
+                value={focusHours}
+                onValueChange={setFocusHours}
+                min={1}
+                max={8}
+                step={0.5}
+                className="w-full"
+              />
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>1 hr</span>
+                <span className="text-primary font-medium">{focusHours[0]} hours</span>
+                <span>8 hrs</span>
+              </div>
+            </div>
+          </div>
           <div className="space-y-2">
-            <Label htmlFor="description">Notes (Optional)</Label>
-            <Textarea
-              id="description"
-              placeholder="Add any additional notes..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
+            <Label className="text-sm font-medium">Description (optional)</Label>
+            <Input
+              value={focusDescription}
+              onChange={(e) => setFocusDescription(e.target.value)}
+              placeholder="What will you focus on?"
+              className="h-10"
             />
           </div>
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader className="pb-4 border-b border-border">
+          <DialogTitle className="text-lg font-semibold">Add Task</DialogTitle>
+        </DialogHeader>
+
+        <div className="py-4">
+          {renderStep1()}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={!title.trim()}>
-            Add Task
-          </Button>
-        </DialogFooter>
+        {/* Footer */}
+        <div className="flex items-center justify-between pt-4 border-t border-border">
+          <div></div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={taskType !== "focus" && !taskName.trim()}
+              className="gap-2"
+            >
+              Next
+              <Info className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

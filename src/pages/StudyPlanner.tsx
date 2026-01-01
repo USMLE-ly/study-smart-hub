@@ -2,21 +2,32 @@ import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Calendar, List, AlertCircle } from "lucide-react";
-import { format } from "date-fns";
-import { StudyCalendar } from "@/components/study-planner/StudyCalendar";
-import { TaskList } from "@/components/study-planner/TaskList";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Settings,
+  Plus
+} from "lucide-react";
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, isSameDay } from "date-fns";
+import { StudyCalendarGrid } from "@/components/study-planner/StudyCalendarGrid";
 import { AddTaskDialog } from "@/components/study-planner/AddTaskDialog";
-import { ProgressOverview } from "@/components/study-planner/ProgressOverview";
 import { useStudyTasks } from "@/hooks/useStudyTasks";
 import { LoadingState } from "@/components/ui/LoadingSpinner";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const StudyPlanner = () => {
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showAddTask, setShowAddTask] = useState(false);
-  const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [viewMode, setViewMode] = useState("month");
   
   const { tasks, loading, addTask, toggleComplete, deleteTask, stats } = useStudyTasks();
 
@@ -32,6 +43,7 @@ const StudyPlanner = () => {
       toast.error("Failed to add task");
     } else {
       toast.success("Task added successfully");
+      setShowAddTask(false);
     }
   };
 
@@ -51,17 +63,10 @@ const StudyPlanner = () => {
     }
   };
 
-  // Convert tasks to calendar format
-  const calendarTasks = tasks.map((t) => ({
-    id: t.id,
-    date: t.scheduled_date,
-    type: t.task_type as "practice" | "flashcard" | "tutorial" | "review",
-    status: t.is_completed
-      ? "completed"
-      : t.scheduled_date < format(new Date(), "yyyy-MM-dd")
-      ? "overdue"
-      : "pending",
-  })) as { id: string; date: string; type: "practice" | "flashcard" | "tutorial" | "review"; status: "completed" | "pending" | "overdue" }[];
+  const openAddTaskForDate = (date: Date) => {
+    setSelectedDate(date);
+    setShowAddTask(true);
+  };
 
   if (loading) {
     return (
@@ -73,133 +78,87 @@ const StudyPlanner = () => {
 
   return (
     <AppLayout title="Study Planner">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold text-foreground">Study Planner</h2>
-            <p className="text-muted-foreground mt-1">
-              Organize your study schedule and track progress
-            </p>
+      <div className="flex flex-col h-full bg-muted/30 -m-6 p-6">
+        {/* Header Controls */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            {/* Today Button */}
+            <Button 
+              variant="outline" 
+              onClick={() => setCurrentMonth(new Date())}
+              className="h-9"
+            >
+              Today
+            </Button>
+
+            {/* Month Navigation */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Current Month/Year */}
+            <h2 className="text-xl font-semibold text-foreground">
+              {format(currentMonth, "MMMM, yyyy")}
+            </h2>
           </div>
+
           <div className="flex items-center gap-3">
+            {/* Overdue Tasks Badge */}
             {stats.overdue > 0 && (
-              <Button variant="outline" className="gap-2 border-destructive text-destructive hover:bg-destructive/10">
-                <AlertCircle className="h-4 w-4" />
-                Overdue
-                <Badge variant="destructive" className="ml-1">
+              <Button 
+                variant="outline" 
+                className="h-9 gap-2 border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10"
+              >
+                Overdue Tasks
+                <Badge variant="secondary" className="bg-destructive/20 text-destructive hover:bg-destructive/20">
                   {stats.overdue}
                 </Badge>
               </Button>
             )}
-            <Button onClick={() => setShowAddTask(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Add Task
+
+            {/* View Mode Selector */}
+            <Select value={viewMode} onValueChange={setViewMode}>
+              <SelectTrigger className="w-[140px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="month">Month View</SelectItem>
+                <SelectItem value="week">Week View</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Settings */}
+            <Button variant="ghost" size="icon" className="h-9 w-9">
+              <Settings className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
-        {/* View Toggle */}
-        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "calendar" | "list")}>
-          <TabsList className="bg-muted/30">
-            <TabsTrigger value="calendar" className="gap-2">
-              <Calendar className="h-4 w-4" />
-              Calendar View
-            </TabsTrigger>
-            <TabsTrigger value="list" className="gap-2">
-              <List className="h-4 w-4" />
-              List View
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="calendar" className="mt-6">
-            <div className="grid gap-6 lg:grid-cols-3">
-              {/* Calendar */}
-              <div className="lg:col-span-2">
-                <StudyCalendar
-                  tasks={calendarTasks}
-                  onDateSelect={setSelectedDate}
-                  selectedDate={selectedDate}
-                />
-
-                {/* Selected Day Tasks */}
-                <div className="mt-6 bg-card rounded-lg border border-border/60 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-base font-semibold text-foreground">
-                      {format(selectedDate, "EEEE, MMMM d")}
-                    </h3>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowAddTask(true)}
-                      className="gap-1 text-primary"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Add
-                    </Button>
-                  </div>
-                  <TaskList
-                    tasks={tasks}
-                    selectedDate={selectedDate}
-                    onToggleComplete={handleToggleComplete}
-                    onDeleteTask={handleDeleteTask}
-                  />
-                </div>
-              </div>
-
-              {/* Progress Sidebar */}
-              <div>
-                <ProgressOverview
-                  totalTasks={stats.total}
-                  completedTasks={stats.completed}
-                  overdueTasks={stats.overdue}
-                  totalTimeMinutes={stats.totalTimeMinutes}
-                  completedTimeMinutes={stats.completedTimeMinutes}
-                  daysRemaining={stats.daysRemaining}
-                />
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="list" className="mt-6">
-            <div className="grid gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-2">
-                <div className="bg-card rounded-lg border border-border/60 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-base font-semibold text-foreground">All Tasks</h3>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowAddTask(true)}
-                      className="gap-1 text-primary"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Add Task
-                    </Button>
-                  </div>
-                  <TaskList
-                    tasks={tasks}
-                    selectedDate={selectedDate}
-                    onToggleComplete={handleToggleComplete}
-                    onDeleteTask={handleDeleteTask}
-                    showAllTasks
-                  />
-                </div>
-              </div>
-
-              <div>
-                <ProgressOverview
-                  totalTasks={stats.total}
-                  completedTasks={stats.completed}
-                  overdueTasks={stats.overdue}
-                  totalTimeMinutes={stats.totalTimeMinutes}
-                  completedTimeMinutes={stats.completedTimeMinutes}
-                  daysRemaining={stats.daysRemaining}
-                />
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+        {/* Calendar Grid */}
+        <div className="flex-1 bg-card rounded-lg border border-border overflow-hidden">
+          <StudyCalendarGrid
+            currentMonth={currentMonth}
+            tasks={tasks}
+            onAddTask={openAddTaskForDate}
+            onToggleComplete={handleToggleComplete}
+            onDeleteTask={handleDeleteTask}
+          />
+        </div>
       </div>
 
       {/* Add Task Dialog */}
@@ -207,7 +166,7 @@ const StudyPlanner = () => {
         open={showAddTask}
         onOpenChange={setShowAddTask}
         onAddTask={handleAddTask}
-        selectedDate={selectedDate}
+        selectedDate={selectedDate || new Date()}
       />
     </AppLayout>
   );
