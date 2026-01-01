@@ -1,226 +1,214 @@
+import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, MoreVertical, CheckCircle2, AlertCircle } from "lucide-react";
-import { useState } from "react";
-import { cn } from "@/lib/utils";
-
-interface DayTask {
-  id: string;
-  title: string;
-  type: "tutorial" | "practice" | "flashcard";
-  count?: string;
-  duration: string;
-  completed: boolean;
-}
-
-interface DaySchedule {
-  dayNumber: number;
-  dayName: string;
-  totalDuration: string;
-  tasks: DayTask[];
-  isToday?: boolean;
-}
-
-const weekSchedule: DaySchedule[] = [
-  {
-    dayNumber: 28,
-    dayName: "Sunday",
-    totalDuration: "16 hrs",
-    tasks: [],
-  },
-  {
-    dayNumber: 29,
-    dayName: "Monday",
-    totalDuration: "16 hrs",
-    tasks: [],
-  },
-  {
-    dayNumber: 30,
-    dayName: "Tuesday",
-    totalDuration: "16 hrs",
-    tasks: [],
-  },
-  {
-    dayNumber: 31,
-    dayName: "Wednesday",
-    totalDuration: "16 hrs",
-    tasks: [
-      { id: "1", title: "Practice Questions", type: "practice", count: "369 Qs", duration: "12 hrs, 18 mins", completed: false },
-      { id: "2", title: "Review Flashcards", type: "flashcard", count: "222 Cards", duration: "3 hrs, 42 mins", completed: false },
-    ],
-  },
-  {
-    dayNumber: 1,
-    dayName: "Thursday",
-    totalDuration: "16 hrs, 07 mins",
-    isToday: true,
-    tasks: [
-      { id: "3", title: "Learn the Basics: How to Use your Study Plan", type: "tutorial", duration: "07 mins", completed: true },
-      { id: "4", title: "Practice Questions", type: "practice", count: "369 Qs", duration: "12 hrs, 18 mins", completed: true },
-      { id: "5", title: "Review Flashcards", type: "flashcard", count: "222 Cards", duration: "3 hrs, 42 mins", completed: true },
-    ],
-  },
-  {
-    dayNumber: 2,
-    dayName: "Friday",
-    totalDuration: "16 hrs",
-    tasks: [
-      { id: "6", title: "Practice Questions", type: "practice", count: "369 Qs", duration: "12 hrs, 18 mins", completed: false },
-      { id: "7", title: "Review Flashcards", type: "flashcard", count: "222 Cards", duration: "3 hrs, 42 mins", completed: false },
-    ],
-  },
-  {
-    dayNumber: 3,
-    dayName: "Saturday",
-    totalDuration: "16 hrs",
-    tasks: [
-      { id: "8", title: "Practice Questions", type: "practice", count: "369 Qs", duration: "12 hrs, 18 mins", completed: false },
-    ],
-  },
-];
-
-const badgeVariants: Record<DayTask["type"], "tutorial" | "practice" | "flashcard"> = {
-  tutorial: "tutorial",
-  practice: "practice",
-  flashcard: "flashcard",
-};
-
-const typeLabels: Record<DayTask["type"], string> = {
-  tutorial: "Tutorial",
-  practice: "Practice Questions",
-  flashcard: "Review Flashcards",
-};
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Calendar, List, AlertCircle } from "lucide-react";
+import { format } from "date-fns";
+import { StudyCalendar } from "@/components/study-planner/StudyCalendar";
+import { TaskList } from "@/components/study-planner/TaskList";
+import { AddTaskDialog } from "@/components/study-planner/AddTaskDialog";
+import { ProgressOverview } from "@/components/study-planner/ProgressOverview";
+import { useStudyTasks } from "@/hooks/useStudyTasks";
+import { LoadingState } from "@/components/ui/LoadingSpinner";
+import { toast } from "sonner";
 
 const StudyPlanner = () => {
-  const [expandedDays, setExpandedDays] = useState<number[]>([1, 31, 2]);
-  const [currentMonth] = useState("January, 2026");
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
+  
+  const { tasks, loading, addTask, toggleComplete, deleteTask, stats } = useStudyTasks();
 
-  const toggleDay = (dayNumber: number) => {
-    setExpandedDays((prev) =>
-      prev.includes(dayNumber)
-        ? prev.filter((d) => d !== dayNumber)
-        : [...prev, dayNumber]
-    );
+  const handleAddTask = async (task: {
+    title: string;
+    description: string;
+    task_type: string;
+    scheduled_date: string;
+    estimated_duration_minutes: number;
+  }) => {
+    const { error } = await addTask(task);
+    if (error) {
+      toast.error("Failed to add task");
+    } else {
+      toast.success("Task added successfully");
+    }
   };
+
+  const handleToggleComplete = async (taskId: string, completed: boolean) => {
+    const { error } = await toggleComplete(taskId, completed);
+    if (error) {
+      toast.error("Failed to update task");
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    const { error } = await deleteTask(taskId);
+    if (error) {
+      toast.error("Failed to delete task");
+    } else {
+      toast.success("Task deleted");
+    }
+  };
+
+  // Convert tasks to calendar format
+  const calendarTasks = tasks.map((t) => ({
+    id: t.id,
+    date: t.scheduled_date,
+    type: t.task_type as "practice" | "flashcard" | "tutorial" | "review",
+    status: t.is_completed
+      ? "completed"
+      : t.scheduled_date < format(new Date(), "yyyy-MM-dd")
+      ? "overdue"
+      : "pending",
+  })) as { id: string; date: string; type: "practice" | "flashcard" | "tutorial" | "review"; status: "completed" | "pending" | "overdue" }[];
+
+  if (loading) {
+    return (
+      <AppLayout title="Study Planner">
+        <LoadingState message="Loading your study plan..." />
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout title="Study Planner">
       <div className="space-y-6">
-        {/* Calendar Header */}
+        {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" size="sm">
-              Today
-            </Button>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-            <h2 className="text-xl font-semibold text-foreground">{currentMonth}</h2>
+          <div>
+            <h2 className="text-2xl font-semibold text-foreground">Study Planner</h2>
+            <p className="text-muted-foreground mt-1">
+              Organize your study schedule and track progress
+            </p>
           </div>
-
-          <div className="flex items-center gap-4">
-            <Button variant="outline" className="gap-2 border-destructive text-destructive hover:bg-destructive/10">
-              Overdue Tasks
-              <Badge variant="destructive" className="ml-1">2</Badge>
-            </Button>
-            <Button variant="outline">
-              Week View
-              <ChevronDown className="ml-2 h-4 w-4" />
+          <div className="flex items-center gap-3">
+            {stats.overdue > 0 && (
+              <Button variant="outline" className="gap-2 border-destructive text-destructive hover:bg-destructive/10">
+                <AlertCircle className="h-4 w-4" />
+                Overdue
+                <Badge variant="destructive" className="ml-1">
+                  {stats.overdue}
+                </Badge>
+              </Button>
+            )}
+            <Button onClick={() => setShowAddTask(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add Task
             </Button>
           </div>
         </div>
 
-        {/* Week Schedule */}
-        <Card>
-          <CardContent className="p-0">
-            {weekSchedule.map((day, index) => (
-              <div
-                key={day.dayNumber}
-                className={cn(
-                  "border-b border-border last:border-b-0",
-                  day.isToday && "bg-primary/5"
-                )}
-              >
-                {/* Day Header */}
-                <div
-                  className="flex cursor-pointer items-center justify-between p-4 hover:bg-accent/50 transition-colors"
-                  onClick={() => day.tasks.length > 0 && toggleDay(day.dayNumber)}
-                >
-                  <div className="flex items-center gap-4">
-                    {day.tasks.length > 0 ? (
-                      expandedDays.includes(day.dayNumber) ? (
-                        <ChevronUp className="h-5 w-5 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                      )
-                    ) : (
-                      <div className="w-5" />
-                    )}
-                    <div className="flex items-center gap-3">
-                      {day.isToday && (
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold">
-                          {day.dayNumber}
-                        </div>
-                      )}
-                      {!day.isToday && (
-                        <span className="text-lg font-semibold text-foreground w-8 text-center">
-                          {day.dayNumber}
-                        </span>
-                      )}
-                      <span className="font-medium text-foreground">{day.dayName}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm text-muted-foreground">{day.totalDuration}</span>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreVertical className="h-4 w-4 text-muted-foreground" />
+        {/* View Toggle */}
+        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "calendar" | "list")}>
+          <TabsList className="bg-muted/30">
+            <TabsTrigger value="calendar" className="gap-2">
+              <Calendar className="h-4 w-4" />
+              Calendar View
+            </TabsTrigger>
+            <TabsTrigger value="list" className="gap-2">
+              <List className="h-4 w-4" />
+              List View
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="calendar" className="mt-6">
+            <div className="grid gap-6 lg:grid-cols-3">
+              {/* Calendar */}
+              <div className="lg:col-span-2">
+                <StudyCalendar
+                  tasks={calendarTasks}
+                  onDateSelect={setSelectedDate}
+                  selectedDate={selectedDate}
+                />
+
+                {/* Selected Day Tasks */}
+                <div className="mt-6 bg-card rounded-lg border border-border/60 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-base font-semibold text-foreground">
+                      {format(selectedDate, "EEEE, MMMM d")}
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAddTask(true)}
+                      className="gap-1 text-primary"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add
                     </Button>
                   </div>
+                  <TaskList
+                    tasks={tasks}
+                    selectedDate={selectedDate}
+                    onToggleComplete={handleToggleComplete}
+                    onDeleteTask={handleDeleteTask}
+                  />
                 </div>
-
-                {/* Day Tasks */}
-                {expandedDays.includes(day.dayNumber) && day.tasks.length > 0 && (
-                  <div className="border-t border-border bg-card/50">
-                    {day.tasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className="flex items-center justify-between px-12 py-3 border-b border-border/50 last:border-b-0"
-                      >
-                        <div className="flex items-center gap-3">
-                          {task.completed ? (
-                            <CheckCircle2 className="h-5 w-5 text-[hsl(var(--badge-success))]" />
-                          ) : (
-                            <AlertCircle className="h-5 w-5 text-destructive" />
-                          )}
-                          <span className="text-sm font-medium text-foreground">
-                            {task.title}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <Badge variant={badgeVariants[task.type]}>
-                            {typeLabels[task.type]}
-                          </Badge>
-                          {task.count && (
-                            <span className="text-sm text-muted-foreground">{task.count}</span>
-                          )}
-                          <span className="text-sm text-muted-foreground">{task.duration}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
-            ))}
-          </CardContent>
-        </Card>
+
+              {/* Progress Sidebar */}
+              <div>
+                <ProgressOverview
+                  totalTasks={stats.total}
+                  completedTasks={stats.completed}
+                  overdueTasks={stats.overdue}
+                  totalTimeMinutes={stats.totalTimeMinutes}
+                  completedTimeMinutes={stats.completedTimeMinutes}
+                  daysRemaining={stats.daysRemaining}
+                />
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="list" className="mt-6">
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-2">
+                <div className="bg-card rounded-lg border border-border/60 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-base font-semibold text-foreground">All Tasks</h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAddTask(true)}
+                      className="gap-1 text-primary"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Task
+                    </Button>
+                  </div>
+                  <TaskList
+                    tasks={tasks}
+                    selectedDate={selectedDate}
+                    onToggleComplete={handleToggleComplete}
+                    onDeleteTask={handleDeleteTask}
+                    showAllTasks
+                  />
+                </div>
+              </div>
+
+              <div>
+                <ProgressOverview
+                  totalTasks={stats.total}
+                  completedTasks={stats.completed}
+                  overdueTasks={stats.overdue}
+                  totalTimeMinutes={stats.totalTimeMinutes}
+                  completedTimeMinutes={stats.completedTimeMinutes}
+                  daysRemaining={stats.daysRemaining}
+                />
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
+
+      {/* Add Task Dialog */}
+      <AddTaskDialog
+        open={showAddTask}
+        onOpenChange={setShowAddTask}
+        onAddTask={handleAddTask}
+        selectedDate={selectedDate}
+      />
     </AppLayout>
   );
 };
