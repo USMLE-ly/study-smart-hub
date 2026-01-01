@@ -36,6 +36,7 @@ import {
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 const mainNavItems = [
   { title: "Dashboard", icon: LayoutDashboard, href: "/" },
@@ -243,13 +244,16 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="px-3 py-3 border-t border-sidebar-border/50 shrink-0 mt-auto">
-        <div className="px-3 py-2 rounded-lg bg-sidebar-accent/30">
-          <p className="text-[10px] font-medium text-sidebar-foreground/60 uppercase tracking-wider mb-0.5">
-            Subscription
-          </p>
-          <p className="text-xs text-sidebar-foreground/80">
-            Expires May 07, 2026
-          </p>
+        <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-sidebar-accent/30">
+          <div>
+            <p className="text-[10px] font-medium text-sidebar-foreground/60 uppercase tracking-wider mb-0.5">
+              Subscription
+            </p>
+            <p className="text-xs text-sidebar-foreground/80">
+              Expires May 07, 2026
+            </p>
+          </div>
+          <ThemeToggle />
         </div>
         <Button
           variant="ghost"
