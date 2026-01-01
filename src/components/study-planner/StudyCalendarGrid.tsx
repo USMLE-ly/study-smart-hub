@@ -12,7 +12,9 @@ import {
   isSameDay,
   startOfWeek,
   endOfWeek,
-  isBefore
+  isBefore,
+  isAfter,
+  getDay
 } from "date-fns";
 
 interface Task {
@@ -26,6 +28,13 @@ interface Task {
   completed_at: string | null;
 }
 
+interface DayConfig {
+  day: string;
+  shortName: string;
+  enabled: boolean;
+  hours: number;
+}
+
 interface StudyCalendarGridProps {
   currentMonth: Date;
   tasks: Task[];
@@ -35,7 +44,23 @@ interface StudyCalendarGridProps {
   onTaskClick?: (task: Task) => void;
   onMoveTask?: (taskId: string, newDate: string) => void;
   onStartFocus?: (task: Task) => void;
+  // New props for plan-based filtering
+  startDate?: Date | null;
+  endDate?: Date | null;
+  studyDays?: DayConfig[];
+  blockedDates?: string[];
 }
+
+// Map day index to day name
+const dayIndexToName: Record<number, string> = {
+  0: "Sunday",
+  1: "Monday",
+  2: "Tuesday",
+  3: "Wednesday",
+  4: "Thursday",
+  5: "Friday",
+  6: "Saturday"
+};
 
 // Premium task type styling with gradients
 const taskTypeStyles: Record<string, { 
@@ -98,7 +123,11 @@ export function StudyCalendarGrid({
   onToggleComplete,
   onDeleteTask,
   onTaskClick,
-  onMoveTask
+  onMoveTask,
+  startDate,
+  endDate,
+  studyDays,
+  blockedDates = []
 }: StudyCalendarGridProps) {
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -111,6 +140,41 @@ export function StudyCalendarGrid({
   const calendarEnd = endOfWeek(monthEnd);
 
   const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+
+  // Check if a date is within the plan date range
+  const isWithinPlanRange = (date: Date) => {
+    if (!startDate || !endDate) return true;
+    return !isBefore(date, startDate) && !isAfter(date, endDate);
+  };
+
+  // Check if a date is a study day (based on selected study days)
+  const isStudyDay = (date: Date) => {
+    if (!studyDays || studyDays.length === 0) return true;
+    const dayIndex = getDay(date);
+    const dayName = dayIndexToName[dayIndex];
+    const dayConfig = studyDays.find(d => d.day === dayName);
+    return dayConfig?.enabled ?? false;
+  };
+
+  // Check if a date is blocked
+  const isBlockedDate = (date: Date) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    return blockedDates.includes(dateStr);
+  };
+
+  // Check if a date is an active study date
+  const isActiveStudyDate = (date: Date) => {
+    return isWithinPlanRange(date) && isStudyDay(date) && !isBlockedDate(date);
+  };
+
+  // Get hours allocated for a specific day
+  const getHoursForDay = (date: Date) => {
+    if (!studyDays) return 0;
+    const dayIndex = getDay(date);
+    const dayName = dayIndexToName[dayIndex];
+    const dayConfig = studyDays.find(d => d.day === dayName);
+    return dayConfig?.hours ?? 0;
+  };
 
   const getTasksForDate = (date: Date) => {
     return tasks.filter(task => isSameDay(new Date(task.scheduled_date), date));
@@ -197,19 +261,31 @@ export function StudyCalendarGrid({
           const totalTime = getTotalHoursForDate(day);
           const completionPct = getCompletionPercentage(day);
           const hasTasks = dayTasks.length > 0;
+          
+          // Plan-based filtering
+          const isActive = isActiveStudyDate(day);
+          const isBlocked = isBlockedDate(day);
+          const isOutOfRange = !isWithinPlanRange(day);
+          const allocatedHours = getHoursForDay(day);
 
           return (
             <div
               key={day.toISOString()}
-              onClick={() => handleDateClick(day)}
+              onClick={() => isActive && handleDateClick(day)}
               className={cn(
-                "border-b border-r border-border/60 last:border-r-0 p-1.5 sm:p-2 min-h-[100px] relative group cursor-pointer",
+                "border-b border-r border-border/60 last:border-r-0 p-1.5 sm:p-2 min-h-[100px] relative group",
                 "transition-all duration-300 ease-out animate-fade-in",
+                // Inactive states
                 !isCurrentMonth && "bg-muted/10 cursor-default opacity-50",
-                isToday(day) && "bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-inner",
-                isHovered && isCurrentMonth && "bg-gradient-to-br from-accent/60 to-accent/20 scale-[1.03] z-10 shadow-lg shadow-accent/20",
-                isSelected && "bg-gradient-to-br from-primary/20 to-primary/5 ring-2 ring-primary/60 ring-inset scale-[1.03] z-20 shadow-xl shadow-primary/10",
-                isDragOver && "bg-gradient-to-br from-primary/30 to-primary/10 ring-2 ring-primary ring-inset scale-[1.05] z-20 shadow-2xl"
+                isOutOfRange && isCurrentMonth && "bg-muted/20 cursor-default opacity-40",
+                isBlocked && isCurrentMonth && "bg-destructive/5 cursor-not-allowed opacity-60",
+                !isActive && isCurrentMonth && !isBlocked && !isOutOfRange && "bg-muted/30 cursor-default opacity-50",
+                // Active states
+                isActive && "cursor-pointer",
+                isActive && isToday(day) && "bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-inner",
+                isActive && isHovered && "bg-gradient-to-br from-accent/60 to-accent/20 scale-[1.03] z-10 shadow-lg shadow-accent/20",
+                isActive && isSelected && "bg-gradient-to-br from-primary/20 to-primary/5 ring-2 ring-primary/60 ring-inset scale-[1.03] z-20 shadow-xl shadow-primary/10",
+                isActive && isDragOver && "bg-gradient-to-br from-primary/30 to-primary/10 ring-2 ring-primary ring-inset scale-[1.05] z-20 shadow-2xl"
               )}
               style={{ 
                 animationDelay: `${dayIndex * 10}ms`
@@ -232,19 +308,31 @@ export function StudyCalendarGrid({
 
               {/* Day Header - enhanced */}
               <div className="flex items-start justify-between mb-2">
-                <div
-                  className={cn(
-                    "text-xs sm:text-sm font-bold transition-all duration-300",
-                    "flex items-center justify-center",
-                    !isCurrentMonth && "text-muted-foreground/30",
-                    isCurrentMonth && !isToday(day) && "text-foreground",
-                    isToday(day) && "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground w-7 h-7 rounded-full shadow-lg shadow-primary/40 ring-2 ring-primary/20",
-                    isSelected && !isToday(day) && "bg-primary/30 w-6 h-6 rounded-full ring-1 ring-primary/30"
+                <div className="flex items-center gap-1">
+                  <div
+                    className={cn(
+                      "text-xs sm:text-sm font-bold transition-all duration-300",
+                      "flex items-center justify-center",
+                      !isCurrentMonth && "text-muted-foreground/30",
+                      !isActive && isCurrentMonth && "text-muted-foreground/50",
+                      isActive && isCurrentMonth && !isToday(day) && "text-foreground",
+                      isToday(day) && "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground w-7 h-7 rounded-full shadow-lg shadow-primary/40 ring-2 ring-primary/20",
+                      isActive && isSelected && !isToday(day) && "bg-primary/30 w-6 h-6 rounded-full ring-1 ring-primary/30"
+                    )}
+                  >
+                    {format(day, "d")}
+                  </div>
+                  {isBlocked && (
+                    <span className="text-[9px] text-destructive/70 font-medium">Blocked</span>
                   )}
-                >
-                  {format(day, "d")}
                 </div>
                 <div className="flex items-center gap-1.5">
+                  {/* Show allocated hours for active study days */}
+                  {isActive && allocatedHours > 0 && (
+                    <span className="text-[10px] text-primary/70 font-semibold px-1.5 py-0.5 rounded-full bg-primary/10">
+                      {allocatedHours}h
+                    </span>
+                  )}
                   {totalTime && (
                     <span className="text-[10px] text-muted-foreground/60 font-semibold px-1.5 py-0.5 rounded-full bg-muted/50 transition-all duration-200 group-hover:bg-muted group-hover:text-muted-foreground">
                       {totalTime}
@@ -322,10 +410,13 @@ export function StudyCalendarGrid({
                 )}
               </div>
 
-              {/* Add Task Button (on hover) */}
-              {isCurrentMonth && (
+              {/* Add Task Button (on hover) - only for active study days */}
+              {isActive && isCurrentMonth && (
                 <button
-                  onClick={() => onAddTask(day)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddTask(day);
+                  }}
                   className={cn(
                     "absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] text-primary flex items-center gap-0.5",
                     "opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-1 group-hover:translate-y-0",
@@ -333,7 +424,7 @@ export function StudyCalendarGrid({
                   )}
                 >
                   <Plus className="h-3 w-3" />
-                  Add
+                  Add Task
                 </button>
               )}
             </div>
