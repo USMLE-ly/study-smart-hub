@@ -65,29 +65,28 @@ export function AppSidebar() {
 
   return (
     <Sidebar className="border-r-0 bg-sidebar">
-      {/* Logo Section */}
-      <SidebarHeader className="px-6 py-6 border-b border-sidebar-border/50">
-        <Link to="/" className="flex items-center gap-3">
-          {/* Simple Logo */}
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <svg viewBox="0 0 100 100" className="w-6 h-6">
+      {/* Logo Section - UWorld Style Centered */}
+      <SidebarHeader className="py-8 border-b border-sidebar-border/50">
+        <Link to="/" className="flex flex-col items-center text-center">
+          {/* Spiral Logo */}
+          <div className="w-16 h-16 mb-3 flex items-center justify-center">
+            <svg viewBox="0 0 100 100" className="w-14 h-14">
               <path
-                d="M50 10 C70 10, 85 25, 85 45 C85 65, 70 80, 50 80 C35 80, 25 70, 25 55 C25 42, 35 33, 48 33 C58 33, 65 40, 65 50 C65 58, 58 65, 50 65"
+                d="M50 10 C75 10, 90 30, 90 50 C90 75, 70 90, 50 90 C30 90, 15 75, 15 55 C15 38, 28 25, 48 25 C62 25, 75 38, 75 52 C75 65, 62 75, 50 75 C40 75, 32 67, 32 57 C32 48, 40 42, 50 42"
                 fill="none"
-                stroke="hsl(var(--primary))"
-                strokeWidth="6"
+                stroke="hsl(var(--sidebar-foreground))"
+                strokeWidth="5"
                 strokeLinecap="round"
+                opacity="0.9"
               />
             </svg>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-sidebar-foreground tracking-tight">
-              MedPrep
-            </h1>
-            <p className="text-xs text-sidebar-foreground/50 font-medium uppercase tracking-wider">
-              STEP 1 QBank
-            </p>
-          </div>
+          <h1 className="text-xl font-bold text-sidebar-foreground tracking-tight">
+            MedPrep
+          </h1>
+          <p className="text-xs text-sidebar-foreground/60 font-semibold uppercase tracking-wider mt-0.5">
+            STEP 1 QBANK
+          </p>
         </Link>
       </SidebarHeader>
 

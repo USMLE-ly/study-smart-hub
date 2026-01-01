@@ -135,19 +135,19 @@ export function ProgressRing({
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center justify-center gap-6 mt-4 pt-4">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-[hsl(142,71%,45%)]" />
-          <span className="text-sm text-foreground">Completed {completed}</span>
+      {/* Legend - inline format like UWorld */}
+      <div className="flex items-center justify-center gap-4 mt-4 flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-[hsl(142,71%,45%)]" />
+          <span className="text-xs text-foreground">Completed <span className="font-medium">{completed}</span></span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-[hsl(350,80%,70%)]" />
-          <span className="text-sm text-foreground">Overdue {overdue}</span>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-[hsl(350,80%,70%)]" />
+          <span className="text-xs text-foreground">Overdue <span className="font-medium">{overdue}</span></span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-primary/40" />
-          <span className="text-sm text-foreground">Incomplete {incomplete}</span>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-primary/50" />
+          <span className="text-xs text-foreground">Incomplete <span className="font-medium">{incomplete}</span></span>
         </div>
       </div>
     </div>
