@@ -15,44 +15,44 @@ export function ProgressRing({
   overdue,
   incomplete,
 }: ProgressRingProps) {
-  const size = 200;
-  const strokeWidth = 16;
+  const size = 180;
+  const strokeWidth = 14;
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
-  
+
   // Calculate the portions
   const total = completed + overdue + incomplete;
-  const completedPortion = total > 0 ? (completed / total) * 100 : 0;
-  const overduePortion = total > 0 ? (overdue / total) * 100 : 0;
-  const incompletePortion = total > 0 ? (incomplete / total) * 100 : 0;
+  const completedAngle = total > 0 ? (completed / total) * 360 : 0;
+  const overdueAngle = total > 0 ? (overdue / total) * 360 : 0;
+  const incompleteAngle = total > 0 ? (incomplete / total) * 360 : 0;
 
-  // Calculate stroke dash offsets for each segment
-  const completedOffset = circumference - (completedPortion / 100) * circumference;
-  const overdueOffset = circumference - (overduePortion / 100) * circumference;
-  const incompleteOffset = circumference - (incompletePortion / 100) * circumference;
+  // Calculate stroke dash for each segment
+  const completedDash = (completedAngle / 360) * circumference;
+  const overdueDash = (overdueAngle / 360) * circumference;
+  const incompleteDash = (incompleteAngle / 360) * circumference;
 
-  // Rotation for each segment
-  const completedRotation = -90; // Start from top
-  const overdueRotation = completedRotation + (completedPortion * 3.6);
-  const incompleteRotation = overdueRotation + (overduePortion * 3.6);
+  // Gap between segments
+  const gap = 4;
 
   return (
-    <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
+    <div className="bg-card rounded-lg border border-border p-6">
       {/* Header */}
-      <div className="mb-4">
-        <h3 className="text-base font-semibold text-foreground">Study Plan Progress</h3>
-        <div className="flex items-baseline gap-1 mt-1">
-          <span className="text-2xl font-bold text-foreground">{totalDays - daysRemaining}</span>
-          <span className="text-lg text-muted-foreground">/ {totalDays}</span>
-          <span className="text-sm text-muted-foreground ml-1">{daysRemaining} days remaining</span>
-        </div>
+      <div className="mb-2">
+        <h3 className="text-lg font-semibold text-foreground">Study Plan Progress</h3>
+      </div>
+      
+      {/* Days Counter */}
+      <div className="flex items-baseline gap-1.5 mb-6">
+        <span className="text-3xl font-bold text-foreground">{completed}</span>
+        <span className="text-xl text-muted-foreground font-medium">/ {totalDays}</span>
+        <span className="text-sm text-muted-foreground ml-2">{daysRemaining} days remaining</span>
       </div>
 
       {/* Progress Ring */}
-      <div className="flex justify-center py-4">
+      <div className="flex justify-center py-2">
         <div className="relative" style={{ width: size, height: size }}>
-          <svg width={size} height={size} className="transform">
-            {/* Background circle */}
+          <svg width={size} height={size} className="transform -rotate-90">
+            {/* Background track */}
             <circle
               cx={size / 2}
               cy={size / 2}
@@ -60,25 +60,26 @@ export function ProgressRing({
               fill="none"
               stroke="hsl(var(--muted))"
               strokeWidth={strokeWidth}
-              opacity={0.2}
-            />
-            
-            {/* Incomplete segment (blue/purple) */}
-            <circle
-              cx={size / 2}
-              cy={size / 2}
-              r={radius}
-              fill="none"
-              stroke="hsl(var(--primary))"
-              strokeWidth={strokeWidth}
-              strokeDasharray={circumference}
-              strokeDashoffset={incompleteOffset}
-              strokeLinecap="round"
-              style={{ transform: `rotate(${incompleteRotation}deg)`, transformOrigin: 'center' }}
-              opacity={0.3}
+              opacity={0.15}
             />
 
-            {/* Overdue segment (red/coral) */}
+            {/* Incomplete segment (light blue/purple) - always starts first */}
+            {incomplete > 0 && (
+              <circle
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                fill="none"
+                stroke="hsl(var(--primary))"
+                strokeWidth={strokeWidth}
+                strokeDasharray={`${incompleteDash - gap} ${circumference - incompleteDash + gap}`}
+                strokeDashoffset={-(completedDash + overdueDash)}
+                strokeLinecap="round"
+                opacity={0.35}
+              />
+            )}
+
+            {/* Overdue segment (coral/red) */}
             {overdue > 0 && (
               <circle
                 cx={size / 2}
@@ -87,51 +88,56 @@ export function ProgressRing({
                 fill="none"
                 stroke="hsl(var(--destructive))"
                 strokeWidth={strokeWidth}
-                strokeDasharray={circumference}
-                strokeDashoffset={overdueOffset}
+                strokeDasharray={`${overdueDash - gap} ${circumference - overdueDash + gap}`}
+                strokeDashoffset={-completedDash}
                 strokeLinecap="round"
-                style={{ transform: `rotate(${overdueRotation}deg)`, transformOrigin: 'center' }}
-                opacity={0.6}
+                opacity={0.7}
               />
             )}
 
-            {/* Completed segment (green) */}
-            <circle
-              cx={size / 2}
-              cy={size / 2}
-              r={radius}
-              fill="none"
-              stroke="hsl(142, 71%, 45%)"
-              strokeWidth={strokeWidth}
-              strokeDasharray={circumference}
-              strokeDashoffset={completedOffset}
-              strokeLinecap="round"
-              style={{ transform: `rotate(${completedRotation}deg)`, transformOrigin: 'center' }}
-            />
+            {/* Completed segment (green) - drawn last to be on top */}
+            {completed > 0 && (
+              <circle
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                fill="none"
+                stroke="hsl(142, 71%, 45%)"
+                strokeWidth={strokeWidth}
+                strokeDasharray={`${completedDash - gap} ${circumference - completedDash + gap}`}
+                strokeDashoffset={0}
+                strokeLinecap="round"
+              />
+            )}
           </svg>
 
           {/* Center text */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-3xl font-bold text-foreground">{progress.toFixed(2)}%</span>
-            <span className="text-sm text-muted-foreground">Completed</span>
+            <span className="text-4xl font-bold text-foreground tracking-tight">
+              {progress.toFixed(2)}%
+            </span>
+            <span className="text-sm text-muted-foreground font-medium">Completed</span>
           </div>
         </div>
       </div>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-6 mt-4 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-full" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }} />
+      <div className="flex items-center justify-center gap-5 mt-6 text-sm">
+        <div className="flex items-center gap-1.5">
+          <div
+            className="h-3 w-3 rounded-full"
+            style={{ backgroundColor: "hsl(142, 71%, 45%)" }}
+          />
           <span className="text-muted-foreground">Completed</span>
           <span className="font-semibold text-foreground">{completed}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-full bg-destructive" />
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-3 rounded-full bg-destructive opacity-70" />
           <span className="text-muted-foreground">Overdue</span>
           <span className="font-semibold text-foreground">{overdue}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-full bg-primary/30" />
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-3 rounded-full bg-primary opacity-35" />
           <span className="text-muted-foreground">Incomplete</span>
           <span className="font-semibold text-foreground">{incomplete}</span>
         </div>
