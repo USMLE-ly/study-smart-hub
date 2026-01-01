@@ -30,7 +30,7 @@ const typeStyles: Record<string, { bg: string; text: string; label: string }> = 
   practice: {
     bg: "bg-[hsl(330,81%,60%)]/10",
     text: "text-[hsl(330,81%,60%)]",
-    label: "Practice",
+    label: "Practice Questions",
   },
   flashcard: {
     bg: "bg-[hsl(38,92%,50%)]/10",
@@ -43,9 +43,14 @@ const typeStyles: Record<string, { bg: string; text: string; label: string }> = 
     label: "Tutorial",
   },
   review: {
+    bg: "bg-[hsl(142,71%,45%)]/10",
+    text: "text-[hsl(142,71%,45%)]",
+    label: "Review",
+  },
+  focus: {
     bg: "bg-primary/10",
     text: "text-primary",
-    label: "Review",
+    label: "Focus Time",
   },
 };
 
