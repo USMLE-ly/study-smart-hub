@@ -1,6 +1,6 @@
 import { useState, DragEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, GripVertical } from "lucide-react";
+import { Plus, GripVertical, Clock, CheckCircle2, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { 
   format, 
@@ -11,7 +11,8 @@ import {
   isToday,
   isSameDay,
   startOfWeek,
-  endOfWeek
+  endOfWeek,
+  isBefore
 } from "date-fns";
 
 interface Task {
@@ -33,28 +34,57 @@ interface StudyCalendarGridProps {
   onDeleteTask: (taskId: string) => void;
   onTaskClick?: (task: Task) => void;
   onMoveTask?: (taskId: string, newDate: string) => void;
+  onStartFocus?: (task: Task) => void;
 }
 
-const taskTypeColors: Record<string, { border: string; bg: string; text: string }> = {
+// Premium task type styling with gradients
+const taskTypeStyles: Record<string, { 
+  gradient: string; 
+  border: string; 
+  bg: string; 
+  text: string;
+  icon: string;
+  glow: string;
+}> = {
   practice: {
-    border: "border-l-[hsl(330,81%,60%)]",
-    bg: "bg-[hsl(330,81%,95%)]",
-    text: "text-[hsl(330,81%,40%)]"
+    gradient: "from-rose-500/20 to-pink-500/10",
+    border: "border-l-rose-500",
+    bg: "bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-950/30 dark:to-pink-950/20",
+    text: "text-rose-700 dark:text-rose-400",
+    icon: "text-rose-500",
+    glow: "hover:shadow-rose-500/10"
   },
   flashcard: {
-    border: "border-l-[hsl(38,92%,50%)]",
-    bg: "bg-[hsl(38,92%,95%)]",
-    text: "text-[hsl(38,92%,35%)]"
+    gradient: "from-amber-500/20 to-orange-500/10",
+    border: "border-l-amber-500",
+    bg: "bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20",
+    text: "text-amber-700 dark:text-amber-400",
+    icon: "text-amber-500",
+    glow: "hover:shadow-amber-500/10"
   },
   review: {
-    border: "border-l-[hsl(142,71%,45%)]",
-    bg: "bg-[hsl(142,71%,95%)]",
-    text: "text-[hsl(142,71%,35%)]"
+    gradient: "from-emerald-500/20 to-green-500/10",
+    border: "border-l-emerald-500",
+    bg: "bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/20",
+    text: "text-emerald-700 dark:text-emerald-400",
+    icon: "text-emerald-500",
+    glow: "hover:shadow-emerald-500/10"
+  },
+  tutorial: {
+    gradient: "from-blue-500/20 to-cyan-500/10",
+    border: "border-l-blue-500",
+    bg: "bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/20",
+    text: "text-blue-700 dark:text-blue-400",
+    icon: "text-blue-500",
+    glow: "hover:shadow-blue-500/10"
   },
   focus: {
-    border: "border-l-primary",
-    bg: "bg-primary/10",
-    text: "text-primary"
+    gradient: "from-violet-500/20 to-purple-500/10",
+    border: "border-l-violet-500",
+    bg: "bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/20",
+    text: "text-violet-700 dark:text-violet-400",
+    icon: "text-violet-500",
+    glow: "hover:shadow-violet-500/10"
   }
 };
 
@@ -184,10 +214,12 @@ export function StudyCalendarGrid({
               </div>
 
               {/* Tasks */}
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {dayTasks.slice(0, 3).map((task, taskIndex) => {
-                  const colors = taskTypeColors[task.task_type] || taskTypeColors.review;
+                  const styles = taskTypeStyles[task.task_type] || taskTypeStyles.review;
                   const isDragging = draggedTaskId === task.id;
+                  const isOverdue = !task.is_completed && isBefore(new Date(task.scheduled_date), new Date(format(new Date(), "yyyy-MM-dd")));
+                  
                   return (
                     <div
                       key={task.id}
@@ -199,18 +231,40 @@ export function StudyCalendarGrid({
                         onTaskClick?.(task);
                       }}
                       className={cn(
-                        "w-full text-left px-1.5 py-0.5 text-[10px] sm:text-xs rounded border-l-2 truncate cursor-grab active:cursor-grabbing flex items-center gap-1",
-                        "transition-all duration-200 hover:scale-[1.02] hover:shadow-sm active:scale-95",
-                        colors.border,
-                        colors.bg,
-                        colors.text,
-                        task.is_completed && "opacity-50 line-through",
-                        isDragging && "opacity-50 ring-2 ring-primary scale-105 rotate-1"
+                        "w-full text-left px-2 py-1 text-[10px] sm:text-xs rounded-md border-l-[3px] cursor-grab active:cursor-grabbing",
+                        "transition-all duration-300 ease-out",
+                        "hover:scale-[1.03] hover:shadow-md hover:-translate-y-0.5",
+                        "active:scale-[0.97] active:shadow-none",
+                        styles.border,
+                        styles.bg,
+                        styles.glow,
+                        task.is_completed && "opacity-50",
+                        isOverdue && !task.is_completed && "ring-1 ring-destructive/50",
+                        isDragging && "opacity-60 ring-2 ring-primary shadow-lg scale-105 rotate-1"
                       )}
                       style={{ animationDelay: `${taskIndex * 50}ms` }}
                     >
-                      <GripVertical className="h-3 w-3 opacity-0 group-hover:opacity-50 shrink-0 transition-opacity duration-200" />
-                      <span className="truncate">{task.title}</span>
+                      <div className="flex items-center gap-1">
+                        <GripVertical className="h-3 w-3 opacity-0 group-hover:opacity-40 shrink-0 transition-opacity duration-200" />
+                        {task.is_completed ? (
+                          <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
+                        ) : isOverdue ? (
+                          <Clock className="h-3 w-3 text-destructive shrink-0 animate-pulse" />
+                        ) : null}
+                        <span className={cn(
+                          "truncate font-medium",
+                          styles.text,
+                          task.is_completed && "line-through opacity-70"
+                        )}>
+                          {task.title}
+                        </span>
+                      </div>
+                      {task.estimated_duration_minutes && !task.is_completed && (
+                        <div className="flex items-center gap-1 mt-0.5 opacity-60">
+                          <Clock className="h-2.5 w-2.5" />
+                          <span className="text-[9px]">{task.estimated_duration_minutes}m</span>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
