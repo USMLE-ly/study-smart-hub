@@ -8,7 +8,6 @@ import {
   Notebook,
   HelpCircle,
   ChevronRight,
-  Menu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -24,7 +23,6 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   Collapsible,
@@ -54,38 +52,57 @@ const flashcardItems = [
 
 export function AppSidebar() {
   const location = useLocation();
-  const { toggleSidebar } = useSidebar();
   const [qbankOpen, setQbankOpen] = useState(location.pathname.startsWith("/qbank"));
   const [flashcardsOpen, setFlashcardsOpen] = useState(location.pathname.startsWith("/flashcards"));
 
   return (
-    <Sidebar className="border-r-0">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20">
-            <GraduationCap className="h-6 w-6 text-primary" />
+    <Sidebar className="border-r-0 bg-sidebar">
+      {/* Logo Section */}
+      <SidebarHeader className="px-6 py-6 border-b border-sidebar-border">
+        <div className="flex flex-col items-center gap-2">
+          {/* Spiral Logo */}
+          <div className="relative w-16 h-16">
+            <svg viewBox="0 0 100 100" className="w-full h-full">
+              <defs>
+                <linearGradient id="spiralGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="hsl(var(--primary))" />
+                  <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.6" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M50 10 C70 10, 85 25, 85 45 C85 65, 70 80, 50 80 C35 80, 25 70, 25 55 C25 42, 35 33, 48 33 C58 33, 65 40, 65 50 C65 58, 58 65, 50 65"
+                fill="none"
+                stroke="url(#spiralGradient)"
+                strokeWidth="6"
+                strokeLinecap="round"
+              />
+            </svg>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-sidebar-foreground">MedPrep</h1>
-            <p className="text-xs text-sidebar-foreground/70">STEP1 QBank</p>
+          <div className="text-center">
+            <h1 className="text-xl font-bold text-sidebar-foreground tracking-wide">MedPrep</h1>
+            <p className="text-sm text-sidebar-foreground/70 font-medium">STEP1 QBank</p>
           </div>
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-2">
+      <SidebarContent className="px-3 py-4">
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-1">
               {mainNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
                     isActive={location.pathname === item.href}
-                    className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                    className={cn(
+                      "h-11 px-4 rounded-lg transition-all duration-200",
+                      "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent",
+                      "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:font-medium"
+                    )}
                   >
-                    <Link to={item.href}>
+                    <Link to={item.href} className="flex items-center gap-3">
                       <item.icon className="h-5 w-5" />
-                      <span>{item.title}</span>
+                      <span className="text-[15px]">{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -95,25 +112,35 @@ export function AppSidebar() {
               <Collapsible open={qbankOpen} onOpenChange={setQbankOpen}>
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
-                    <SidebarMenuButton className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground w-full">
+                    <SidebarMenuButton
+                      className={cn(
+                        "h-11 px-4 rounded-lg transition-all duration-200 w-full",
+                        "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent",
+                        qbankOpen && "bg-sidebar-accent/50"
+                      )}
+                    >
                       <GraduationCap className="h-5 w-5" />
-                      <span>QBank</span>
+                      <span className="text-[15px]">QBank</span>
                       <ChevronRight
                         className={cn(
-                          "ml-auto h-4 w-4 transition-transform",
+                          "ml-auto h-4 w-4 transition-transform duration-200",
                           qbankOpen && "rotate-90"
                         )}
                       />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
+                  <CollapsibleContent className="animate-accordion-down">
+                    <SidebarMenuSub className="ml-4 pl-4 border-l border-sidebar-border/50 mt-1 space-y-0.5">
                       {qbankItems.map((item) => (
                         <SidebarMenuSubItem key={item.title}>
                           <SidebarMenuSubButton
                             asChild
                             isActive={location.pathname === item.href}
-                            className="text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                            className={cn(
+                              "h-9 px-3 rounded-md text-[14px]",
+                              "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50",
+                              "data-[active=true]:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium"
+                            )}
                           >
                             <Link to={item.href}>{item.title}</Link>
                           </SidebarMenuSubButton>
@@ -128,25 +155,35 @@ export function AppSidebar() {
               <Collapsible open={flashcardsOpen} onOpenChange={setFlashcardsOpen}>
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
-                    <SidebarMenuButton className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground w-full">
+                    <SidebarMenuButton
+                      className={cn(
+                        "h-11 px-4 rounded-lg transition-all duration-200 w-full",
+                        "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent",
+                        flashcardsOpen && "bg-sidebar-accent/50"
+                      )}
+                    >
                       <Zap className="h-5 w-5" />
-                      <span>Flashcards</span>
+                      <span className="text-[15px]">Flashcards</span>
                       <ChevronRight
                         className={cn(
-                          "ml-auto h-4 w-4 transition-transform",
+                          "ml-auto h-4 w-4 transition-transform duration-200",
                           flashcardsOpen && "rotate-90"
                         )}
                       />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
+                  <CollapsibleContent className="animate-accordion-down">
+                    <SidebarMenuSub className="ml-4 pl-4 border-l border-sidebar-border/50 mt-1 space-y-0.5">
                       {flashcardItems.map((item) => (
                         <SidebarMenuSubItem key={item.title}>
                           <SidebarMenuSubButton
                             asChild
                             isActive={location.pathname === item.href}
-                            className="text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                            className={cn(
+                              "h-9 px-3 rounded-md text-[14px]",
+                              "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50",
+                              "data-[active=true]:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium"
+                            )}
                           >
                             <Link to={item.href}>{item.title}</Link>
                           </SidebarMenuSubButton>
@@ -161,11 +198,15 @@ export function AppSidebar() {
                 <SidebarMenuButton
                   asChild
                   isActive={location.pathname === "/notebook"}
-                  className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                  className={cn(
+                    "h-11 px-4 rounded-lg transition-all duration-200",
+                    "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent",
+                    "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:font-medium"
+                  )}
                 >
-                  <Link to="/notebook">
+                  <Link to="/notebook" className="flex items-center gap-3">
                     <Notebook className="h-5 w-5" />
-                    <span>My Notebook</span>
+                    <span className="text-[15px]">My Notebook</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -174,11 +215,15 @@ export function AppSidebar() {
                 <SidebarMenuButton
                   asChild
                   isActive={location.pathname === "/help"}
-                  className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                  className={cn(
+                    "h-11 px-4 rounded-lg transition-all duration-200",
+                    "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent",
+                    "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:font-medium"
+                  )}
                 >
-                  <Link to="/help">
+                  <Link to="/help" className="flex items-center gap-3">
                     <HelpCircle className="h-5 w-5" />
-                    <span>Help</span>
+                    <span className="text-[15px]">Help</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -187,10 +232,11 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
-        <p className="text-xs text-sidebar-foreground/50 text-center">
-          © 2026 MedPrep. All rights reserved.
-        </p>
+      <SidebarFooter className="px-6 py-4 border-t border-sidebar-border">
+        <div className="text-center">
+          <p className="text-xs font-semibold text-sidebar-foreground/70">Expiration Date</p>
+          <p className="text-xs text-sidebar-foreground/50 mt-1">May 07, 2026 12:00 PM EDT</p>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );

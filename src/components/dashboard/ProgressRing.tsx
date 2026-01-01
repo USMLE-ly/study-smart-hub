@@ -1,5 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
 interface ProgressRingProps {
   progress: number;
   daysRemaining: number;
@@ -17,87 +15,127 @@ export function ProgressRing({
   overdue,
   incomplete,
 }: ProgressRingProps) {
-  const radius = 80;
-  const strokeWidth = 12;
-  const normalizedRadius = radius - strokeWidth / 2;
-  const circumference = normalizedRadius * 2 * Math.PI;
-  const strokeDashoffset = circumference - (progress / 100) * circumference;
+  const size = 200;
+  const strokeWidth = 16;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  
+  // Calculate the portions
+  const total = completed + overdue + incomplete;
+  const completedPortion = total > 0 ? (completed / total) * 100 : 0;
+  const overduePortion = total > 0 ? (overdue / total) * 100 : 0;
+  const incompletePortion = total > 0 ? (incomplete / total) * 100 : 0;
+
+  // Calculate stroke dash offsets for each segment
+  const completedOffset = circumference - (completedPortion / 100) * circumference;
+  const overdueOffset = circumference - (overduePortion / 100) * circumference;
+  const incompleteOffset = circumference - (incompletePortion / 100) * circumference;
+
+  // Rotation for each segment
+  const completedRotation = -90; // Start from top
+  const overdueRotation = completedRotation + (completedPortion * 3.6);
+  const incompleteRotation = overdueRotation + (overduePortion * 3.6);
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg font-semibold">Study Plan Progress</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          <span className="text-2xl font-bold text-foreground">
-            {totalDays - daysRemaining}
-          </span>{" "}
-          / {totalDays}{" "}
-          <span className="text-muted-foreground">{daysRemaining} days remaining</span>
-        </p>
-      </CardHeader>
-      <CardContent className="flex flex-col items-center">
-        <div className="relative">
-          <svg height={radius * 2} width={radius * 2} className="-rotate-90">
+    <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
+      {/* Header */}
+      <div className="mb-4">
+        <h3 className="text-base font-semibold text-foreground">Study Plan Progress</h3>
+        <div className="flex items-baseline gap-1 mt-1">
+          <span className="text-2xl font-bold text-foreground">{totalDays - daysRemaining}</span>
+          <span className="text-lg text-muted-foreground">/ {totalDays}</span>
+          <span className="text-sm text-muted-foreground ml-1">{daysRemaining} days remaining</span>
+        </div>
+      </div>
+
+      {/* Progress Ring */}
+      <div className="flex justify-center py-4">
+        <div className="relative" style={{ width: size, height: size }}>
+          <svg width={size} height={size} className="transform">
             {/* Background circle */}
             <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
               stroke="hsl(var(--muted))"
-              fill="transparent"
               strokeWidth={strokeWidth}
-              r={normalizedRadius}
-              cx={radius}
-              cy={radius}
               opacity={0.2}
             />
-            {/* Incomplete arc */}
+            
+            {/* Incomplete segment (blue/purple) */}
             <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
               stroke="hsl(var(--primary))"
-              fill="transparent"
               strokeWidth={strokeWidth}
               strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
+              strokeDashoffset={incompleteOffset}
               strokeLinecap="round"
-              r={normalizedRadius}
-              cx={radius}
-              cy={radius}
+              style={{ transform: `rotate(${incompleteRotation}deg)`, transformOrigin: 'center' }}
               opacity={0.3}
             />
-            {/* Progress arc */}
+
+            {/* Overdue segment (red/coral) */}
+            {overdue > 0 && (
+              <circle
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                fill="none"
+                stroke="hsl(var(--destructive))"
+                strokeWidth={strokeWidth}
+                strokeDasharray={circumference}
+                strokeDashoffset={overdueOffset}
+                strokeLinecap="round"
+                style={{ transform: `rotate(${overdueRotation}deg)`, transformOrigin: 'center' }}
+                opacity={0.6}
+              />
+            )}
+
+            {/* Completed segment (green) */}
             <circle
-              stroke="hsl(var(--badge-success))"
-              fill="transparent"
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke="hsl(142, 71%, 45%)"
               strokeWidth={strokeWidth}
               strokeDasharray={circumference}
-              strokeDashoffset={circumference - (progress / 100) * circumference}
+              strokeDashoffset={completedOffset}
               strokeLinecap="round"
-              r={normalizedRadius}
-              cx={radius}
-              cy={radius}
+              style={{ transform: `rotate(${completedRotation}deg)`, transformOrigin: 'center' }}
             />
           </svg>
+
+          {/* Center text */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-3xl font-bold text-foreground">{progress.toFixed(2)}%</span>
             <span className="text-sm text-muted-foreground">Completed</span>
           </div>
         </div>
+      </div>
 
-        <div className="mt-6 flex items-center justify-center gap-6 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-[hsl(var(--badge-success))]" />
-            <span className="text-muted-foreground">Completed</span>
-            <span className="font-semibold text-foreground">{completed}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-destructive" />
-            <span className="text-muted-foreground">Overdue</span>
-            <span className="font-semibold text-foreground">{overdue}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-primary/30" />
-            <span className="text-muted-foreground">Incomplete</span>
-            <span className="font-semibold text-foreground">{incomplete}</span>
-          </div>
+      {/* Legend */}
+      <div className="flex items-center justify-center gap-6 mt-4 text-sm">
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-full" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }} />
+          <span className="text-muted-foreground">Completed</span>
+          <span className="font-semibold text-foreground">{completed}</span>
         </div>
-      </CardContent>
-    </Card>
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-full bg-destructive" />
+          <span className="text-muted-foreground">Overdue</span>
+          <span className="font-semibold text-foreground">{overdue}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-full bg-primary/30" />
+          <span className="text-muted-foreground">Incomplete</span>
+          <span className="font-semibold text-foreground">{incomplete}</span>
+        </div>
+      </div>
+    </div>
   );
 }

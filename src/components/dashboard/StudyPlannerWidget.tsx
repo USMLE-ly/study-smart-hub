@@ -1,8 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, Clock } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface StudyTask {
@@ -16,7 +14,7 @@ interface StudyTask {
 const upcomingTasks: StudyTask[] = [
   {
     id: "1",
-    title: "Learn the Basics: How to Use your Study Plan",
+    title: "Learn the Basics: Ho...",
     type: "tutorial",
     duration: "07 mins",
     completed: true,
@@ -30,10 +28,10 @@ const upcomingTasks: StudyTask[] = [
   },
   {
     id: "3",
-    title: "Practice Questions",
+    title: "Practice Questio...",
     type: "practice",
     duration: "12 hrs, 18 mins",
-    completed: false,
+    completed: true,
   },
 ];
 
@@ -75,79 +73,92 @@ export function StudyPlannerWidget() {
   });
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-lg font-semibold">Study Planner</CardTitle>
-        <span className="text-sm text-muted-foreground">{today}</span>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="upcoming" className="w-full">
-          <div className="flex items-center justify-between mb-4">
-            <TabsList>
-              <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-              <TabsTrigger value="overdue" className="relative">
-                Overdue
-                {overdueTasks.length > 0 && (
-                  <span className="ml-2 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-xs text-destructive-foreground">
-                    {overdueTasks.length}
-                  </span>
-                )}
-              </TabsTrigger>
-            </TabsList>
-            <Button variant="link" asChild className="text-primary">
-              <Link to="/study-planner">View Plan</Link>
-            </Button>
-          </div>
+    <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-semibold text-foreground">Study Planner</h3>
+        <span className="text-sm text-muted-foreground">Today, {today.split(', ').slice(1).join(', ')}</span>
+      </div>
 
-          <TabsContent value="upcoming" className="space-y-3">
-            {upcomingTasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-center justify-between rounded-lg border border-border p-3 hover:bg-accent/50 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <CheckCircle2
-                    className={`h-5 w-5 ${
-                      task.completed ? "text-[hsl(var(--badge-success))]" : "text-muted"
-                    }`}
-                  />
-                  <span className="text-sm font-medium text-foreground truncate max-w-[200px]">
-                    {task.title}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Badge variant={badgeVariants[task.type]}>{typeLabels[task.type]}</Badge>
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Clock className="h-4 w-4" />
-                    {task.duration}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </TabsContent>
+      {/* Tabs */}
+      <Tabs defaultValue="upcoming" className="w-full">
+        <div className="flex items-center justify-between mb-4">
+          <TabsList className="h-9 bg-muted/50 p-1">
+            <TabsTrigger 
+              value="upcoming" 
+              className="text-sm px-4 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm"
+            >
+              Upcoming
+            </TabsTrigger>
+            <TabsTrigger 
+              value="overdue" 
+              className="text-sm px-4 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm relative"
+            >
+              Overdue
+              {overdueTasks.length > 0 && (
+                <span className="ml-2 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[11px] font-medium text-destructive-foreground">
+                  {overdueTasks.length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+          <Link 
+            to="/study-planner" 
+            className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+          >
+            View Plan
+          </Link>
+        </div>
 
-          <TabsContent value="overdue" className="space-y-3">
-            {overdueTasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-center justify-between rounded-lg border border-destructive/30 bg-destructive/5 p-3"
-              >
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-destructive" />
-                  <span className="text-sm font-medium text-foreground">{task.title}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Badge variant={badgeVariants[task.type]}>{typeLabels[task.type]}</Badge>
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Clock className="h-4 w-4" />
-                    {task.duration}
-                  </div>
-                </div>
+        <TabsContent value="upcoming" className="space-y-2 mt-0">
+          {upcomingTasks.map((task) => (
+            <div
+              key={task.id}
+              className="flex items-center justify-between py-3 border-b border-border/50 last:border-0"
+            >
+              <div className="flex items-center gap-3">
+                <CheckCircle2
+                  className="h-5 w-5 flex-shrink-0"
+                  style={{ color: task.completed ? 'hsl(142, 71%, 45%)' : 'hsl(var(--muted-foreground))' }}
+                />
+                <span className="text-sm font-medium text-foreground">
+                  {task.title}
+                </span>
               </div>
-            ))}
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+              <div className="flex items-center gap-3">
+                <Badge variant={badgeVariants[task.type]} className="text-xs font-medium">
+                  {typeLabels[task.type]}
+                </Badge>
+                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                  {task.duration}
+                </span>
+              </div>
+            </div>
+          ))}
+        </TabsContent>
+
+        <TabsContent value="overdue" className="space-y-2 mt-0">
+          {overdueTasks.map((task) => (
+            <div
+              key={task.id}
+              className="flex items-center justify-between py-3 border-b border-destructive/20 last:border-0 bg-destructive/5 -mx-5 px-5"
+            >
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="h-5 w-5 text-destructive flex-shrink-0" />
+                <span className="text-sm font-medium text-foreground">{task.title}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <Badge variant={badgeVariants[task.type]} className="text-xs font-medium">
+                  {typeLabels[task.type]}
+                </Badge>
+                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                  {task.duration}
+                </span>
+              </div>
+            </div>
+          ))}
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
