@@ -23,6 +23,7 @@ import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
 import QuestionImport from "./pages/QuestionImport";
 import NotFound from "./pages/NotFound";
+import Analytics from "./pages/Analytics";
 
 const queryClient = new QueryClient();
 
@@ -207,6 +208,16 @@ const App = () => (
                 <ProtectedRoute>
                   <PageTransition>
                     <Profile />
+                  </PageTransition>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <ProtectedRoute>
+                  <PageTransition>
+                    <Analytics />
                   </PageTransition>
                 </ProtectedRoute>
               }
