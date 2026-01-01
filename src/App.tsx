@@ -14,6 +14,7 @@ import SearchQuestions from "./pages/SearchQuestions";
 import Flashcards from "./pages/Flashcards";
 import Notebook from "./pages/Notebook";
 import Help from "./pages/Help";
+import PracticeTest from "./pages/PracticeTest";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
           <Route path="/qbank/performance" element={<Performance />} />
           <Route path="/qbank/search" element={<SearchQuestions />} />
           <Route path="/qbank/notes" element={<Notebook />} />
+          <Route path="/qbank/practice" element={<PracticeTest />} />
           <Route path="/flashcards" element={<Flashcards />} />
           <Route path="/flashcards/study" element={<Flashcards />} />
           <Route path="/flashcards/decks" element={<Flashcards />} />
