@@ -7,6 +7,7 @@ interface ProgressRingProps {
   completed: number;
   overdue: number;
   incomplete: number;
+  isPulsing?: boolean;
 }
 
 export function ProgressRing({
@@ -16,6 +17,7 @@ export function ProgressRing({
   completed,
   overdue,
   incomplete,
+  isPulsing = false,
 }: ProgressRingProps) {
   const size = 200;
   const strokeWidth = 10; // Thinner ring like reference
@@ -25,8 +27,30 @@ export function ProgressRing({
   // Animation state with smooth counting
   const [animatedProgress, setAnimatedProgress] = useState(0);
   const [displayProgress, setDisplayProgress] = useState(0);
+  const [showPulse, setShowPulse] = useState(false);
   const animationRef = useRef<number | null>(null);
   const prevProgressRef = useRef(0);
+  const prevCompletedRef = useRef(completed);
+
+  // Trigger pulse animation when a task is completed
+  useEffect(() => {
+    if (completed > prevCompletedRef.current) {
+      setShowPulse(true);
+      const timer = setTimeout(() => setShowPulse(false), 600);
+      prevCompletedRef.current = completed;
+      return () => clearTimeout(timer);
+    }
+    prevCompletedRef.current = completed;
+  }, [completed]);
+
+  // Also respond to external isPulsing prop
+  useEffect(() => {
+    if (isPulsing) {
+      setShowPulse(true);
+      const timer = setTimeout(() => setShowPulse(false), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [isPulsing]);
 
   // Smooth progress animation with easing
   useEffect(() => {
@@ -112,7 +136,20 @@ export function ProgressRing({
           <div className="w-32 h-32 rounded-full bg-primary/20" />
         </div>
         
-        <div className="relative transition-transform duration-500 group-hover:scale-105" style={{ width: size, height: size }}>
+        <div 
+          className={`relative transition-transform duration-500 group-hover:scale-105 ${showPulse ? 'animate-pulse-ring' : ''}`} 
+          style={{ width: size, height: size }}
+        >
+          {/* Pulse effect ring */}
+          {showPulse && (
+            <div 
+              className="absolute inset-0 rounded-full animate-ping-slow"
+              style={{ 
+                border: `3px solid ${greenColor}`,
+                opacity: 0.4,
+              }}
+            />
+          )}
           <svg width={size} height={size} className="transform -rotate-90">
             {/* Background track */}
             <circle
