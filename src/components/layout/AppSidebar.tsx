@@ -252,6 +252,15 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="px-6 py-5 border-t border-sidebar-border">
+        <Link
+          to="/profile"
+          className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-sidebar-accent transition-colors mb-3"
+        >
+          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+            <Home className="h-4 w-4 text-primary" />
+          </div>
+          <span className="text-sm text-sidebar-foreground/70">My Profile</span>
+        </Link>
         <div className="text-center">
           <p className="text-xs font-semibold text-sidebar-foreground/60 uppercase tracking-wide">
             Expiration Date
