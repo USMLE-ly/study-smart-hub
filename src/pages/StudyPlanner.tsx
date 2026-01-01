@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,21 +15,29 @@ import {
   Settings,
   Plus
 } from "lucide-react";
-import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, isSameDay } from "date-fns";
+import { format, addMonths, subMonths } from "date-fns";
 import { StudyCalendarGrid } from "@/components/study-planner/StudyCalendarGrid";
 import { AddTaskDialog } from "@/components/study-planner/AddTaskDialog";
 import { useStudyTasks } from "@/hooks/useStudyTasks";
 import { LoadingState } from "@/components/ui/LoadingSpinner";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 const StudyPlanner = () => {
+  const navigate = useNavigate();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showAddTask, setShowAddTask] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [viewMode, setViewMode] = useState("month");
   
   const { tasks, loading, addTask, toggleComplete, deleteTask, stats } = useStudyTasks();
+
+  // If no tasks exist, redirect to setup
+  useEffect(() => {
+    if (!loading && tasks.length === 0) {
+      navigate("/study-planner/setup");
+    }
+  }, [loading, tasks, navigate]);
 
   const handleAddTask = async (task: {
     title: string;
@@ -72,6 +80,15 @@ const StudyPlanner = () => {
     return (
       <AppLayout title="Study Planner">
         <LoadingState message="Loading your study plan..." />
+      </AppLayout>
+    );
+  }
+
+  // If no tasks, show nothing (will redirect)
+  if (tasks.length === 0) {
+    return (
+      <AppLayout title="Study Planner">
+        <LoadingState message="Setting up your study plan..." />
       </AppLayout>
     );
   }
