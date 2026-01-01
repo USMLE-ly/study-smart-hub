@@ -166,6 +166,16 @@ const App = () => (
               }
             />
             <Route
+              path="/flashcards/study"
+              element={
+                <ProtectedRoute>
+                  <PageTransition>
+                    <Flashcards />
+                  </PageTransition>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/flashcards/decks"
               element={
                 <ProtectedRoute>

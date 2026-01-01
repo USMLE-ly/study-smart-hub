@@ -3,19 +3,33 @@ import { StatsCard } from "@/components/dashboard/StatsCard";
 import { StudyPlannerWidget } from "@/components/dashboard/StudyPlannerWidget";
 import { ProgressRing } from "@/components/dashboard/ProgressRing";
 import { SkeletonCard } from "@/components/ui/LoadingSpinner";
+import { LeaderboardWidget } from "@/components/gamification/LeaderboardWidget";
+import { StreakCelebration, useStreakCelebration } from "@/components/gamification/StreakCelebration";
+import { GamificationWidget } from "@/components/gamification/GamificationWidget";
 import { FileText, Plus, ClipboardList } from "lucide-react";
 import { useTests } from "@/hooks/useTests";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useStudyTasks } from "@/hooks/useStudyTasks";
+import { useGamification } from "@/hooks/useGamification";
+import { useEffect } from "react";
 
 const Dashboard = () => {
   const { user } = useAuth();
   const { profile, loading: profileLoading } = useProfile();
   const { tests, loading: testsLoading } = useTests();
   const { stats, loading: tasksLoading } = useStudyTasks();
+  const { stats: gamificationStats } = useGamification();
+  const { celebratingStreak, checkAndCelebrate, closeCelebration } = useStreakCelebration();
 
   const isLoading = profileLoading || testsLoading;
+
+  // Check for streak milestones
+  useEffect(() => {
+    if (gamificationStats?.current_streak) {
+      checkAndCelebrate(gamificationStats.current_streak);
+    }
+  }, [gamificationStats?.current_streak, checkAndCelebrate]);
 
   // Calculate real stats from tests
   const completedTests = tests?.filter(t => t.status === 'completed') || [];
@@ -62,6 +76,11 @@ const Dashboard = () => {
 
   return (
     <AppLayout title="Dashboard">
+      {/* Streak Celebration Modal */}
+      {celebratingStreak && (
+        <StreakCelebration streak={celebratingStreak} onClose={closeCelebration} />
+      )}
+
       <div className="space-y-5 max-w-7xl">
         {/* Welcome Text */}
         <p className="text-base text-foreground animate-fade-in">Welcome</p>
@@ -109,6 +128,16 @@ const Dashboard = () => {
               overdue={stats.overdue}
               incomplete={stats.upcoming}
             />
+          </div>
+        </div>
+
+        {/* Gamification and Leaderboard Row */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="animate-fade-in" style={{ animationDelay: '300ms' }}>
+            <GamificationWidget />
+          </div>
+          <div className="animate-fade-in" style={{ animationDelay: '350ms' }}>
+            <LeaderboardWidget />
           </div>
         </div>
       </div>

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -11,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tag, FileText, Layers, Clock, Check } from "lucide-react";
+import { Tag, Layers, Clock, Check } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -37,8 +36,7 @@ interface QuestionMode {
 
 export function AddTaskDialog({ open, onOpenChange, onAddTask, selectedDate }: AddTaskDialogProps) {
   const [taskName, setTaskName] = useState("");
-  const [taskType, setTaskType] = useState<"practice" | "flashcard" | "focus">("practice");
-  const [preselection, setPreselection] = useState<"shelf" | "step2">("shelf");
+  const [taskType, setTaskType] = useState<"practice" | "flashcard" | "custom">("practice");
   const [questionModes, setQuestionModes] = useState<QuestionMode[]>([
     { id: "unused", label: "Unused", count: 4018, checked: true },
     { id: "incorrect", label: "Incorrect", count: 0, checked: false },
@@ -53,7 +51,6 @@ export function AddTaskDialog({ open, onOpenChange, onAddTask, selectedDate }: A
   const resetForm = () => {
     setTaskName("");
     setTaskType("practice");
-    setPreselection("shelf");
     setQuestionModes([
       { id: "unused", label: "Unused", count: 4018, checked: true },
       { id: "incorrect", label: "Incorrect", count: 0, checked: false },
@@ -81,22 +78,22 @@ export function AddTaskDialog({ open, onOpenChange, onAddTask, selectedDate }: A
   };
 
   const handleSubmit = async () => {
-    if (!taskName.trim() && taskType !== "focus") return;
+    if (!taskName.trim() && taskType !== "custom") return;
 
     setIsSubmitting(true);
     
     try {
-      const title = taskType === "focus" 
+      const title = taskType === "custom" 
         ? `Focus Time: ${focusDescription || "Study Session"}`
         : taskName.trim();
 
-      const duration = taskType === "focus" 
+      const duration = taskType === "custom" 
         ? focusHours[0] * 60 
         : taskType === "practice" ? 90 : 60;
 
       await onAddTask({
         title,
-        description: taskType === "focus" ? focusDescription : "",
+        description: taskType === "custom" ? focusDescription : "",
         task_type: taskType,
         scheduled_date: format(selectedDate || new Date(), "yyyy-MM-dd"),
         estimated_duration_minutes: duration,
@@ -165,15 +162,15 @@ export function AddTaskDialog({ open, onOpenChange, onAddTask, selectedDate }: A
               </button>
               <button
                 type="button"
-                onClick={() => setTaskType("focus")}
+                onClick={() => setTaskType("custom")}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                  taskType === "focus" 
+                  taskType === "custom" 
                     ? "text-primary border border-primary bg-primary/5" 
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                {taskType === "focus" && <Check className="h-4 w-4" />}
+                {taskType === "custom" && <Check className="h-4 w-4" />}
                 Focus Time
               </button>
             </div>
@@ -182,27 +179,6 @@ export function AddTaskDialog({ open, onOpenChange, onAddTask, selectedDate }: A
           {/* Conditional content based on task type */}
           {taskType === "practice" && (
             <>
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <Label className="text-sm font-medium">Preselections</Label>
-                </div>
-                <RadioGroup 
-                  value={preselection} 
-                  onValueChange={(val) => setPreselection(val as "shelf" | "step2")}
-                  className="flex gap-8"
-                >
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="shelf" id="shelf" />
-                    <Label htmlFor="shelf" className="text-sm cursor-pointer">Shelf Review</Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="step2" id="step2" />
-                    <Label htmlFor="step2" className="text-sm cursor-pointer">Step 2 Review</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Question Mode</Label>
                 <div className="grid grid-cols-2 gap-3">
@@ -245,7 +221,7 @@ export function AddTaskDialog({ open, onOpenChange, onAddTask, selectedDate }: A
             </div>
           )}
 
-          {taskType === "focus" && (
+          {taskType === "custom" && (
             <>
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
@@ -294,7 +270,7 @@ export function AddTaskDialog({ open, onOpenChange, onAddTask, selectedDate }: A
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={(taskType !== "focus" && !taskName.trim()) || isSubmitting}
+              disabled={(taskType !== "custom" && !taskName.trim()) || isSubmitting}
             >
               {isSubmitting ? "Adding..." : "Add Task"}
             </Button>
