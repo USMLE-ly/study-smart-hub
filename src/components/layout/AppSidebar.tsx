@@ -11,6 +11,7 @@ import {
   LogOut,
   BarChart3,
   Sparkles,
+  FileBarChart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -39,6 +40,7 @@ import { Button } from "@/components/ui/button";
 const mainNavItems = [
   { title: "Dashboard", icon: LayoutDashboard, href: "/" },
   { title: "Study Planner", icon: Calendar, href: "/study-planner" },
+  { title: "Weekly Report", icon: FileBarChart, href: "/weekly-report" },
   { title: "Analytics", icon: BarChart3, href: "/analytics" },
   { title: "Medical Library", icon: BookOpen, href: "/library" },
 ];
