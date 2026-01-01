@@ -13,6 +13,9 @@ export interface Profile {
   target_exam_date: string | null;
   timezone: string | null;
   study_goal_hours_per_day: number | null;
+  weekly_email_enabled: boolean | null;
+  weekly_email_day: number | null;
+  email_verified: boolean | null;
   created_at: string;
   updated_at: string;
 }

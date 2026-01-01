@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
+import { useSettings } from "@/contexts/SettingsContext";
 
 interface ProgressRingProps {
   progress: number;
@@ -25,7 +26,12 @@ export function ProgressRing({
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
   
-  const { playTaskComplete } = useSoundEffects({ volume: 0.3, enabled: true });
+  const { settings } = useSettings();
+  const { playTaskComplete } = useSoundEffects({ 
+    volume: settings.soundVolume, 
+    enabled: settings.soundEnabled,
+    tone: settings.soundTone,
+  });
 
   // Animation state with smooth counting
   const [animatedProgress, setAnimatedProgress] = useState(0);
