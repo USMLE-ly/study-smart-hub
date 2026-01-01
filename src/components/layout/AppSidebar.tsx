@@ -12,6 +12,7 @@ import {
   BarChart3,
   Sparkles,
   FileBarChart,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -218,6 +219,23 @@ export function AppSidebar() {
                   <Link to="/notebook" className="flex items-center gap-3">
                     <Notebook className="h-[18px] w-[18px]" strokeWidth={1.5} />
                     <span className="text-sm">My Notebook</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={location.pathname === "/settings"}
+                  className={cn(
+                    "h-10 px-3 rounded-lg transition-all duration-150",
+                    "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/60",
+                    "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground data-[active=true]:font-medium"
+                  )}
+                >
+                  <Link to="/settings" className="flex items-center gap-3">
+                    <Settings className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                    <span className="text-sm">Settings</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
