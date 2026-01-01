@@ -98,12 +98,14 @@ export function TaskList({
 
   if (sortedTasks.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <Calendar className="h-12 w-12 text-muted-foreground/40 mb-4" />
-        <p className="text-muted-foreground font-medium">No tasks scheduled</p>
-        <p className="text-sm text-muted-foreground/70 mt-1">
+      <div className="flex flex-col items-center justify-center py-16 text-center animate-fade-in">
+        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-muted/80 to-muted/40 flex items-center justify-center mb-4 shadow-inner">
+          <Calendar className="h-8 w-8 text-muted-foreground/50" />
+        </div>
+        <p className="text-muted-foreground font-semibold text-lg">No tasks scheduled</p>
+        <p className="text-sm text-muted-foreground/60 mt-1.5 max-w-[200px]">
           {showAllTasks
-            ? "Add tasks to your study plan"
+            ? "Add tasks to your study plan to get started"
             : `No tasks for ${format(selectedDate, "MMMM d")}`}
         </p>
       </div>
@@ -122,62 +124,70 @@ export function TaskList({
           <div
             key={task.id}
             className={cn(
-              "group flex items-center gap-4 p-4 rounded-xl border transition-all duration-300 ease-out",
-              "hover:shadow-lg hover:-translate-y-1 hover:scale-[1.01]",
-              "active:scale-[0.99] active:shadow-none",
+              "group relative flex items-center gap-4 p-4 rounded-xl border transition-all duration-300 ease-out overflow-hidden",
+              "hover:shadow-xl hover:-translate-y-1.5 hover:scale-[1.02]",
+              "active:scale-[0.99] active:shadow-md active:translate-y-0",
               "animate-fade-in",
               task.is_completed
-                ? "bg-muted/30 border-border/40"
+                ? "bg-muted/20 border-border/30 opacity-70 hover:opacity-100"
                 : isOverdue
-                ? "bg-destructive/5 border-destructive/30 hover:border-destructive/50"
-                : cn("bg-card", style.border)
+                ? "bg-gradient-to-r from-destructive/10 to-destructive/5 border-destructive/40 hover:border-destructive/60 hover:shadow-destructive/10"
+                : cn("bg-card hover:shadow-primary/5", style.border)
             )}
-            style={{ animationDelay: `${index * 50}ms` }}
+            style={{ animationDelay: `${index * 60}ms` }}
           >
-            {/* Checkbox */}
+            {/* Gradient accent bar on left */}
+            {!task.is_completed && (
+              <div className={cn(
+                "absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b opacity-60 group-hover:opacity-100 transition-opacity duration-300",
+                style.gradient
+              )} />
+            )}
+            {/* Checkbox - enhanced */}
             <button
               onClick={() => onToggleComplete(task.id, !task.is_completed)}
-              className="shrink-0"
+              className="shrink-0 transition-transform duration-200 hover:scale-110 active:scale-95"
             >
               {task.is_completed ? (
-                <CheckCircle2 className="h-5 w-5 text-[hsl(142,71%,45%)]" />
+                <CheckCircle2 className="h-6 w-6 text-emerald-500 drop-shadow-sm" />
               ) : isOverdue ? (
-                <Circle className="h-5 w-5 text-destructive" />
+                <Circle className="h-6 w-6 text-destructive animate-pulse" />
               ) : (
-                <Circle className="h-5 w-5 text-muted-foreground hover:text-primary transition-colors" />
+                <Circle className="h-6 w-6 text-muted-foreground/50 hover:text-primary transition-colors duration-200" />
               )}
             </button>
 
             {/* Content */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
+            <div className="flex-1 min-w-0 pl-1">
+              <div className="flex items-center gap-2.5 mb-1">
                 <span
                   className={cn(
-                    "font-medium text-sm",
-                    task.is_completed && "line-through text-muted-foreground"
+                    "font-semibold text-sm transition-all duration-200",
+                    task.is_completed && "line-through text-muted-foreground/70"
                   )}
                 >
                   {task.title}
                 </span>
                 {isOverdue && !task.is_completed && (
-                  <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                  <Badge variant="destructive" className="text-[10px] px-2 py-0.5 font-semibold animate-pulse">
                     Overdue
                   </Badge>
                 )}
               </div>
               {task.description && (
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-xs text-muted-foreground/70 truncate max-w-[300px]">
                   {task.description}
                 </p>
               )}
             </div>
 
-            {/* Meta */}
+            {/* Meta - enhanced */}
             <div className="flex items-center gap-3 shrink-0">
               <Badge
                 variant="outline"
                 className={cn(
-                  "text-xs font-medium px-2.5 py-0.5 rounded-full border",
+                  "text-xs font-semibold px-3 py-1 rounded-full border-2 transition-all duration-200",
+                  "group-hover:scale-105",
                   style.bg,
                   style.text
                 )}
@@ -186,14 +196,14 @@ export function TaskList({
               </Badge>
 
               {task.estimated_duration_minutes && (
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded-full">
                   <Clock className="h-3.5 w-3.5" />
-                  <span>{formatDuration(task.estimated_duration_minutes)}</span>
+                  <span className="font-medium">{formatDuration(task.estimated_duration_minutes)}</span>
                 </div>
               )}
 
               {showAllTasks && (
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground font-medium">
                   {format(new Date(task.scheduled_date), "MMM d")}
                 </span>
               )}
@@ -203,22 +213,25 @@ export function TaskList({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-muted"
                   >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="animate-scale-in">
                   <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
+                    className="text-destructive focus:text-destructive cursor-pointer"
                     onClick={() => onDeleteTask(task.id)}
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
+                    Delete Task
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+            
+            {/* Hover shimmer effect */}
+            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/5 to-transparent pointer-events-none" />
           </div>
         );
       })}
