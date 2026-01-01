@@ -9,6 +9,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -61,6 +71,7 @@ const StudyPlanner = () => {
   
   // Plan created state - show calendar after plan is created
   const [planCreated, setPlanCreated] = useState(false);
+  const [showEditConfirm, setShowEditConfirm] = useState(false);
   
   const { tasks, loading, addTask, updateTask, toggleComplete, deleteTask, stats } = useStudyTasks();
   const { schedule: savedSchedule, saveSchedule, updateBlockedDates } = useStudySchedule();
@@ -466,13 +477,34 @@ const StudyPlanner = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setPlanCreated(false)}
+                  onClick={() => setShowEditConfirm(true)}
                   className="gap-2"
                 >
                   <Pencil className="h-4 w-4" />
                   Edit Plan
                 </Button>
               </div>
+
+              {/* Edit Plan Confirmation Dialog */}
+              <AlertDialog open={showEditConfirm} onOpenChange={setShowEditConfirm}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Edit Study Plan?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will take you back to the plan setup screen where you can modify the date range, blocked dates, and study schedule. Your existing tasks will remain unchanged.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => {
+                      setPlanCreated(false);
+                      setShowEditConfirm(false);
+                    }}>
+                      Continue
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
               
               <div className="flex-1 bg-card rounded-lg border border-border overflow-hidden shadow-sm">
                 <StudyCalendarGrid
