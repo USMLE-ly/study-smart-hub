@@ -14,16 +14,15 @@ import {
   ChevronRight, 
   Settings,
   Plus,
-  Focus,
-  X,
   Sparkles,
   Music,
-  Keyboard
+  Keyboard,
+  CalendarDays
 } from "lucide-react";
 import { useConfetti } from "@/hooks/useConfetti";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
-import { format, addMonths, subMonths, differenceInDays, parseISO } from "date-fns";
+import { format, addMonths, subMonths, differenceInDays, parseISO, eachDayOfInterval, getDay } from "date-fns";
 import { StudyCalendarGrid } from "@/components/study-planner/StudyCalendarGrid";
 import { AddTaskDialog } from "@/components/study-planner/AddTaskDialog";
 import { TaskDetailSheet } from "@/components/study-planner/TaskDetailSheet";
@@ -38,7 +37,6 @@ import { useStudyTasks, StudyTask } from "@/hooks/useStudyTasks";
 import { useStudySchedule } from "@/hooks/useStudySchedule";
 import { LoadingState } from "@/components/ui/LoadingSpinner";
 import { toast } from "sonner";
-import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useProfile } from "@/hooks/useProfile";
 
@@ -53,11 +51,14 @@ const StudyPlanner = () => {
   const [showRightPanel, setShowRightPanel] = useState(true);
   const [focusTask, setFocusTask] = useState<StudyTask | null>(null);
   
+  // Setup mode vs Calendar mode
+  const [isSetupMode, setIsSetupMode] = useState(true);
+  const [planCreated, setPlanCreated] = useState(false);
+  
   // Date range picker state
   const [dateRangeOpen, setDateRangeOpen] = useState(true);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
-  const [showMainCalendar, setShowMainCalendar] = useState(true);
   
   const { tasks, loading, addTask, updateTask, toggleComplete, deleteTask, stats } = useStudyTasks();
   const { schedule: savedSchedule, saveSchedule, updateBlockedDates } = useStudySchedule();
@@ -66,7 +67,7 @@ const StudyPlanner = () => {
   const { playTaskComplete, playAchievement } = useSoundEffects({ volume: 0.3, enabled: true });
   const prevCompletedRef = useRef<number>(0);
 
-  // Load saved schedule on mount
+  // Load saved schedule on mount and check if plan exists
   useEffect(() => {
     if (savedSchedule) {
       if (savedSchedule.start_date) {
@@ -75,8 +76,21 @@ const StudyPlanner = () => {
       if (savedSchedule.end_date) {
         setEndDate(parseISO(savedSchedule.end_date));
       }
+      // If schedule exists with data and tasks exist, show calendar mode
+      if (savedSchedule.schedule_data && Array.isArray(savedSchedule.schedule_data) && savedSchedule.schedule_data.length > 0) {
+        setIsSetupMode(false);
+        setPlanCreated(true);
+      }
     }
   }, [savedSchedule]);
+
+  // Also check if tasks already exist
+  useEffect(() => {
+    if (!loading && tasks.length > 0) {
+      setIsSetupMode(false);
+      setPlanCreated(true);
+    }
+  }, [loading, tasks.length]);
 
   // Track completed tasks for confetti trigger
   useEffect(() => {
@@ -196,6 +210,70 @@ const StudyPlanner = () => {
     setFocusTask(null);
   };
 
+  // Handle creating the study plan and generating tasks
+  const handleCreatePlan = async () => {
+    if (!startDate || !endDate) {
+      toast.error("Please select a start and end date for your study plan");
+      return;
+    }
+    
+    const scheduleData = savedSchedule?.schedule_data || [];
+    if (!Array.isArray(scheduleData) || scheduleData.length === 0) {
+      toast.error("Please configure your study days and hours");
+      return;
+    }
+
+    // Check if any day has hours > 0
+    const hasStudyDays = scheduleData.some((s: any) => s.enabled && s.hours > 0);
+    if (!hasStudyDays) {
+      toast.error("Please select at least one study day with hours");
+      return;
+    }
+
+    // Generate sample tasks based on the schedule
+    const blockedDates = savedSchedule?.blocked_dates || [];
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    
+    const studyDays = eachDayOfInterval({ start: startDate, end: endDate });
+    
+    for (const day of studyDays) {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      
+      // Skip blocked dates
+      if (blockedDates.includes(dateStr)) continue;
+      
+      // Check if this day is a study day
+      const dayName = dayNames[getDay(day)];
+      const daySchedule = scheduleData.find((s: any) => s.day === dayName && s.enabled);
+      
+      if (daySchedule && daySchedule.hours > 0) {
+        // Add practice questions task
+        await addTask({
+          title: "Practice Questions",
+          description: "Complete practice questions for exam preparation",
+          task_type: "practice",
+          scheduled_date: dateStr,
+          estimated_duration_minutes: Math.round(daySchedule.hours * 30),
+        });
+        
+        // Add flashcard review task
+        await addTask({
+          title: "Review Flashcards",
+          description: "Review flashcards using spaced repetition",
+          task_type: "flashcard",
+          scheduled_date: dateStr,
+          estimated_duration_minutes: Math.round(daySchedule.hours * 30),
+        });
+      }
+    }
+
+    await saveSchedule(scheduleData, startDate, endDate);
+    setIsSetupMode(false);
+    setPlanCreated(true);
+    triggerConfetti();
+    toast.success("🎉 Study plan created successfully!");
+  };
+
   // Calculate stats for progress panel
   const totalTimeMinutes = tasks.reduce((sum, t) => sum + (t.estimated_duration_minutes || 0), 0);
   const completedTimeMinutes = tasks
@@ -209,41 +287,6 @@ const StudyPlanner = () => {
     return (
       <AppLayout title="Study Planner">
         <LoadingState message="Loading your study plan..." />
-      </AppLayout>
-    );
-  }
-
-  // If no tasks, show empty state with option to create plan
-  if (tasks.length === 0) {
-    return (
-      <AppLayout title="Study Planner">
-        <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center bg-muted/30 -m-6 p-6">
-          <div className="text-center max-w-md">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
-              <Plus className="h-8 w-8 text-primary" />
-            </div>
-            <h2 className="text-2xl font-semibold text-foreground mb-2">No Study Plan Yet</h2>
-            <p className="text-muted-foreground mb-6">
-              Create a personalized study plan to organize your learning and track your progress.
-            </p>
-            <div className="flex gap-3 justify-center">
-              <Button asChild>
-                <Link to="/study-planner/setup">Create Study Plan</Link>
-              </Button>
-              <Button variant="outline" onClick={() => setShowAddTask(true)}>
-                Add Quick Task
-              </Button>
-            </div>
-          </div>
-          
-          {/* Add Task Dialog */}
-          <AddTaskDialog
-            open={showAddTask}
-            onOpenChange={setShowAddTask}
-            onAddTask={handleAddTask}
-            selectedDate={selectedDate || new Date()}
-          />
-        </div>
       </AppLayout>
     );
   }
@@ -262,6 +305,83 @@ const StudyPlanner = () => {
     );
   }
 
+  // Setup Mode UI - Show when no plan exists
+  if (isSetupMode && !planCreated) {
+    return (
+      <AppLayout title="Study Planner">
+        <div className="min-h-[calc(100vh-8rem)] bg-muted/30 -m-6 p-4 sm:p-6">
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Header */}
+            <div className="text-center mb-8">
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Create Your Study Plan</h1>
+              <p className="text-muted-foreground">Set up your personalized study schedule</p>
+            </div>
+
+            {/* Date Range Picker */}
+            <DateRangePicker
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+              isOpen={dateRangeOpen}
+              onOpenChange={setDateRangeOpen}
+              onSave={async () => {
+                const scheduleData = savedSchedule?.schedule_data || [];
+                await saveSchedule(scheduleData, startDate, endDate);
+                toast.success("Date range saved");
+              }}
+              onReset={() => {
+                setStartDate(null);
+                setEndDate(null);
+              }}
+            />
+
+            {/* Blocked Dates Manager */}
+            <BlockedDatesManager
+              blockedDates={savedSchedule?.blocked_dates || []}
+              onBlockedDatesChange={async (dates) => {
+                await updateBlockedDates(dates);
+                toast.success("Blocked dates updated");
+              }}
+            />
+
+            {/* Study Days Selector */}
+            <StudyDaysSelector 
+              totalTimeNeeded={100}
+              initialSchedule={savedSchedule?.schedule_data}
+              onScheduleChange={async (schedule) => {
+                await saveSchedule(schedule, startDate, endDate);
+              }}
+            />
+
+            {/* Create Plan Button - Footer Actions */}
+            <div className="flex items-center justify-between pt-6 border-t border-border mt-8">
+              <Button 
+                variant="ghost" 
+                onClick={() => {
+                  setStartDate(null);
+                  setEndDate(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleCreatePlan}
+                size="lg"
+                className="gap-2 px-8"
+                disabled={!startDate || !endDate}
+              >
+                <CalendarDays className="h-4 w-4" />
+                Create Plan
+              </Button>
+            </div>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Calendar Mode - Show after plan is created
   return (
     <AppLayout title="Study Planner">
       <div className="flex gap-6 min-h-[calc(100vh-8rem)] bg-muted/30 -m-6 p-4 sm:p-6">
@@ -380,62 +500,20 @@ const StudyPlanner = () => {
             </div>
           </div>
 
-          {/* Date Range Picker - Above Calendar (conditionally) */}
-          <DateRangePicker
-            startDate={startDate}
-            endDate={endDate}
-            onStartDateChange={setStartDate}
-            onEndDateChange={setEndDate}
-            isOpen={dateRangeOpen}
-            onOpenChange={setDateRangeOpen}
-            onSave={async () => {
-              const scheduleData = savedSchedule?.schedule_data || [];
-              await saveSchedule(scheduleData, startDate, endDate);
-              setShowMainCalendar(true);
-              toast.success("Date range saved successfully");
-            }}
-            onReset={() => {
-              setStartDate(null);
-              setEndDate(null);
-            }}
-          />
-
-          {/* Calendar Grid - Hidden when date range picker is active with calendar showing */}
-          {showMainCalendar && (
-            <div className="flex-1 min-h-[500px] bg-card rounded-lg border border-border overflow-hidden shadow-sm">
-              <StudyCalendarGrid
-                currentMonth={currentMonth}
-                tasks={tasks}
-                onAddTask={openAddTaskForDate}
-                onToggleComplete={(id, completed) => {
-                  handleToggleComplete(id, completed);
-                }}
-                onDeleteTask={(id) => {
-                  handleDeleteTask(id);
-                }}
-                onTaskClick={handleTaskClick}
-                onMoveTask={handleMoveTask}
-              />
-            </div>
-          )}
-
-          {/* Blocked Dates Manager - Below Calendar */}
-          <BlockedDatesManager
-            blockedDates={savedSchedule?.blocked_dates || []}
-            onBlockedDatesChange={async (dates) => {
-              await updateBlockedDates(dates);
-              toast.success("Blocked dates updated");
-            }}
-          />
-
-          {/* Study Days Selector - Below Calendar */}
-          <div className="mt-4">
-            <StudyDaysSelector 
-              totalTimeNeeded={Math.round(totalTimeMinutes / 60) || 100}
-              initialSchedule={savedSchedule?.schedule_data}
-              onScheduleChange={async (schedule) => {
-                await saveSchedule(schedule, startDate, endDate);
+          {/* Calendar Grid */}
+          <div className="flex-1 min-h-[500px] bg-card rounded-lg border border-border overflow-hidden shadow-sm">
+            <StudyCalendarGrid
+              currentMonth={currentMonth}
+              tasks={tasks}
+              onAddTask={openAddTaskForDate}
+              onToggleComplete={(id, completed) => {
+                handleToggleComplete(id, completed);
               }}
+              onDeleteTask={(id) => {
+                handleDeleteTask(id);
+              }}
+              onTaskClick={handleTaskClick}
+              onMoveTask={handleMoveTask}
             />
           </div>
         </div>
