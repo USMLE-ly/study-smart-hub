@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 interface ProgressRingProps {
   progress: number;
@@ -22,14 +22,47 @@ export function ProgressRing({
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
 
-  // Animation state
+  // Animation state with smooth counting
   const [animatedProgress, setAnimatedProgress] = useState(0);
+  const [displayProgress, setDisplayProgress] = useState(0);
+  const animationRef = useRef<number | null>(null);
+  const prevProgressRef = useRef(0);
 
+  // Smooth progress animation with easing
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setAnimatedProgress(progress);
-    }, 150);
-    return () => clearTimeout(timer);
+    const startValue = prevProgressRef.current;
+    const endValue = progress;
+    const duration = 800; // ms
+    const startTime = performance.now();
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Ease out cubic for smooth deceleration
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const currentValue = startValue + (endValue - startValue) * eased;
+      
+      setAnimatedProgress(currentValue);
+      setDisplayProgress(currentValue);
+
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      } else {
+        prevProgressRef.current = endValue;
+      }
+    };
+
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+    animationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
   }, [progress]);
 
   // Calculate the portions with gap consideration
@@ -146,10 +179,10 @@ export function ProgressRing({
           {/* Center text */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span 
-              className="text-4xl font-bold transition-all duration-700 ease-out" 
+              className="text-4xl font-bold tabular-nums" 
               style={{ color: greenColor }}
             >
-              {animatedProgress.toFixed(2)}%
+              {displayProgress.toFixed(2)}%
             </span>
             <span className="text-sm text-muted-foreground mt-1">
               Completed
