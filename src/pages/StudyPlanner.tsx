@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,23 +21,15 @@ import { AddTaskDialog } from "@/components/study-planner/AddTaskDialog";
 import { useStudyTasks } from "@/hooks/useStudyTasks";
 import { LoadingState } from "@/components/ui/LoadingSpinner";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 const StudyPlanner = () => {
-  const navigate = useNavigate();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showAddTask, setShowAddTask] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [viewMode, setViewMode] = useState("month");
   
   const { tasks, loading, addTask, toggleComplete, deleteTask, stats } = useStudyTasks();
-
-  // If no tasks exist, redirect to setup
-  useEffect(() => {
-    if (!loading && tasks.length === 0) {
-      navigate("/study-planner/setup");
-    }
-  }, [loading, tasks, navigate]);
 
   const handleAddTask = async (task: {
     title: string;
@@ -48,7 +40,7 @@ const StudyPlanner = () => {
   }) => {
     const { error } = await addTask(task);
     if (error) {
-      toast.error("Failed to add task");
+      toast.error("Failed to add task: " + (error.message || "Unknown error"));
     } else {
       toast.success("Task added successfully");
       setShowAddTask(false);
@@ -84,11 +76,37 @@ const StudyPlanner = () => {
     );
   }
 
-  // If no tasks, show nothing (will redirect)
+  // If no tasks, show empty state with option to create plan
   if (tasks.length === 0) {
     return (
       <AppLayout title="Study Planner">
-        <LoadingState message="Setting up your study plan..." />
+        <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center bg-muted/30 -m-6 p-6">
+          <div className="text-center max-w-md">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
+              <Plus className="h-8 w-8 text-primary" />
+            </div>
+            <h2 className="text-2xl font-semibold text-foreground mb-2">No Study Plan Yet</h2>
+            <p className="text-muted-foreground mb-6">
+              Create a personalized study plan to organize your learning and track your progress.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <Button asChild>
+                <Link to="/study-planner/setup">Create Study Plan</Link>
+              </Button>
+              <Button variant="outline" onClick={() => setShowAddTask(true)}>
+                Add Quick Task
+              </Button>
+            </div>
+          </div>
+          
+          {/* Add Task Dialog */}
+          <AddTaskDialog
+            open={showAddTask}
+            onOpenChange={setShowAddTask}
+            onAddTask={handleAddTask}
+            selectedDate={selectedDate || new Date()}
+          />
+        </div>
       </AppLayout>
     );
   }
@@ -147,6 +165,18 @@ const StudyPlanner = () => {
                 </Badge>
               </Button>
             )}
+
+            {/* Add Task Button */}
+            <Button 
+              onClick={() => {
+                setSelectedDate(new Date());
+                setShowAddTask(true);
+              }}
+              className="h-9 gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Task
+            </Button>
 
             {/* View Mode Selector */}
             <Select value={viewMode} onValueChange={setViewMode}>
