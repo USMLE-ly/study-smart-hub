@@ -44,14 +44,14 @@ All colors MUST be HSL.
 
     --radius: 0.375rem;
 
-    /* Darker navy sidebar - UWorld style */
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 220 14% 96%;
+    /* UWorld dark grayish-blue sidebar - #2F3542 */
+    --sidebar-background: 220 15% 22%;
+    --sidebar-foreground: 210 40% 96%;
     --sidebar-primary: 199 89% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 47% 15%;
-    --sidebar-accent-foreground: 220 14% 96%;
-    --sidebar-border: 222 47% 18%;
+    --sidebar-accent: 220 15% 28%;
+    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-border: 220 15% 32%;
     --sidebar-ring: 199 89% 48%;
 
     /* UWorld semantic colors - muted, professional */
