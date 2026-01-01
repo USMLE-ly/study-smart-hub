@@ -11,55 +11,62 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 209 40% 96%;
-    --foreground: 222 47% 11%;
+    /* UWorld-inspired color palette - clean, medical, professional */
+    --background: 210 20% 98%;
+    --foreground: 220 25% 10%;
 
-    --card: 210 40% 98%;
-    --card-foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 10%;
 
-    --popover: 214 31% 91%;
-    --popover-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 10%;
 
-    --primary: 200 98% 39%;
-    --primary-foreground: 204 100% 97%;
+    /* UWorld primary blue - #1D4ED8 */
+    --primary: 224 76% 48%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 215 24% 26%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 25% 10%;
 
-    --muted: 215 20% 65%;
-    --muted-foreground: 222 47% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
 
-    --accent: 210 40% 98%;
-    --accent-foreground: 215 19% 34%;
+    --accent: 220 14% 96%;
+    --accent-foreground: 220 25% 10%;
 
-    --destructive: 0 72% 50%;
-    --destructive-foreground: 0 85% 97%;
+    /* UWorld red - #EF4444 */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 212 26% 83%;
-    --input: 212 26% 83%;
-    --ring: 200 98% 39%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 224 76% 48%;
 
-    --radius: 0.5rem;
+    --radius: 0.375rem;
 
-    --sidebar-background: 217 33% 17%;
-    --sidebar-foreground: 210 40% 96%;
-    --sidebar-primary: 200 98% 39%;
-    --sidebar-primary-foreground: 204 100% 97%;
-    --sidebar-accent: 217 33% 22%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217 33% 24%;
-    --sidebar-ring: 200 98% 39%;
+    /* Darker navy sidebar - UWorld style */
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 220 14% 96%;
+    --sidebar-primary: 199 89% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 47% 15%;
+    --sidebar-accent-foreground: 220 14% 96%;
+    --sidebar-border: 222 47% 18%;
+    --sidebar-ring: 199 89% 48%;
 
-    /* Custom semantic colors for badges */
-    --badge-tutorial: 142 76% 36%;
+    /* UWorld semantic colors - muted, professional */
+    --badge-tutorial: 142 71% 45%;
     --badge-tutorial-foreground: 0 0% 100%;
-    --badge-practice: 340 75% 55%;
+    --badge-practice: 330 81% 60%;
     --badge-practice-foreground: 0 0% 100%;
-    --badge-flashcard: 45 93% 47%;
+    --badge-flashcard: 38 92% 50%;
     --badge-flashcard-foreground: 0 0% 0%;
-    --badge-success: 142 76% 36%;
-    --badge-warning: 45 93% 47%;
-    --badge-error: 0 72% 50%;
+    /* UWorld success green - #22C55E */
+    --badge-success: 142 71% 45%;
+    /* UWorld warning amber - #F59E0B */
+    --badge-warning: 38 92% 50%;
+    /* UWorld error red - #EF4444 */
+    --badge-error: 0 84% 60%;
 
     --chart-1: 198 93% 59%;
 
