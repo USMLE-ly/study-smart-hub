@@ -64,13 +64,13 @@ export function AppSidebar() {
   );
 
   return (
-    <Sidebar className="border-r-0 bg-sidebar">
+    <Sidebar className="border-r-0 bg-sidebar" collapsible="offcanvas">
       {/* Logo Section - UWorld Style Centered */}
-      <SidebarHeader className="py-8 border-b border-sidebar-border/50">
+      <SidebarHeader className="py-6 border-b border-sidebar-border/50 shrink-0">
         <Link to="/" className="flex flex-col items-center text-center">
           {/* Spiral Logo */}
-          <div className="w-16 h-16 mb-3 flex items-center justify-center">
-            <svg viewBox="0 0 100 100" className="w-14 h-14">
+          <div className="w-14 h-14 mb-2 flex items-center justify-center">
+            <svg viewBox="0 0 100 100" className="w-12 h-12">
               <path
                 d="M50 10 C75 10, 90 30, 90 50 C90 75, 70 90, 50 90 C30 90, 15 75, 15 55 C15 38, 28 25, 48 25 C62 25, 75 38, 75 52 C75 65, 62 75, 50 75 C40 75, 32 67, 32 57 C32 48, 40 42, 50 42"
                 fill="none"
@@ -81,16 +81,16 @@ export function AppSidebar() {
               />
             </svg>
           </div>
-          <h1 className="text-xl font-bold text-sidebar-foreground tracking-tight">
+          <h1 className="text-lg font-bold text-sidebar-foreground tracking-tight">
             MedPrep
           </h1>
-          <p className="text-xs text-sidebar-foreground/60 font-semibold uppercase tracking-wider mt-0.5">
+          <p className="text-[10px] text-sidebar-foreground/60 font-semibold uppercase tracking-wider mt-0.5">
             STEP 1 QBANK
           </p>
         </Link>
       </SidebarHeader>
 
-      <SidebarContent className="px-3 py-4">
+      <SidebarContent className="px-3 py-4 overflow-y-auto">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
@@ -237,9 +237,9 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="px-3 py-4 border-t border-sidebar-border/50">
-        <div className="px-3 py-3 rounded-lg bg-sidebar-accent/30 mb-3">
-          <p className="text-xs font-medium text-sidebar-foreground/60 uppercase tracking-wider mb-1">
+      <SidebarFooter className="px-3 py-3 border-t border-sidebar-border/50 shrink-0 mt-auto">
+        <div className="px-3 py-2 rounded-lg bg-sidebar-accent/30">
+          <p className="text-[10px] font-medium text-sidebar-foreground/60 uppercase tracking-wider mb-0.5">
             Subscription
           </p>
           <p className="text-xs text-sidebar-foreground/80">
@@ -248,7 +248,7 @@ export function AppSidebar() {
         </div>
         <Button
           variant="ghost"
-          className="w-full justify-start h-10 px-3 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40"
+          className="w-full justify-start h-9 px-3 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40"
           onClick={() => signOut()}
         >
           <LogOut className="h-[18px] w-[18px] mr-3" strokeWidth={1.5} />
