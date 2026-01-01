@@ -23,10 +23,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { Search, FolderPlus, Plus, FileText, BarChart3, Trash2, Pencil, Trophy, BookOpen, Sparkles } from "lucide-react";
+import { Search, FolderPlus, Plus, FileText, BarChart3, Trash2, Pencil, Trophy, BookOpen, Sparkles, Upload } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useFlashcards, FlashcardDeck, Flashcard } from "@/hooks/useFlashcards";
+import { ImportFlashcardsDialog } from "@/components/flashcards/ImportFlashcardsDialog";
 import { toast } from "sonner";
 import { LoadingState } from "@/components/ui/LoadingSpinner";
 
@@ -430,6 +431,20 @@ const Flashcards = () => {
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>
+
+                    <ImportFlashcardsDialog
+                      decks={decks}
+                      onImportComplete={() => {
+                        fetchDecks();
+                        loadStats();
+                      }}
+                      trigger={
+                        <Button variant="ghost" className="text-primary gap-2">
+                          <Upload className="h-4 w-4" />
+                          Import
+                        </Button>
+                      }
+                    />
                   </div>
                 </div>
               </CardContent>
