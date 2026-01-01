@@ -90,22 +90,31 @@ export function DateRangePicker({
             const isPast = isBefore(startOfDay(day), startOfDay(new Date()));
 
             return (
-              <button
+              <div
                 key={day.toISOString()}
-                onClick={() => !isPast && handleDateClick(day)}
-                disabled={isPast}
                 className={cn(
-                  "h-8 w-8 text-sm rounded-full flex items-center justify-center transition-all",
-                  isPast && "text-muted-foreground/40 cursor-not-allowed",
-                  !isPast && "hover:bg-accent cursor-pointer",
-                  isStart && "bg-primary text-primary-foreground hover:bg-primary",
-                  isEnd && "bg-primary text-primary-foreground hover:bg-primary",
-                  isInRange && "bg-primary/20",
-                  isToday(day) && !isStart && !isEnd && "ring-1 ring-primary"
+                  "relative h-8 flex items-center justify-center",
+                  // Background strip for range effect
+                  isInRange && "before:absolute before:inset-0 before:bg-primary/20",
+                  isStart && endDate && "before:absolute before:inset-y-0 before:right-0 before:left-1/2 before:bg-primary/20",
+                  isEnd && startDate && "before:absolute before:inset-y-0 before:left-0 before:right-1/2 before:bg-primary/20"
                 )}
               >
-                {format(day, "d")}
-              </button>
+                <button
+                  onClick={() => !isPast && handleDateClick(day)}
+                  disabled={isPast}
+                  className={cn(
+                    "h-8 w-8 text-sm rounded-full flex items-center justify-center transition-all relative z-10",
+                    isPast && "text-muted-foreground/40 cursor-not-allowed",
+                    !isPast && "hover:bg-accent cursor-pointer",
+                    isStart && "bg-primary text-primary-foreground hover:bg-primary",
+                    isEnd && "bg-primary text-primary-foreground hover:bg-primary",
+                    isToday(day) && !isStart && !isEnd && "ring-1 ring-primary"
+                  )}
+                >
+                  {format(day, "d")}
+                </button>
+              </div>
             );
           })}
         </div>
