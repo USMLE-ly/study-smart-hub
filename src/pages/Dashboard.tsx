@@ -3,7 +3,7 @@ import { StatsCard } from "@/components/dashboard/StatsCard";
 import { StudyPlannerWidget } from "@/components/dashboard/StudyPlannerWidget";
 import { ProgressRing } from "@/components/dashboard/ProgressRing";
 import { SkeletonCard } from "@/components/ui/LoadingSpinner";
-import { Target, TrendingUp, Award } from "lucide-react";
+import { FileText, Plus, ClipboardList } from "lucide-react";
 import { useTests } from "@/hooks/useTests";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
@@ -30,9 +30,7 @@ const Dashboard = () => {
   
   const testCompletionPercentage = tests && tests.length > 0 
     ? Math.round((completedTests.length / tests.length) * 100) 
-    : 0;
-
-  const firstName = profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Student';
+    : 100;
 
   // Calculate study plan progress from real data
   const studyProgress = stats.total > 0 
@@ -42,22 +40,19 @@ const Dashboard = () => {
   if (isLoading) {
     return (
       <AppLayout title="Dashboard">
-        <div className="space-y-6 max-w-7xl">
-          <div>
-            <div className="h-7 bg-muted/60 rounded-lg w-52 animate-pulse mb-2" />
-            <div className="h-4 bg-muted/40 rounded-lg w-72 animate-pulse" />
-          </div>
-          <div className="grid gap-5 md:grid-cols-3">
+        <div className="space-y-5 max-w-7xl">
+          <div className="h-6 bg-muted/60 rounded w-24 animate-pulse" />
+          <div className="grid gap-4 md:grid-cols-3">
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
           </div>
-          <div className="grid gap-5 lg:grid-cols-5">
-            <div className="lg:col-span-3">
-              <SkeletonCard className="h-[360px]" />
-            </div>
+          <div className="grid gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2">
-              <SkeletonCard className="h-[360px]" />
+              <SkeletonCard className="h-[380px]" />
+            </div>
+            <div>
+              <SkeletonCard className="h-[380px]" />
             </div>
           </div>
         </div>
@@ -67,54 +62,45 @@ const Dashboard = () => {
 
   return (
     <AppLayout title="Dashboard">
-      <div className="space-y-6 max-w-7xl">
-        {/* Welcome Section */}
-        <div className="animate-fade-in">
-          <h2 className="text-[22px] font-semibold text-foreground tracking-tight">
-            Welcome back, {firstName}
-          </h2>
-          <p className="text-[14px] text-muted-foreground/80 mt-0.5">
-            Track your progress and continue studying
-          </p>
-        </div>
+      <div className="space-y-5 max-w-7xl">
+        {/* Welcome Text */}
+        <p className="text-base text-foreground animate-fade-in">Welcome</p>
 
         {/* Stats Cards Row */}
-        <div className="grid gap-5 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-3">
           <div className="animate-fade-in" style={{ animationDelay: '50ms' }}>
             <StatsCard
               title="Question Score"
               value={`${scorePercentage}%`}
-              subtitle="Correct answers"
-              icon={Target}
-              variant="primary"
+              subtitle="Correct"
+              detail={`${totalCorrect} / ${totalQuestions || 0}`}
+              icon={FileText}
             />
           </div>
           <div className="animate-fade-in" style={{ animationDelay: '100ms' }}>
             <StatsCard
-              title="QBank Progress"
+              title="QBank Usage"
               value={`${usagePercentage}%`}
-              subtitle={`${usedQuestions.toLocaleString()} of ${totalQBankQuestions.toLocaleString()}`}
-              icon={TrendingUp}
-              variant="primary"
+              subtitle={`${usedQuestions} / ${totalQBankQuestions.toLocaleString()} Used`}
+              icon={Plus}
             />
           </div>
           <div className="animate-fade-in" style={{ animationDelay: '150ms' }}>
             <StatsCard
-              title="Tests Completed"
-              value={`${completedTests.length}`}
-              subtitle={`${testCompletionPercentage}% completion rate`}
-              icon={Award}
-              variant="success"
+              title="Test Count"
+              value={`${testCompletionPercentage}%`}
+              subtitle={`${completedTests.length} / ${tests?.length || completedTests.length} Completed`}
+              icon={ClipboardList}
             />
           </div>
         </div>
 
         {/* Study Planner and Progress Ring Row */}
-        <div className="grid gap-5 lg:grid-cols-5">
-          <div className="lg:col-span-3 animate-fade-in" style={{ animationDelay: '200ms' }}>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2 animate-fade-in" style={{ animationDelay: '200ms' }}>
             <StudyPlannerWidget />
           </div>
-          <div className="lg:col-span-2 animate-fade-in" style={{ animationDelay: '250ms' }}>
+          <div className="animate-fade-in" style={{ animationDelay: '250ms' }}>
             <ProgressRing
               progress={studyProgress}
               daysRemaining={stats.daysRemaining}
