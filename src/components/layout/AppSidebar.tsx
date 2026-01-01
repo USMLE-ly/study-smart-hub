@@ -9,6 +9,8 @@ import {
   HelpCircle,
   ChevronRight,
   LogOut,
+  BarChart3,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -37,6 +39,7 @@ import { Button } from "@/components/ui/button";
 const mainNavItems = [
   { title: "Dashboard", icon: LayoutDashboard, href: "/" },
   { title: "Study Planner", icon: Calendar, href: "/study-planner" },
+  { title: "Analytics", icon: BarChart3, href: "/analytics" },
   { title: "Medical Library", icon: BookOpen, href: "/library" },
 ];
 
