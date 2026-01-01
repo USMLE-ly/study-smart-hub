@@ -3,15 +3,17 @@ import { StatsCard } from "@/components/dashboard/StatsCard";
 import { StudyPlannerWidget } from "@/components/dashboard/StudyPlannerWidget";
 import { ProgressRing } from "@/components/dashboard/ProgressRing";
 import { SkeletonCard } from "@/components/ui/LoadingSpinner";
-import { FileText, BarChart3, CheckSquare } from "lucide-react";
+import { Target, TrendingUp, Award } from "lucide-react";
 import { useTests } from "@/hooks/useTests";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
+import { useStudyTasks } from "@/hooks/useStudyTasks";
 
 const Dashboard = () => {
   const { user } = useAuth();
   const { profile, loading: profileLoading } = useProfile();
   const { tests, loading: testsLoading } = useTests();
+  const { stats, loading: tasksLoading } = useStudyTasks();
 
   const isLoading = profileLoading || testsLoading;
 
@@ -32,25 +34,30 @@ const Dashboard = () => {
 
   const firstName = profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Student';
 
+  // Calculate study plan progress from real data
+  const studyProgress = stats.total > 0 
+    ? Math.round((stats.completed / stats.total) * 100) 
+    : 0;
+
   if (isLoading) {
     return (
       <AppLayout title="Dashboard">
-        <div className="space-y-8 max-w-7xl">
+        <div className="space-y-6 max-w-7xl">
           <div>
-            <div className="h-8 bg-muted rounded w-48 animate-pulse mb-2" />
-            <div className="h-4 bg-muted rounded w-64 animate-pulse" />
+            <div className="h-7 bg-muted/60 rounded-lg w-52 animate-pulse mb-2" />
+            <div className="h-4 bg-muted/40 rounded-lg w-72 animate-pulse" />
           </div>
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-5 md:grid-cols-3">
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
           </div>
-          <div className="grid gap-6 lg:grid-cols-5">
+          <div className="grid gap-5 lg:grid-cols-5">
             <div className="lg:col-span-3">
-              <SkeletonCard className="h-80" />
+              <SkeletonCard className="h-[360px]" />
             </div>
             <div className="lg:col-span-2">
-              <SkeletonCard className="h-80" />
+              <SkeletonCard className="h-[360px]" />
             </div>
           </div>
         </div>
@@ -60,57 +67,61 @@ const Dashboard = () => {
 
   return (
     <AppLayout title="Dashboard">
-      <div className="space-y-8 max-w-7xl">
+      <div className="space-y-6 max-w-7xl">
         {/* Welcome Section */}
         <div className="animate-fade-in">
-          <h2 className="text-2xl font-semibold text-foreground">Welcome back, {firstName}</h2>
-          <p className="text-muted-foreground mt-1">Track your progress and continue studying</p>
+          <h2 className="text-[22px] font-semibold text-foreground tracking-tight">
+            Welcome back, {firstName}
+          </h2>
+          <p className="text-[14px] text-muted-foreground/80 mt-0.5">
+            Track your progress and continue studying
+          </p>
         </div>
 
         {/* Stats Cards Row */}
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-5 md:grid-cols-3">
           <div className="animate-fade-in" style={{ animationDelay: '50ms' }}>
             <StatsCard
               title="Question Score"
               value={`${scorePercentage}%`}
-              subtitle="Correct"
-              icon={FileText}
+              subtitle="Correct answers"
+              icon={Target}
               variant="primary"
             />
           </div>
           <div className="animate-fade-in" style={{ animationDelay: '100ms' }}>
             <StatsCard
-              title="QBank Usage"
+              title="QBank Progress"
               value={`${usagePercentage}%`}
-              subtitle={`${usedQuestions} / ${totalQBankQuestions} Used`}
-              icon={BarChart3}
+              subtitle={`${usedQuestions.toLocaleString()} of ${totalQBankQuestions.toLocaleString()}`}
+              icon={TrendingUp}
               variant="primary"
             />
           </div>
           <div className="animate-fade-in" style={{ animationDelay: '150ms' }}>
             <StatsCard
-              title="Test Count"
-              value={`${testCompletionPercentage}%`}
-              subtitle={`${completedTests.length} / ${tests?.length || 0} Completed`}
-              icon={CheckSquare}
+              title="Tests Completed"
+              value={`${completedTests.length}`}
+              subtitle={`${testCompletionPercentage}% completion rate`}
+              icon={Award}
               variant="success"
             />
           </div>
         </div>
 
         {/* Study Planner and Progress Ring Row */}
-        <div className="grid gap-6 lg:grid-cols-5">
+        <div className="grid gap-5 lg:grid-cols-5">
           <div className="lg:col-span-3 animate-fade-in" style={{ animationDelay: '200ms' }}>
             <StudyPlannerWidget />
           </div>
           <div className="lg:col-span-2 animate-fade-in" style={{ animationDelay: '250ms' }}>
             <ProgressRing
-              progress={76.19}
-              daysRemaining={10}
-              totalDays={10}
-              completed={1}
-              overdue={0}
-              incomplete={3}
+              progress={studyProgress}
+              daysRemaining={stats.daysRemaining}
+              totalDays={14}
+              completed={stats.completed}
+              overdue={stats.overdue}
+              incomplete={stats.upcoming}
             />
           </div>
         </div>

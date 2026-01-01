@@ -17,10 +17,10 @@ export function StatsCard({
   variant = "default",
 }: StatsCardProps) {
   const iconBgColors = {
-    default: "bg-primary/8",
-    primary: "bg-primary/8",
-    success: "bg-[hsl(var(--badge-success))]/8",
-    warning: "bg-[hsl(var(--badge-flashcard))]/8",
+    default: "bg-primary/10",
+    primary: "bg-primary/10",
+    success: "bg-[hsl(var(--badge-success))]/10",
+    warning: "bg-[hsl(var(--badge-flashcard))]/10",
   };
 
   const iconColors = {
@@ -31,28 +31,28 @@ export function StatsCard({
   };
 
   return (
-    <div className="bg-card rounded-lg border border-border/60 p-6 shadow-sm hover:shadow-md transition-all duration-200">
-      <div className="flex items-start justify-between">
-        <div className="space-y-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+    <div className="bg-card rounded-xl border border-border/50 p-5 shadow-xs hover:shadow-sm transition-all duration-300 group">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-2.5 min-w-0 flex-1">
+          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
             {title}
           </p>
-          <div className="space-y-1">
-            <span className="text-2xl font-bold text-foreground tracking-tight block">
+          <div className="space-y-0.5">
+            <span className="text-[28px] font-bold text-foreground tracking-tight block leading-none">
               {value}
             </span>
-            <span className="text-sm text-muted-foreground font-medium">
+            <span className="text-[13px] text-muted-foreground/80 font-medium">
               {subtitle}
             </span>
           </div>
         </div>
         <div
           className={cn(
-            "flex h-11 w-11 items-center justify-center rounded-lg",
+            "flex h-10 w-10 items-center justify-center rounded-xl shrink-0 transition-transform duration-300 group-hover:scale-105",
             iconBgColors[variant]
           )}
         >
-          <Icon className={cn("h-5 w-5", iconColors[variant])} strokeWidth={1.5} />
+          <Icon className={cn("h-[18px] w-[18px]", iconColors[variant])} strokeWidth={1.75} />
         </div>
       </div>
     </div>
