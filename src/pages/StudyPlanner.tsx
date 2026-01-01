@@ -15,17 +15,24 @@ import {
   Settings,
   Plus,
   Focus,
-  X
+  X,
+  Sparkles,
+  Music
 } from "lucide-react";
-import { format, addMonths, subMonths } from "date-fns";
+import { format, addMonths, subMonths, differenceInDays } from "date-fns";
 import { StudyCalendarGrid } from "@/components/study-planner/StudyCalendarGrid";
 import { AddTaskDialog } from "@/components/study-planner/AddTaskDialog";
 import { TaskDetailSheet } from "@/components/study-planner/TaskDetailSheet";
+import { FocusModeTimer } from "@/components/study-planner/FocusModeTimer";
+import { PremiumProgressPanel } from "@/components/study-planner/PremiumProgressPanel";
+import { AIStudyAssistant } from "@/components/ai/AIStudyAssistant";
+import { GamificationWidget } from "@/components/gamification/GamificationWidget";
 import { useStudyTasks, StudyTask } from "@/hooks/useStudyTasks";
 import { LoadingState } from "@/components/ui/LoadingSpinner";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useProfile } from "@/hooks/useProfile";
 
 const StudyPlanner = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -35,8 +42,11 @@ const StudyPlanner = () => {
   const [selectedTask, setSelectedTask] = useState<StudyTask | null>(null);
   const [showTaskDetail, setShowTaskDetail] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
+  const [showRightPanel, setShowRightPanel] = useState(true);
+  const [focusTask, setFocusTask] = useState<StudyTask | null>(null);
   
   const { tasks, loading, addTask, updateTask, toggleComplete, deleteTask, stats } = useStudyTasks();
+  const { profile } = useProfile();
 
   const handleAddTask = async (task: {
     title: string;
@@ -101,6 +111,31 @@ const StudyPlanner = () => {
     setShowAddTask(true);
   };
 
+  const handleStartFocusMode = (task?: StudyTask) => {
+    const taskToFocus = task || tasks.find(
+      (t) => !t.is_completed && t.scheduled_date === format(new Date(), "yyyy-MM-dd")
+    ) || null;
+    setFocusTask(taskToFocus);
+    setFocusMode(true);
+  };
+
+  const handleFocusComplete = async () => {
+    if (focusTask) {
+      await handleToggleComplete(focusTask.id, true);
+    }
+    setFocusMode(false);
+    setFocusTask(null);
+  };
+
+  // Calculate stats for progress panel
+  const totalTimeMinutes = tasks.reduce((sum, t) => sum + (t.estimated_duration_minutes || 0), 0);
+  const completedTimeMinutes = tasks
+    .filter(t => t.is_completed)
+    .reduce((sum, t) => sum + (t.estimated_duration_minutes || 0), 0);
+  
+  const targetExamDate = profile?.target_exam_date ? new Date(profile.target_exam_date) : null;
+  const daysRemaining = targetExamDate ? Math.max(0, differenceInDays(targetExamDate, new Date())) : 30;
+
   if (loading) {
     return (
       <AppLayout title="Study Planner">
@@ -144,190 +179,170 @@ const StudyPlanner = () => {
     );
   }
 
-  // Focus mode view
+  // Focus mode with ambient sounds timer
   if (focusMode) {
-    const todaysTasks = tasks.filter(
-      (t) => !t.is_completed && t.scheduled_date === format(new Date(), "yyyy-MM-dd")
-    );
-    const currentFocusTask = todaysTasks[0];
-
     return (
-      <div className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center p-8">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-4 right-4"
-          onClick={() => setFocusMode(false)}
-        >
-          <X className="h-6 w-6" />
-        </Button>
-        
-        <div className="text-center max-w-lg">
-          <h1 className="text-4xl font-bold text-foreground mb-2">Focus Mode</h1>
-          <p className="text-muted-foreground mb-8">Stay focused on your current task</p>
-          
-          {currentFocusTask ? (
-            <div className="bg-card border border-border rounded-2xl p-8 shadow-lg">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <Focus className="h-6 w-6 text-primary" />
-              </div>
-              <h2 className="text-2xl font-semibold text-foreground mb-2">{currentFocusTask.title}</h2>
-              {currentFocusTask.description && (
-                <p className="text-muted-foreground mb-4">{currentFocusTask.description}</p>
-              )}
-              <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground mb-6">
-                <span className="capitalize">{currentFocusTask.task_type}</span>
-                {currentFocusTask.estimated_duration_minutes && (
-                  <>
-                    <span>•</span>
-                    <span>{currentFocusTask.estimated_duration_minutes} min</span>
-                  </>
-                )}
-              </div>
-              <Button
-                size="lg"
-                className="w-full"
-                onClick={() => handleToggleComplete(currentFocusTask.id, true)}
-              >
-                Mark Complete
-              </Button>
-            </div>
-          ) : (
-            <div className="bg-card border border-border rounded-2xl p-8">
-              <p className="text-lg text-muted-foreground">
-                All tasks for today are complete! 🎉
-              </p>
-              <Button
-                variant="outline"
-                className="mt-4"
-                onClick={() => setFocusMode(false)}
-              >
-                Exit Focus Mode
-              </Button>
-            </div>
-          )}
-          
-          {todaysTasks.length > 1 && (
-            <p className="text-sm text-muted-foreground mt-6">
-              {todaysTasks.length - 1} more task{todaysTasks.length > 2 ? "s" : ""} remaining today
-            </p>
-          )}
-        </div>
-      </div>
+      <FocusModeTimer
+        task={focusTask}
+        onComplete={handleFocusComplete}
+        onClose={() => {
+          setFocusMode(false);
+          setFocusTask(null);
+        }}
+      />
     );
   }
 
   return (
     <AppLayout title="Study Planner">
-      <div className="flex flex-col min-h-[calc(100vh-8rem)] bg-muted/30 -m-6 p-4 sm:p-6">
-        {/* Header Controls */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-4 sm:mb-6">
-          <div className="flex items-center gap-2 sm:gap-4">
-            {/* Today Button */}
-            <Button 
-              variant="outline" 
-              onClick={() => setCurrentMonth(new Date())}
-              className="h-9"
-            >
-              Today
-            </Button>
-
-            {/* Month Navigation */}
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Current Month/Year */}
-            <h2 className="text-lg sm:text-xl font-semibold text-foreground">
-              {format(currentMonth, "MMMM, yyyy")}
-            </h2>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Focus Mode Button */}
-            <Button
-              variant="outline"
-              onClick={() => setFocusMode(true)}
-              className="h-9 gap-2"
-            >
-              <Focus className="h-4 w-4" />
-              <span className="hidden sm:inline">Focus</span>
-            </Button>
-
-            {/* Overdue Tasks Badge */}
-            {stats.overdue > 0 && (
+      <div className="flex gap-6 min-h-[calc(100vh-8rem)] bg-muted/30 -m-6 p-4 sm:p-6">
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Header Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-4 sm:mb-6">
+            <div className="flex items-center gap-2 sm:gap-4">
+              {/* Today Button */}
               <Button 
                 variant="outline" 
-                className="h-9 gap-2 border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10"
+                onClick={() => setCurrentMonth(new Date())}
+                className="h-9"
               >
-                <span className="hidden sm:inline">Overdue</span>
-                <Badge variant="secondary" className="bg-destructive/20 text-destructive hover:bg-destructive/20">
-                  {stats.overdue}
-                </Badge>
+                Today
               </Button>
-            )}
 
-            {/* Add Task Button */}
-            <Button 
-              onClick={() => {
-                setSelectedDate(new Date());
-                setShowAddTask(true);
+              {/* Month Navigation */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Current Month/Year */}
+              <h2 className="text-lg sm:text-xl font-semibold text-foreground">
+                {format(currentMonth, "MMMM, yyyy")}
+              </h2>
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Focus Mode Button with ambient sounds */}
+              <Button
+                variant="outline"
+                onClick={() => handleStartFocusMode()}
+                className="h-9 gap-2 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border-purple-500/30 hover:from-purple-500/20 hover:to-indigo-500/20"
+              >
+                <Music className="h-4 w-4 text-purple-500" />
+                <span className="hidden sm:inline">Focus Mode</span>
+              </Button>
+
+              {/* Overdue Tasks Badge */}
+              {stats.overdue > 0 && (
+                <Button 
+                  variant="outline" 
+                  className="h-9 gap-2 border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10"
+                >
+                  <span className="hidden sm:inline">Overdue</span>
+                  <Badge variant="secondary" className="bg-destructive/20 text-destructive hover:bg-destructive/20">
+                    {stats.overdue}
+                  </Badge>
+                </Button>
+              )}
+
+              {/* Add Task Button */}
+              <Button 
+                onClick={() => {
+                  setSelectedDate(new Date());
+                  setShowAddTask(true);
+                }}
+                className="h-9 gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Add Task</span>
+              </Button>
+
+              {/* View Mode Selector */}
+              <Select value={viewMode} onValueChange={setViewMode}>
+                <SelectTrigger className="w-[100px] sm:w-[140px] h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="month">Month View</SelectItem>
+                  <SelectItem value="week">Week View</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Toggle Right Panel */}
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-9 w-9 hidden lg:flex"
+                onClick={() => setShowRightPanel(!showRightPanel)}
+              >
+                <Sparkles className={cn("h-4 w-4 transition-colors", showRightPanel && "text-primary")} />
+              </Button>
+
+              {/* Settings */}
+              <Button variant="ghost" size="icon" className="h-9 w-9">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Calendar Grid */}
+          <div className="flex-1 min-h-[500px] bg-card rounded-lg border border-border overflow-hidden shadow-sm">
+            <StudyCalendarGrid
+              currentMonth={currentMonth}
+              tasks={tasks}
+              onAddTask={openAddTaskForDate}
+              onToggleComplete={(id, completed) => {
+                handleToggleComplete(id, completed);
               }}
-              className="h-9 gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Task</span>
-            </Button>
-
-            {/* View Mode Selector */}
-            <Select value={viewMode} onValueChange={setViewMode}>
-              <SelectTrigger className="w-[100px] sm:w-[140px] h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="month">Month View</SelectItem>
-                <SelectItem value="week">Week View</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Settings */}
-            <Button variant="ghost" size="icon" className="h-9 w-9">
-              <Settings className="h-4 w-4" />
-            </Button>
+              onDeleteTask={(id) => {
+                handleDeleteTask(id);
+              }}
+              onTaskClick={handleTaskClick}
+              onMoveTask={handleMoveTask}
+            />
           </div>
         </div>
 
-        {/* Calendar Grid */}
-        <div className="flex-1 min-h-[500px] bg-card rounded-lg border border-border overflow-hidden">
-          <StudyCalendarGrid
-            currentMonth={currentMonth}
-            tasks={tasks}
-            onAddTask={openAddTaskForDate}
-            onToggleComplete={(id, completed) => {
-              handleToggleComplete(id, completed);
-            }}
-            onDeleteTask={(id) => {
-              handleDeleteTask(id);
-            }}
-            onTaskClick={handleTaskClick}
-            onMoveTask={handleMoveTask}
-          />
-        </div>
+        {/* Right Side Panel - Premium Features */}
+        {showRightPanel && (
+          <div className="hidden lg:flex flex-col w-80 space-y-4 animate-slide-in-right">
+            {/* Premium Progress Panel */}
+            <PremiumProgressPanel
+              totalTasks={stats.total}
+              completedTasks={stats.completed}
+              overdueTasks={stats.overdue}
+              totalTimeMinutes={totalTimeMinutes}
+              completedTimeMinutes={completedTimeMinutes}
+              daysRemaining={daysRemaining}
+            />
+
+            {/* Gamification Widget */}
+            <GamificationWidget compact />
+
+            {/* AI Study Assistant */}
+            <AIStudyAssistant
+              context={{
+                completedTasks: stats.completed,
+                pendingTasks: stats.total - stats.completed,
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Add Task Dialog */}
