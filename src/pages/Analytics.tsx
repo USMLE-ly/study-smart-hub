@@ -33,6 +33,7 @@ import { usePerformance } from "@/hooks/usePerformance";
 import { useGamification } from "@/hooks/useGamification";
 import { format, subDays, eachDayOfInterval, isSameDay, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
+import { SpacedRepetitionAnalytics } from "@/components/analytics/SpacedRepetitionAnalytics";
 
 const COLORS = ["hsl(142, 71%, 45%)", "hsl(350, 80%, 65%)", "hsl(217, 91%, 60%)", "hsl(38, 92%, 50%)"];
 
@@ -310,6 +311,15 @@ const Analytics = () => {
             <span className="text-xs text-muted-foreground">More</span>
           </div>
         </Card>
+
+        {/* Spaced Repetition Analytics */}
+        <div className="mt-6">
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <Brain className="h-5 w-5 text-primary" />
+            Spaced Repetition Analytics
+          </h2>
+          <SpacedRepetitionAnalytics />
+        </div>
       </div>
     </AppLayout>
   );

@@ -31,6 +31,7 @@ import { FocusModeTimer } from "@/components/study-planner/FocusModeTimer";
 import { PremiumProgressPanel } from "@/components/study-planner/PremiumProgressPanel";
 import { AIStudyAssistant } from "@/components/ai/AIStudyAssistant";
 import { GamificationWidget } from "@/components/gamification/GamificationWidget";
+import { StudyDaysSelector } from "@/components/study-planner/StudyDaysSelector";
 import { useStudyTasks, StudyTask } from "@/hooks/useStudyTasks";
 import { LoadingState } from "@/components/ui/LoadingSpinner";
 import { toast } from "sonner";
@@ -371,6 +372,16 @@ const StudyPlanner = () => {
               }}
               onTaskClick={handleTaskClick}
               onMoveTask={handleMoveTask}
+            />
+          </div>
+
+          {/* Study Days Selector - Below Calendar */}
+          <div className="mt-4">
+            <StudyDaysSelector 
+              totalTimeNeeded={Math.round(totalTimeMinutes / 60) || 100}
+              onScheduleChange={(schedule) => {
+                console.log("Study schedule updated:", schedule);
+              }}
             />
           </div>
         </div>
