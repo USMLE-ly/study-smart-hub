@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,8 +17,11 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Loader2
 } from "lucide-react";
+import html2canvas from 'html2canvas';
+import { toast } from "sonner";
 import { format, startOfWeek, endOfWeek, subWeeks, addWeeks, eachDayOfInterval, isSameDay } from "date-fns";
 import { useStudyTasks, StudyTask } from "@/hooks/useStudyTasks";
 import { useGamification } from "@/hooks/useGamification";
@@ -95,11 +98,57 @@ export function WeeklyStudyReport() {
     ? Math.round(weeklyTests.reduce((sum, t) => sum + (t.score_percentage || 0), 0) / weeklyTests.length)
     : 0;
 
+  const [isExporting, setIsExporting] = useState(false);
+
   const navigateWeek = (direction: 'prev' | 'next') => {
     setSelectedWeekStart(prev => 
       direction === 'prev' ? subWeeks(prev, 1) : addWeeks(prev, 1)
     );
   };
+
+  const handleShareReport = useCallback(async () => {
+    if (!reportRef.current) return;
+    
+    setIsExporting(true);
+    try {
+      const canvas = await html2canvas(reportRef.current, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        logging: false,
+        useCORS: true,
+      });
+      
+      const dataUrl = canvas.toDataURL('image/png');
+      
+      // Try Web Share API first (mobile)
+      if (navigator.share && navigator.canShare) {
+        const blob = await (await fetch(dataUrl)).blob();
+        const file = new File([blob], `study-report-${format(selectedWeekStart, 'yyyy-MM-dd')}.png`, { type: 'image/png' });
+        
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: 'My Weekly Study Report',
+            text: `Check out my study progress for ${format(selectedWeekStart, "MMM d")} - ${format(weekEnd, "MMM d, yyyy")}!`,
+            files: [file],
+          });
+          toast.success('Report shared successfully!');
+          return;
+        }
+      }
+      
+      // Fallback: Download the image
+      const link = document.createElement('a');
+      link.download = `study-report-${format(selectedWeekStart, 'yyyy-MM-dd')}.png`;
+      link.href = dataUrl;
+      link.click();
+      toast.success('Report downloaded! Share it on social media.');
+    } catch (error) {
+      console.error('Error exporting report:', error);
+      toast.error('Failed to export report');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [selectedWeekStart, weekEnd]);
 
   const formatHoursMinutes = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
@@ -150,6 +199,20 @@ export function WeeklyStudyReport() {
             className="h-9 w-9"
           >
             <ChevronRight className="h-4 w-4" />
+          </Button>
+          
+          {/* Share Button */}
+          <Button
+            onClick={handleShareReport}
+            disabled={isExporting}
+            className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+          >
+            {isExporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Share2 className="h-4 w-4" />
+            )}
+            <span className="hidden sm:inline">Share Report</span>
           </Button>
         </div>
       </div>
