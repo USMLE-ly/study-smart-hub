@@ -24,6 +24,7 @@ import Profile from "./pages/Profile";
 import QuestionImport from "./pages/QuestionImport";
 import NotFound from "./pages/NotFound";
 import Analytics from "./pages/Analytics";
+import WeeklyReport from "./pages/WeeklyReport";
 
 const queryClient = new QueryClient();
 
@@ -218,6 +219,16 @@ const App = () => (
                 <ProtectedRoute>
                   <PageTransition>
                     <Analytics />
+                  </PageTransition>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/weekly-report"
+              element={
+                <ProtectedRoute>
+                  <PageTransition>
+                    <WeeklyReport />
                   </PageTransition>
                 </ProtectedRoute>
               }
