@@ -29,66 +29,160 @@ interface FocusModeTimerProps {
   onClose: () => void;
 }
 
-type SoundscapeType = "lofi" | "nature" | "ocean" | "cafe" | "night";
+type SoundscapeType = "rain" | "forest" | "cafe" | "whitenoise";
 
 const soundscapes: { id: SoundscapeType; label: string; icon: typeof Music; color: string }[] = [
-  { id: "lofi", label: "Lo-Fi", icon: Music, color: "text-purple-400" },
-  { id: "nature", label: "Forest", icon: TreePine, color: "text-green-400" },
-  { id: "ocean", label: "Ocean", icon: Waves, color: "text-blue-400" },
+  { id: "rain", label: "Rain", icon: Waves, color: "text-blue-400" },
+  { id: "forest", label: "Forest", icon: TreePine, color: "text-green-400" },
   { id: "cafe", label: "Café", icon: Coffee, color: "text-amber-400" },
-  { id: "night", label: "Night", icon: Moon, color: "text-indigo-400" },
+  { id: "whitenoise", label: "White Noise", icon: Moon, color: "text-slate-400" },
 ];
 
-// Web Audio API for generating ambient sounds
-function createAmbientOscillator(audioContext: AudioContext, type: SoundscapeType): OscillatorNode[] {
-  const oscillators: OscillatorNode[] = [];
-  const gainNode = audioContext.createGain();
-  gainNode.gain.value = 0.03;
-  gainNode.connect(audioContext.destination);
+// Web Audio API for generating realistic ambient sounds
+function createAmbientSound(audioContext: AudioContext, type: SoundscapeType, gainNode: GainNode): AudioNode[] {
+  const nodes: AudioNode[] = [];
 
-  if (type === "lofi") {
-    // Soft lo-fi chord
-    [261.63, 329.63, 392.00].forEach(freq => {
-      const osc = audioContext.createOscillator();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      osc.connect(gainNode);
-      oscillators.push(osc);
-    });
-  } else if (type === "nature") {
-    // White noise-ish for forest sounds
-    const osc = audioContext.createOscillator();
-    osc.type = "sawtooth";
-    osc.frequency.value = 80;
-    osc.connect(gainNode);
-    oscillators.push(osc);
-  } else if (type === "ocean") {
-    // Low rumble for ocean
-    const osc = audioContext.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = 40;
-    osc.connect(gainNode);
-    oscillators.push(osc);
+  if (type === "rain") {
+    // Brown noise for rain (filtered white noise)
+    const bufferSize = 2 * audioContext.sampleRate;
+    const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    let lastOut = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      output[i] = (lastOut + (0.02 * white)) / 1.02;
+      lastOut = output[i];
+      output[i] *= 3.5; // Boost volume
+    }
+    const whiteNoise = audioContext.createBufferSource();
+    whiteNoise.buffer = noiseBuffer;
+    whiteNoise.loop = true;
+    
+    // Low pass filter for rain-like sound
+    const lowpass = audioContext.createBiquadFilter();
+    lowpass.type = "lowpass";
+    lowpass.frequency.value = 400;
+    
+    whiteNoise.connect(lowpass);
+    lowpass.connect(gainNode);
+    whiteNoise.start();
+    nodes.push(whiteNoise, lowpass);
+  } else if (type === "forest") {
+    // Pink noise for forest ambiance
+    const bufferSize = 2 * audioContext.sampleRate;
+    const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      b3 = 0.86650 * b3 + white * 0.3104856;
+      b4 = 0.55000 * b4 + white * 0.5329522;
+      b5 = -0.7616 * b5 - white * 0.0168980;
+      output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+      output[i] *= 0.11;
+      b6 = white * 0.115926;
+    }
+    const pinkNoise = audioContext.createBufferSource();
+    pinkNoise.buffer = noiseBuffer;
+    pinkNoise.loop = true;
+    
+    // Band pass for forest texture
+    const bandpass = audioContext.createBiquadFilter();
+    bandpass.type = "bandpass";
+    bandpass.frequency.value = 800;
+    bandpass.Q.value = 0.5;
+    
+    pinkNoise.connect(bandpass);
+    bandpass.connect(gainNode);
+    pinkNoise.start();
+    nodes.push(pinkNoise, bandpass);
+    
+    // Add subtle bird-like high frequencies
+    const highBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+    const highOutput = highBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      highOutput[i] = (Math.random() * 2 - 1) * 0.02 * Math.sin(i / 1000);
+    }
+    const highNoise = audioContext.createBufferSource();
+    highNoise.buffer = highBuffer;
+    highNoise.loop = true;
+    const highpass = audioContext.createBiquadFilter();
+    highpass.type = "highpass";
+    highpass.frequency.value = 3000;
+    highNoise.connect(highpass);
+    highpass.connect(gainNode);
+    highNoise.start();
+    nodes.push(highNoise, highpass);
   } else if (type === "cafe") {
-    // Warm tones
-    [220, 277.18].forEach(freq => {
-      const osc = audioContext.createOscillator();
-      osc.type = "triangle";
-      osc.frequency.value = freq;
-      osc.connect(gainNode);
-      oscillators.push(osc);
-    });
-  } else if (type === "night") {
-    // Crickets-like high frequency
-    const osc = audioContext.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = 3000;
-    gainNode.gain.value = 0.01;
-    osc.connect(gainNode);
-    oscillators.push(osc);
+    // Warm brown noise with low rumble for cafe ambiance
+    const bufferSize = 2 * audioContext.sampleRate;
+    const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    let lastOut = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      output[i] = (lastOut + (0.01 * white)) / 1.01;
+      lastOut = output[i];
+      output[i] *= 2;
+    }
+    const brownNoise = audioContext.createBufferSource();
+    brownNoise.buffer = noiseBuffer;
+    brownNoise.loop = true;
+    
+    // Warm low pass
+    const lowpass = audioContext.createBiquadFilter();
+    lowpass.type = "lowpass";
+    lowpass.frequency.value = 600;
+    
+    brownNoise.connect(lowpass);
+    lowpass.connect(gainNode);
+    brownNoise.start();
+    nodes.push(brownNoise, lowpass);
+    
+    // Add subtle murmur layer
+    const murmurBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+    const murmurOutput = murmurBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      murmurOutput[i] = (Math.random() * 2 - 1) * 0.1 * Math.sin(i / 5000);
+    }
+    const murmur = audioContext.createBufferSource();
+    murmur.buffer = murmurBuffer;
+    murmur.loop = true;
+    const bandpass = audioContext.createBiquadFilter();
+    bandpass.type = "bandpass";
+    bandpass.frequency.value = 300;
+    bandpass.Q.value = 1;
+    murmur.connect(bandpass);
+    bandpass.connect(gainNode);
+    murmur.start();
+    nodes.push(murmur, bandpass);
+  } else if (type === "whitenoise") {
+    // Pure white noise
+    const bufferSize = 2 * audioContext.sampleRate;
+    const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      output[i] = Math.random() * 2 - 1;
+    }
+    const whiteNoise = audioContext.createBufferSource();
+    whiteNoise.buffer = noiseBuffer;
+    whiteNoise.loop = true;
+    
+    // Slight roll off for comfort
+    const lowpass = audioContext.createBiquadFilter();
+    lowpass.type = "lowpass";
+    lowpass.frequency.value = 8000;
+    
+    whiteNoise.connect(lowpass);
+    lowpass.connect(gainNode);
+    whiteNoise.start();
+    nodes.push(whiteNoise, lowpass);
   }
 
-  return oscillators;
+  return nodes;
 }
 
 export function FocusModeTimer({ task, onComplete, onClose }: FocusModeTimerProps) {
@@ -101,7 +195,7 @@ export function FocusModeTimer({ task, onComplete, onClose }: FocusModeTimerProp
   const [isMuted, setIsMuted] = useState(false);
   
   const audioContextRef = useRef<AudioContext | null>(null);
-  const oscillatorsRef = useRef<OscillatorNode[]>([]);
+  const audioNodesRef = useRef<AudioNode[]>([]);
   const gainNodeRef = useRef<GainNode | null>(null);
 
   // Timer logic
@@ -127,15 +221,11 @@ export function FocusModeTimer({ task, onComplete, onClose }: FocusModeTimerProp
       // Create new audio
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       gainNodeRef.current = audioContextRef.current.createGain();
-      gainNodeRef.current.gain.value = volume / 100 * 0.1;
+      gainNodeRef.current.gain.value = volume / 100 * 0.15;
       gainNodeRef.current.connect(audioContextRef.current.destination);
       
-      const oscillators = createAmbientOscillator(audioContextRef.current, selectedSound);
-      oscillators.forEach(osc => {
-        osc.connect(gainNodeRef.current!);
-        osc.start();
-      });
-      oscillatorsRef.current = oscillators;
+      const nodes = createAmbientSound(audioContextRef.current, selectedSound, gainNodeRef.current);
+      audioNodesRef.current = nodes;
     } else {
       stopAudio();
     }
@@ -146,15 +236,19 @@ export function FocusModeTimer({ task, onComplete, onClose }: FocusModeTimerProp
   // Volume control
   useEffect(() => {
     if (gainNodeRef.current) {
-      gainNodeRef.current.gain.value = volume / 100 * 0.1;
+      gainNodeRef.current.gain.value = volume / 100 * 0.15;
     }
   }, [volume]);
 
   const stopAudio = () => {
-    oscillatorsRef.current.forEach(osc => {
-      try { osc.stop(); } catch {}
+    audioNodesRef.current.forEach(node => {
+      try { 
+        if (node instanceof AudioBufferSourceNode) {
+          node.stop(); 
+        }
+      } catch {}
     });
-    oscillatorsRef.current = [];
+    audioNodesRef.current = [];
     if (audioContextRef.current) {
       try { audioContextRef.current.close(); } catch {}
       audioContextRef.current = null;
