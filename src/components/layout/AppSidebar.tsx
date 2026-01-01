@@ -8,6 +8,7 @@ import {
   Notebook,
   HelpCircle,
   ChevronRight,
+  Home,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -32,7 +33,7 @@ import {
 import { useState } from "react";
 
 const mainNavItems = [
-  { title: "Dashboard", icon: LayoutDashboard, href: "/" },
+  { title: "Dashboard", icon: Home, href: "/" },
   { title: "Study Planner", icon: Calendar, href: "/study-planner" },
   { title: "Medical Library", icon: BookOpen, href: "/library" },
 ];
@@ -52,40 +53,58 @@ const flashcardItems = [
 
 export function AppSidebar() {
   const location = useLocation();
-  const [qbankOpen, setQbankOpen] = useState(location.pathname.startsWith("/qbank"));
-  const [flashcardsOpen, setFlashcardsOpen] = useState(location.pathname.startsWith("/flashcards"));
+  const [qbankOpen, setQbankOpen] = useState(
+    location.pathname.startsWith("/qbank")
+  );
+  const [flashcardsOpen, setFlashcardsOpen] = useState(
+    location.pathname.startsWith("/flashcards")
+  );
 
   return (
     <Sidebar className="border-r-0 bg-sidebar">
       {/* Logo Section */}
-      <SidebarHeader className="px-6 py-6 border-b border-sidebar-border">
-        <div className="flex flex-col items-center gap-2">
+      <SidebarHeader className="px-6 py-8 border-b border-sidebar-border">
+        <div className="flex flex-col items-center gap-3">
           {/* Spiral Logo */}
-          <div className="relative w-16 h-16">
+          <div className="relative w-14 h-14">
             <svg viewBox="0 0 100 100" className="w-full h-full">
               <defs>
-                <linearGradient id="spiralGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="hsl(var(--primary))" />
-                  <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.6" />
+                <linearGradient
+                  id="spiralGradient"
+                  x1="0%"
+                  y1="0%"
+                  x2="100%"
+                  y2="100%"
+                >
+                  <stop offset="0%" stopColor="hsl(var(--sidebar-foreground))" />
+                  <stop
+                    offset="100%"
+                    stopColor="hsl(var(--sidebar-foreground))"
+                    stopOpacity="0.7"
+                  />
                 </linearGradient>
               </defs>
               <path
                 d="M50 10 C70 10, 85 25, 85 45 C85 65, 70 80, 50 80 C35 80, 25 70, 25 55 C25 42, 35 33, 48 33 C58 33, 65 40, 65 50 C65 58, 58 65, 50 65"
                 fill="none"
                 stroke="url(#spiralGradient)"
-                strokeWidth="6"
+                strokeWidth="5"
                 strokeLinecap="round"
               />
             </svg>
           </div>
           <div className="text-center">
-            <h1 className="text-xl font-bold text-sidebar-foreground tracking-wide">MedPrep</h1>
-            <p className="text-sm text-sidebar-foreground/70 font-medium">STEP1 QBank</p>
+            <h1 className="text-xl font-bold text-sidebar-foreground tracking-wide">
+              MedPrep
+            </h1>
+            <p className="text-sm text-sidebar-foreground/60 font-medium">
+              STEP1 QBank
+            </p>
           </div>
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-3 py-4">
+      <SidebarContent className="px-4 py-4">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
@@ -96,8 +115,8 @@ export function AppSidebar() {
                     isActive={location.pathname === item.href}
                     className={cn(
                       "h-11 px-4 rounded-lg transition-all duration-200",
-                      "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent",
-                      "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:font-medium"
+                      "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent",
+                      "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground data-[active=true]:font-medium"
                     )}
                   >
                     <Link to={item.href} className="flex items-center gap-3">
@@ -115,7 +134,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       className={cn(
                         "h-11 px-4 rounded-lg transition-all duration-200 w-full",
-                        "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent",
+                        "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent",
                         qbankOpen && "bg-sidebar-accent/50"
                       )}
                     >
@@ -130,7 +149,7 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="animate-accordion-down">
-                    <SidebarMenuSub className="ml-4 pl-4 border-l border-sidebar-border/50 mt-1 space-y-0.5">
+                    <SidebarMenuSub className="ml-5 pl-4 border-l border-sidebar-border/40 mt-1 space-y-0.5">
                       {qbankItems.map((item) => (
                         <SidebarMenuSubItem key={item.title}>
                           <SidebarMenuSubButton
@@ -158,7 +177,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       className={cn(
                         "h-11 px-4 rounded-lg transition-all duration-200 w-full",
-                        "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent",
+                        "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent",
                         flashcardsOpen && "bg-sidebar-accent/50"
                       )}
                     >
@@ -173,7 +192,7 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="animate-accordion-down">
-                    <SidebarMenuSub className="ml-4 pl-4 border-l border-sidebar-border/50 mt-1 space-y-0.5">
+                    <SidebarMenuSub className="ml-5 pl-4 border-l border-sidebar-border/40 mt-1 space-y-0.5">
                       {flashcardItems.map((item) => (
                         <SidebarMenuSubItem key={item.title}>
                           <SidebarMenuSubButton
@@ -200,8 +219,8 @@ export function AppSidebar() {
                   isActive={location.pathname === "/notebook"}
                   className={cn(
                     "h-11 px-4 rounded-lg transition-all duration-200",
-                    "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent",
-                    "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:font-medium"
+                    "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent",
+                    "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground data-[active=true]:font-medium"
                   )}
                 >
                   <Link to="/notebook" className="flex items-center gap-3">
@@ -217,8 +236,8 @@ export function AppSidebar() {
                   isActive={location.pathname === "/help"}
                   className={cn(
                     "h-11 px-4 rounded-lg transition-all duration-200",
-                    "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent",
-                    "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:font-medium"
+                    "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent",
+                    "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground data-[active=true]:font-medium"
                   )}
                 >
                   <Link to="/help" className="flex items-center gap-3">
@@ -232,10 +251,14 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="px-6 py-4 border-t border-sidebar-border">
+      <SidebarFooter className="px-6 py-5 border-t border-sidebar-border">
         <div className="text-center">
-          <p className="text-xs font-semibold text-sidebar-foreground/70">Expiration Date</p>
-          <p className="text-xs text-sidebar-foreground/50 mt-1">May 07, 2026 12:00 PM EDT</p>
+          <p className="text-xs font-semibold text-sidebar-foreground/60 uppercase tracking-wide">
+            Expiration Date
+          </p>
+          <p className="text-xs text-sidebar-foreground/50 mt-1">
+            May 07, 2026 12:00 PM EDT
+          </p>
         </div>
       </SidebarFooter>
     </Sidebar>

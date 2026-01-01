@@ -1,7 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Circle } from "lucide-react";
 import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 interface StudyTask {
   id: string;
@@ -52,112 +53,128 @@ const overdueTasks: StudyTask[] = [
   },
 ];
 
-const badgeVariants: Record<StudyTask["type"], "tutorial" | "practice" | "flashcard"> = {
-  tutorial: "tutorial",
-  practice: "practice",
-  flashcard: "flashcard",
-};
-
 const typeLabels: Record<StudyTask["type"], string> = {
   tutorial: "Tutorial",
   practice: "Practice Questions",
   flashcard: "Review Flashcards",
 };
 
+const getBadgeClasses = (type: StudyTask["type"]) => {
+  switch (type) {
+    case "tutorial":
+      return "bg-[hsl(var(--badge-tutorial))] text-[hsl(var(--badge-tutorial-foreground))] hover:bg-[hsl(var(--badge-tutorial))]/90";
+    case "practice":
+      return "bg-[hsl(var(--badge-practice))] text-[hsl(var(--badge-practice-foreground))] hover:bg-[hsl(var(--badge-practice))]/90";
+    case "flashcard":
+      return "bg-[hsl(var(--badge-flashcard))] text-[hsl(var(--badge-flashcard-foreground))] hover:bg-[hsl(var(--badge-flashcard))]/90";
+    default:
+      return "";
+  }
+};
+
 export function StudyPlannerWidget() {
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
+  const today = new Date();
+  const formattedDate = `Today, ${today.toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
-  });
+    year: "numeric",
+  })}`;
 
   return (
-    <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
+    <div className="bg-card rounded-lg border border-border p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-base font-semibold text-foreground">Study Planner</h3>
-        <span className="text-sm text-muted-foreground">Today, {today.split(', ').slice(1).join(', ')}</span>
+      <div className="flex items-center justify-between mb-5">
+        <h3 className="text-lg font-semibold text-foreground">Study Planner</h3>
+        <span className="text-sm text-muted-foreground">{formattedDate}</span>
       </div>
 
       {/* Tabs */}
       <Tabs defaultValue="upcoming" className="w-full">
-        <div className="flex items-center justify-between mb-4">
-          <TabsList className="h-9 bg-muted/50 p-1">
-            <TabsTrigger 
-              value="upcoming" 
-              className="text-sm px-4 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm"
+        <div className="flex items-center justify-between mb-5">
+          <TabsList className="h-10 bg-transparent p-0 gap-0">
+            <TabsTrigger
+              value="upcoming"
+              className="h-10 px-5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none text-muted-foreground font-medium"
             >
               Upcoming
             </TabsTrigger>
-            <TabsTrigger 
-              value="overdue" 
-              className="text-sm px-4 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm relative"
+            <TabsTrigger
+              value="overdue"
+              className="h-10 px-5 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none text-muted-foreground font-medium flex items-center gap-2"
             >
               Overdue
               {overdueTasks.length > 0 && (
-                <span className="ml-2 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[11px] font-medium text-destructive-foreground">
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-semibold text-destructive-foreground">
                   {overdueTasks.length}
                 </span>
               )}
             </TabsTrigger>
           </TabsList>
-          <Link 
-            to="/study-planner" 
+          <Link
+            to="/study-planner"
             className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
           >
             View Plan
           </Link>
         </div>
 
-        <TabsContent value="upcoming" className="space-y-2 mt-0">
-          {upcomingTasks.map((task) => (
-            <div
-              key={task.id}
-              className="flex items-center justify-between py-3 border-b border-border/50 last:border-0"
-            >
-              <div className="flex items-center gap-3">
-                <CheckCircle2
-                  className="h-5 w-5 flex-shrink-0"
-                  style={{ color: task.completed ? 'hsl(142, 71%, 45%)' : 'hsl(var(--muted-foreground))' }}
-                />
-                <span className="text-sm font-medium text-foreground">
-                  {task.title}
-                </span>
+        <div className="border-t border-border -mx-6 px-6 pt-1">
+          <TabsContent value="upcoming" className="mt-0 space-y-0">
+            {upcomingTasks.map((task, index) => (
+              <div
+                key={task.id}
+                className={cn(
+                  "flex items-center justify-between py-4",
+                  index < upcomingTasks.length - 1 && "border-b border-border/50"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <CheckCircle2
+                    className="h-5 w-5 flex-shrink-0 text-[hsl(var(--badge-success))]"
+                  />
+                  <span className="text-sm font-medium text-foreground">
+                    {task.title}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <Badge className={cn("text-xs font-medium px-3 py-1", getBadgeClasses(task.type))}>
+                    {typeLabels[task.type]}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground w-24 text-right">
+                    {task.duration}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Badge variant={badgeVariants[task.type]} className="text-xs font-medium">
-                  {typeLabels[task.type]}
-                </Badge>
-                <span className="text-sm text-muted-foreground whitespace-nowrap">
-                  {task.duration}
-                </span>
-              </div>
-            </div>
-          ))}
-        </TabsContent>
+            ))}
+          </TabsContent>
 
-        <TabsContent value="overdue" className="space-y-2 mt-0">
-          {overdueTasks.map((task) => (
-            <div
-              key={task.id}
-              className="flex items-center justify-between py-3 border-b border-destructive/20 last:border-0 bg-destructive/5 -mx-5 px-5"
-            >
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="h-5 w-5 text-destructive flex-shrink-0" />
-                <span className="text-sm font-medium text-foreground">{task.title}</span>
+          <TabsContent value="overdue" className="mt-0 space-y-0">
+            {overdueTasks.map((task, index) => (
+              <div
+                key={task.id}
+                className={cn(
+                  "flex items-center justify-between py-4",
+                  index < overdueTasks.length - 1 && "border-b border-border/50"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <Circle className="h-5 w-5 flex-shrink-0 text-destructive" />
+                  <span className="text-sm font-medium text-foreground">
+                    {task.title}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <Badge className={cn("text-xs font-medium px-3 py-1", getBadgeClasses(task.type))}>
+                    {typeLabels[task.type]}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground w-24 text-right">
+                    {task.duration}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Badge variant={badgeVariants[task.type]} className="text-xs font-medium">
-                  {typeLabels[task.type]}
-                </Badge>
-                <span className="text-sm text-muted-foreground whitespace-nowrap">
-                  {task.duration}
-                </span>
-              </div>
-            </div>
-          ))}
-        </TabsContent>
+            ))}
+          </TabsContent>
+        </div>
       </Tabs>
     </div>
   );
