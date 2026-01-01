@@ -33,6 +33,7 @@ import {
   Pause,
   StickyNote,
   Save,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate, useParams } from "react-router-dom";
@@ -40,6 +41,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTests, Question, QuestionOption } from "@/hooks/useTests";
 import { useFlashcards } from "@/hooks/useFlashcards";
 import { useConfetti } from "@/hooks/useConfetti";
+import { exportNotesToText } from "@/utils/exportNotes";
 import { toast } from "sonner";
 
 interface QuestionWithOptions extends Question {
@@ -266,6 +268,26 @@ const PracticeTestWithData = () => {
     setNotesOpen(false);
   };
 
+  const handleExportNotes = () => {
+    const notesArray = questions
+      .filter((q) => questionNotes[q.id])
+      .map((q) => ({
+        questionText: q.question_text,
+        note: questionNotes[q.id],
+        subject: q.subject,
+        system: q.system,
+        timestamp: new Date().toISOString(),
+      }));
+
+    if (notesArray.length === 0) {
+      toast.error("No notes to export");
+      return;
+    }
+
+    exportNotesToText(notesArray, `Practice Test ${testId || "Session"}`);
+    toast.success(`Exported ${notesArray.length} notes`);
+  };
+
   const hasNote = currentQuestion && questionNotes[currentQuestion.id];
 
   if (loading) {
@@ -316,6 +338,15 @@ const PracticeTestWithData = () => {
             onClick={handleOpenNotes}
           >
             <StickyNote className={cn("h-5 w-5", hasNote && "fill-primary text-primary")} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            onClick={handleExportNotes}
+            title="Export Notes"
+          >
+            <Download className="h-5 w-5" />
           </Button>
           <Button
             variant="ghost"
