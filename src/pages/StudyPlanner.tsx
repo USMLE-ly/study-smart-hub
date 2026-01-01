@@ -78,7 +78,7 @@ const StudyPlanner = () => {
 
   return (
     <AppLayout title="Study Planner">
-      <div className="flex flex-col h-full bg-muted/30 -m-6 p-6">
+      <div className="flex flex-col min-h-[calc(100vh-8rem)] bg-muted/30 -m-6 p-6">
         {/* Header Controls */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
@@ -150,7 +150,7 @@ const StudyPlanner = () => {
         </div>
 
         {/* Calendar Grid */}
-        <div className="flex-1 bg-card rounded-lg border border-border overflow-hidden">
+        <div className="flex-1 min-h-[500px] bg-card rounded-lg border border-border overflow-hidden">
           <StudyCalendarGrid
             currentMonth={currentMonth}
             tasks={tasks}
