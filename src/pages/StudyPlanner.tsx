@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useConfetti } from "@/hooks/useConfetti";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useSoundEffects } from "@/hooks/useSoundEffects";
 import { format, addMonths, subMonths, differenceInDays } from "date-fns";
 import { StudyCalendarGrid } from "@/components/study-planner/StudyCalendarGrid";
 import { AddTaskDialog } from "@/components/study-planner/AddTaskDialog";
@@ -51,6 +52,7 @@ const StudyPlanner = () => {
   const { tasks, loading, addTask, updateTask, toggleComplete, deleteTask, stats } = useStudyTasks();
   const { profile } = useProfile();
   const { triggerConfetti, triggerStars } = useConfetti();
+  const { playTaskComplete, playAchievement } = useSoundEffects({ volume: 0.3, enabled: true });
   const prevCompletedRef = useRef<number>(0);
 
   // Track completed tasks for confetti trigger
@@ -64,17 +66,19 @@ const StudyPlanner = () => {
       // All daily tasks completed - big celebration!
       if (totalToday > 0 && completedToday === totalToday && prevCompletedRef.current < totalToday) {
         triggerConfetti();
+        playAchievement();
         toast.success("🎉 All daily tasks completed! Amazing work!");
       }
       // Milestone: 5 tasks completed
       else if (completedToday >= 5 && prevCompletedRef.current < 5) {
         triggerStars();
+        playAchievement();
         toast.success("⭐ 5 tasks completed! Keep it up!");
       }
 
       prevCompletedRef.current = completedToday;
     }
-  }, [tasks, loading, triggerConfetti, triggerStars]);
+  }, [tasks, loading, triggerConfetti, triggerStars, playAchievement]);
 
   const handleAddTask = async (task: {
     title: string;
@@ -98,6 +102,7 @@ const StudyPlanner = () => {
       toast.error("Failed to update task");
     } else if (completed) {
       // Small celebration for individual task completion
+      playTaskComplete();
       toast.success("✓ Task completed!");
     }
     return { error };
