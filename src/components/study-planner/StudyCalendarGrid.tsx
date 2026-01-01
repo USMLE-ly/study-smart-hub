@@ -101,6 +101,7 @@ export function StudyCalendarGrid({
   onMoveTask
 }: StudyCalendarGridProps) {
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<Date | null>(null);
 
@@ -124,6 +125,19 @@ export function StudyCalendarGrid({
     if (hours === 0) return `${mins}m`;
     if (mins === 0) return `${hours}h`;
     return `${hours}h`;
+  };
+
+  const getCompletionPercentage = (date: Date) => {
+    const dayTasks = getTasksForDate(date);
+    if (dayTasks.length === 0) return 0;
+    const completed = dayTasks.filter(t => t.is_completed).length;
+    return Math.round((completed / dayTasks.length) * 100);
+  };
+
+  const handleDateClick = (date: Date) => {
+    if (isSameMonth(date, currentMonth)) {
+      setSelectedDate(prev => prev && isSameDay(prev, date) ? null : date);
+    }
   };
 
   const handleDragStart = (e: DragEvent<HTMLDivElement>, taskId: string) => {
@@ -178,39 +192,73 @@ export function StudyCalendarGrid({
           const dayTasks = getTasksForDate(day);
           const isCurrentMonth = isSameMonth(day, currentMonth);
           const isHovered = hoveredDate && isSameDay(day, hoveredDate);
+          const isSelected = selectedDate && isSameDay(day, selectedDate);
           const isDragOver = dragOverDate && isSameDay(day, dragOverDate);
           const totalTime = getTotalHoursForDate(day);
+          const completionPct = getCompletionPercentage(day);
+          const hasTasks = dayTasks.length > 0;
 
           return (
             <div
               key={day.toISOString()}
+              onClick={() => handleDateClick(day)}
               className={cn(
-                "border-b border-r border-border last:border-r-0 p-1 sm:p-2 min-h-[100px] relative group transition-all duration-200",
-                !isCurrentMonth && "bg-muted/20",
-                isToday(day) && "bg-primary/5",
-                isHovered && "bg-accent/30",
-                isDragOver && "bg-primary/20 ring-2 ring-primary/40 ring-inset scale-[1.02] z-10"
+                "border-b border-r border-border last:border-r-0 p-1.5 sm:p-2 min-h-[100px] relative group cursor-pointer",
+                "transition-all duration-300 ease-out",
+                !isCurrentMonth && "bg-muted/20 cursor-default",
+                isToday(day) && "bg-gradient-to-br from-primary/5 to-primary/10",
+                isHovered && isCurrentMonth && "bg-accent/40 scale-[1.02] z-10 shadow-md",
+                isSelected && "bg-primary/10 ring-2 ring-primary/50 ring-inset scale-[1.02] z-20 shadow-lg",
+                isDragOver && "bg-primary/20 ring-2 ring-primary/60 ring-inset scale-[1.03] z-20 shadow-xl"
               )}
+              style={{ 
+                animationDelay: `${dayIndex * 15}ms`,
+                transform: isSelected || isHovered && isCurrentMonth ? 'scale(1.02)' : 'scale(1)'
+              }}
               onMouseEnter={() => setHoveredDate(day)}
               onMouseLeave={() => setHoveredDate(null)}
               onDragOver={(e) => handleDragOver(e, day)}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, day)}
             >
+              {/* Completion indicator bar at top */}
+              {hasTasks && completionPct > 0 && (
+                <div className="absolute top-0 left-0 right-0 h-0.5 bg-muted overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-700 ease-out"
+                    style={{ width: `${completionPct}%` }}
+                  />
+                </div>
+              )}
+
               {/* Day Header */}
-              <div className="flex items-start justify-between mb-1">
-                <span
+              <div className="flex items-start justify-between mb-1.5">
+                <div
                   className={cn(
-                    "text-xs sm:text-sm font-medium transition-all duration-200",
-                    !isCurrentMonth && "text-muted-foreground/50",
-                    isToday(day) && "bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-xs animate-scale-in"
+                    "text-xs sm:text-sm font-semibold transition-all duration-300",
+                    "flex items-center justify-center",
+                    !isCurrentMonth && "text-muted-foreground/40",
+                    isCurrentMonth && !isToday(day) && "text-foreground",
+                    isToday(day) && "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground w-7 h-7 rounded-full shadow-md shadow-primary/30 animate-scale-in",
+                    isSelected && !isToday(day) && "bg-primary/20 w-6 h-6 rounded-full"
                   )}
                 >
                   {format(day, "d")}
-                </span>
-                {totalTime && (
-                  <span className="text-[10px] text-muted-foreground transition-opacity duration-200">{totalTime}</span>
-                )}
+                </div>
+                <div className="flex items-center gap-1">
+                  {totalTime && (
+                    <span className="text-[10px] text-muted-foreground/70 font-medium transition-opacity duration-200">
+                      {totalTime}
+                    </span>
+                  )}
+                  {hasTasks && (
+                    <div className={cn(
+                      "w-1.5 h-1.5 rounded-full transition-all duration-300",
+                      completionPct === 100 ? "bg-emerald-500" : 
+                      completionPct > 0 ? "bg-amber-500" : "bg-muted-foreground/30"
+                    )} />
+                  )}
+                </div>
               </div>
 
               {/* Tasks */}
