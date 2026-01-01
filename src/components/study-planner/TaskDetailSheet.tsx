@@ -61,6 +61,7 @@ export function TaskDetailSheet({
   const [scheduledDate, setScheduledDate] = useState("");
   const [duration, setDuration] = useState(60);
   const [isLoading, setIsLoading] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     if (task) {
@@ -71,6 +72,16 @@ export function TaskDetailSheet({
       setDuration(task.estimated_duration_minutes || 60);
     }
   }, [task]);
+
+  // Animate content when sheet opens
+  useEffect(() => {
+    if (open) {
+      const timer = setTimeout(() => setIsVisible(true), 100);
+      return () => clearTimeout(timer);
+    } else {
+      setIsVisible(false);
+    }
+  }, [open]);
 
   const handleSave = async () => {
     if (!task) return;
@@ -105,38 +116,59 @@ export function TaskDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[400px] sm:w-[540px]">
+      <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
         <SheetHeader className="mb-6">
           <SheetTitle className="flex items-center justify-between">
-            <span>Edit Task</span>
+            <span 
+              className={cn(
+                "transition-all duration-300",
+                isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4"
+              )}
+            >
+              Edit Task
+            </span>
             <Button
               variant={task.is_completed ? "secondary" : "outline"}
               size="sm"
               onClick={handleToggle}
               disabled={isLoading}
               className={cn(
-                "gap-2",
+                "gap-2 transition-all duration-300 hover:scale-105 active:scale-95",
+                isVisible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4",
                 task.is_completed && "bg-[hsl(142,71%,45%)]/20 text-[hsl(142,71%,35%)] hover:bg-[hsl(142,71%,45%)]/30"
               )}
             >
-              <CheckCircle2 className="h-4 w-4" />
+              <CheckCircle2 className={cn("h-4 w-4 transition-transform duration-300", task.is_completed && "scale-110")} />
               {task.is_completed ? "Completed" : "Mark Complete"}
             </Button>
           </SheetTitle>
         </SheetHeader>
 
         <div className="space-y-6">
-          <div className="space-y-2">
+          <div 
+            className={cn(
+              "space-y-2 transition-all duration-300",
+              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            )}
+            style={{ transitionDelay: "50ms" }}
+          >
             <Label htmlFor="title">Title</Label>
             <Input
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Task title"
+              className="transition-all duration-200 focus:scale-[1.01]"
             />
           </div>
 
-          <div className="space-y-2">
+          <div 
+            className={cn(
+              "space-y-2 transition-all duration-300",
+              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            )}
+            style={{ transitionDelay: "100ms" }}
+          >
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
@@ -144,20 +176,27 @@ export function TaskDetailSheet({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional description..."
               rows={3}
+              className="transition-all duration-200 focus:scale-[1.01]"
             />
           </div>
 
-          <div className="space-y-2">
+          <div 
+            className={cn(
+              "space-y-2 transition-all duration-300",
+              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            )}
+            style={{ transitionDelay: "150ms" }}
+          >
             <Label htmlFor="type">Task Type</Label>
             <Select value={taskType} onValueChange={setTaskType}>
-              <SelectTrigger>
+              <SelectTrigger className="transition-all duration-200 hover:border-primary/50">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {taskTypeOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     <div className="flex items-center gap-2">
-                      <div className={cn("w-3 h-3 rounded-full", option.color)} />
+                      <div className={cn("w-3 h-3 rounded-full transition-transform duration-200 hover:scale-110", option.color)} />
                       {option.label}
                     </div>
                   </SelectItem>
@@ -166,7 +205,13 @@ export function TaskDetailSheet({
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div 
+            className={cn(
+              "grid grid-cols-2 gap-4 transition-all duration-300",
+              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            )}
+            style={{ transitionDelay: "200ms" }}
+          >
             <div className="space-y-2">
               <Label htmlFor="date" className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
@@ -177,6 +222,7 @@ export function TaskDetailSheet({
                 type="date"
                 value={scheduledDate}
                 onChange={(e) => setScheduledDate(e.target.value)}
+                className="transition-all duration-200 focus:scale-[1.01]"
               />
             </div>
 
@@ -192,22 +238,35 @@ export function TaskDetailSheet({
                 max={480}
                 value={duration}
                 onChange={(e) => setDuration(parseInt(e.target.value) || 60)}
+                className="transition-all duration-200 focus:scale-[1.01]"
               />
             </div>
           </div>
 
           {task.completed_at && (
-            <div className="p-3 rounded-lg bg-[hsl(142,71%,95%)] border border-[hsl(142,71%,45%)]/30">
+            <div 
+              className={cn(
+                "p-3 rounded-lg bg-[hsl(142,71%,95%)] border border-[hsl(142,71%,45%)]/30 transition-all duration-300",
+                isVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"
+              )}
+              style={{ transitionDelay: "250ms" }}
+            >
               <p className="text-sm text-[hsl(142,71%,35%)]">
-                Completed on {format(new Date(task.completed_at), "MMM d, yyyy 'at' h:mm a")}
+                ✓ Completed on {format(new Date(task.completed_at), "MMM d, yyyy 'at' h:mm a")}
               </p>
             </div>
           )}
 
-          <div className="flex gap-3 pt-4">
+          <div 
+            className={cn(
+              "flex gap-3 pt-4 transition-all duration-300",
+              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            )}
+            style={{ transitionDelay: "300ms" }}
+          >
             <Button
               variant="destructive"
-              className="flex-1 gap-2"
+              className="flex-1 gap-2 transition-all duration-200 hover:scale-[1.02] active:scale-95"
               onClick={handleDelete}
               disabled={isLoading}
             >
@@ -215,7 +274,7 @@ export function TaskDetailSheet({
               Delete Task
             </Button>
             <Button
-              className="flex-1 gap-2"
+              className="flex-1 gap-2 transition-all duration-200 hover:scale-[1.02] active:scale-95"
               onClick={handleSave}
               disabled={isLoading}
             >

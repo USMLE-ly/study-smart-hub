@@ -52,7 +52,7 @@ export function ProgressRing({
   const blueColor = "#93C5FD"; // Light blue
 
   return (
-    <div className="bg-card rounded-lg border border-border p-5 h-full flex flex-col min-h-[380px]">
+    <div className="bg-card rounded-lg border border-border p-5 h-full flex flex-col min-h-[380px] transition-all duration-300 hover:shadow-md group">
       {/* Header */}
       <div className="mb-2">
         <h3 className="text-lg font-semibold text-foreground">Study Plan Progress</h3>
@@ -64,7 +64,7 @@ export function ProgressRing({
 
       {/* Progress Ring */}
       <div className="flex justify-center flex-1 items-center">
-        <div className="relative" style={{ width: size, height: size }}>
+        <div className="relative transition-transform duration-500 group-hover:scale-105" style={{ width: size, height: size }}>
           <svg width={size} height={size} className="transform -rotate-90">
             {/* Background track */}
             <circle
@@ -74,6 +74,7 @@ export function ProgressRing({
               fill="none"
               stroke="#E5E7EB"
               strokeWidth={strokeWidth}
+              className="transition-all duration-500"
             />
 
             {/* Incomplete segment (light blue) - draw first (bottom layer) */}
@@ -89,6 +90,7 @@ export function ProgressRing({
                 strokeDashoffset={-(completedDash + overdueDash + gap)}
                 strokeLinecap="round"
                 className="transition-all duration-1000 ease-out"
+                style={{ transitionDelay: '200ms' }}
               />
             )}
 
@@ -105,6 +107,7 @@ export function ProgressRing({
                 strokeDashoffset={-(completedDash + gap)}
                 strokeLinecap="round"
                 className="transition-all duration-1000 ease-out"
+                style={{ transitionDelay: '100ms' }}
               />
             )}
 
@@ -127,7 +130,10 @@ export function ProgressRing({
 
           {/* Center text */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-4xl font-bold" style={{ color: greenColor }}>
+            <span 
+              className="text-4xl font-bold transition-all duration-700 ease-out" 
+              style={{ color: greenColor }}
+            >
               {animatedProgress.toFixed(2)}%
             </span>
             <span className="text-sm text-muted-foreground mt-1">
@@ -139,16 +145,16 @@ export function ProgressRing({
 
       {/* Legend - inline format like UWorld */}
       <div className="flex items-center justify-center gap-4 mt-4 flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: greenColor }} />
+        <div className="flex items-center gap-1.5 transition-transform duration-200 hover:scale-105 cursor-default">
+          <div className="w-2.5 h-2.5 rounded-full transition-transform duration-200 hover:scale-125" style={{ backgroundColor: greenColor }} />
           <span className="text-xs text-foreground">Completed <span className="font-medium">{completed}</span></span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: pinkColor }} />
+        <div className="flex items-center gap-1.5 transition-transform duration-200 hover:scale-105 cursor-default">
+          <div className="w-2.5 h-2.5 rounded-full transition-transform duration-200 hover:scale-125" style={{ backgroundColor: pinkColor }} />
           <span className="text-xs text-foreground">Overdue <span className="font-medium">{overdue}</span></span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: blueColor }} />
+        <div className="flex items-center gap-1.5 transition-transform duration-200 hover:scale-105 cursor-default">
+          <div className="w-2.5 h-2.5 rounded-full transition-transform duration-200 hover:scale-125" style={{ backgroundColor: blueColor }} />
           <span className="text-xs text-foreground">Incomplete <span className="font-medium">{incomplete}</span></span>
         </div>
       </div>

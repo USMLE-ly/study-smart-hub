@@ -17,14 +17,14 @@ export function StatsCard({
   icon: Icon,
 }: StatsCardProps) {
   return (
-    <div className="bg-card rounded-lg border border-border p-5 hover:shadow-sm transition-shadow">
+    <div className="bg-card rounded-lg border border-border p-5 transition-all duration-300 hover:shadow-md hover:border-border/80 hover:-translate-y-0.5 group">
       <div className="flex items-start justify-between">
         <div className="space-y-1">
           <p className="text-sm font-medium text-muted-foreground">
             {title}
           </p>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-foreground">
+            <span className="text-2xl font-bold text-foreground transition-transform duration-300 group-hover:scale-105">
               {value}
             </span>
             {detail && (
@@ -37,8 +37,8 @@ export function StatsCard({
             {subtitle}
           </p>
         </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/50">
-          <Icon className="h-5 w-5 text-muted-foreground" strokeWidth={1.5} />
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/50 transition-all duration-300 group-hover:bg-primary/10 group-hover:scale-110">
+          <Icon className="h-5 w-5 text-muted-foreground transition-colors duration-300 group-hover:text-primary" strokeWidth={1.5} />
         </div>
       </div>
     </div>
