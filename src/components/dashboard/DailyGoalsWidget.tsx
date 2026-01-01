@@ -15,6 +15,11 @@ import { Label } from "@/components/ui/label";
 import { Target, Trophy, Flame, Clock, Edit2, CheckCircle2 } from "lucide-react";
 import { useStudyTasks } from "@/hooks/useStudyTasks";
 import { useGamification } from "@/hooks/useGamification";
+import { 
+  areNotificationsEnabled, 
+  sendNotification,
+  getNotificationPreferences 
+} from "@/utils/notifications";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
@@ -68,6 +73,32 @@ export const DailyGoalsWidget = () => {
       return goal;
     }));
   }, [completedToday, studyMinutesToday]);
+
+  // Check for evening reminder
+  useEffect(() => {
+    const prefs = getNotificationPreferences();
+    if (!prefs.dailyReminders || !areNotificationsEnabled()) return;
+
+    const checkGoals = () => {
+      const now = new Date();
+      const currentHour = now.getHours();
+      
+      // Check at the reminder hour (default 18:00 / 6 PM)
+      if (currentHour === prefs.reminderHour) {
+        const allMet = goals.every(g => g.current >= g.target);
+        if (!allMet) {
+          sendNotification("Daily Study Goals Reminder 📚", {
+            body: `You have unmet study goals today. Keep going to maintain your streak!`,
+            tag: "daily-goal-reminder",
+          });
+        }
+      }
+    };
+
+    // Check every 30 minutes
+    const interval = setInterval(checkGoals, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [goals]);
 
   // Save goals to localStorage
   const saveGoals = useCallback((newGoals: DailyGoal[]) => {

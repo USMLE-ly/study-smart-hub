@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
+import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { toast } from "sonner";
 
 const Settings = () => {
@@ -131,7 +132,10 @@ const Settings = () => {
           </CardContent>
         </Card>
 
-        {/* Notification Settings */}
+        {/* Push Notification Settings */}
+        <NotificationSettings />
+
+        {/* In-App Notification Settings */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -140,18 +144,18 @@ const Settings = () => {
               ) : (
                 <BellOff className="h-5 w-5 text-muted-foreground" />
               )}
-              Notification Settings
+              In-App Notifications
             </CardTitle>
             <CardDescription>
-              Manage how you receive notifications and alerts
+              Manage how you receive in-app notifications and alerts
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="notifications-enabled">Enable Notifications</Label>
+                <Label htmlFor="notifications-enabled">Enable In-App Notifications</Label>
                 <p className="text-sm text-muted-foreground">
-                  Show in-app notifications for events
+                  Show toast notifications for events
                 </p>
               </div>
               <Switch

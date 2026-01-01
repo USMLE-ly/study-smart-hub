@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useFlashcards, Flashcard } from "@/hooks/useFlashcards";
-import { ArrowLeft, RotateCcw, Check, X, Box } from "lucide-react";
+import { PomodoroTimer } from "@/components/flashcards/PomodoroTimer";
+import { ArrowLeft, RotateCcw, Check, X, Box, Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const FlashcardStudy = () => {
@@ -18,6 +19,7 @@ const FlashcardStudy = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [sessionStats, setSessionStats] = useState({ correct: 0, incorrect: 0 });
   const [progressMap, setProgressMap] = useState<Map<string, any>>(new Map());
+  const [showTimer, setShowTimer] = useState(true);
 
   useEffect(() => {
     const loadCards = async () => {
@@ -154,16 +156,33 @@ const FlashcardStudy = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-sm">
-          <Box className="h-4 w-4 text-primary" />
-          <span className="text-muted-foreground">
-            Box {cardProgress?.box_number || 1}
-          </span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-sm">
+            <Box className="h-4 w-4 text-primary" />
+            <span className="text-muted-foreground">
+              Box {cardProgress?.box_number || 1}
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowTimer(!showTimer)}
+            className={cn(showTimer && "text-primary")}
+          >
+            <Timer className="h-4 w-4" />
+          </Button>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex items-center justify-center p-8">
+      <main className="flex-1 flex items-start justify-center p-8 gap-6">
+        {/* Pomodoro Timer - Side Panel */}
+        {showTimer && (
+          <div className="w-64 shrink-0 hidden lg:block">
+            <PomodoroTimer />
+          </div>
+        )}
+
         <div className="w-full max-w-2xl">
           {/* Flashcard */}
           <div
