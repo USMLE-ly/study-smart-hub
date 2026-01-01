@@ -8,72 +8,22 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronUp, Info, Rocket, Plus, Upload } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useNavigate, Link } from "react-router-dom";
 import { useTests } from "@/hooks/useTests";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-interface Subject {
-  id: string;
+interface SubjectCount {
   name: string;
   count: number;
 }
 
-interface System {
-  id: string;
+interface SystemCount {
   name: string;
   count: number;
 }
-
-const subjects: Subject[] = [
-  { id: "anatomy", name: "Anatomy", count: 313 },
-  { id: "behavioral", name: "Behavioral science", count: 261 },
-  { id: "biochemistry", name: "Biochemistry", count: 164 },
-  { id: "biostatistics", name: "Biostatistics", count: 121 },
-  { id: "embryology", name: "Embryology", count: 77 },
-  { id: "genetics", name: "Genetics", count: 109 },
-  { id: "histology", name: "Histology", count: 29 },
-  { id: "immunology", name: "Immunology", count: 132 },
-  { id: "microbiology", name: "Microbiology", count: 352 },
-  { id: "pathology", name: "Pathology", count: 850 },
-  { id: "pathophysiology", name: "Pathophysiology", count: 493 },
-  { id: "pharmacology", name: "Pharmacology", count: 553 },
-  { id: "physiology", name: "Physiology", count: 278 },
-];
-
-const systems: System[] = [
-  { id: "biochem-general", name: "Biochemistry (General Principles)", count: 0 },
-  { id: "genetics-general", name: "Genetics (General Principles)", count: 0 },
-  { id: "microbiology-general", name: "Microbiology (General Principles)", count: 0 },
-  { id: "pathology-general", name: "Pathology (General Principles)", count: 0 },
-  { id: "pharmacology-general", name: "Pharmacology (General Principles)", count: 0 },
-  { id: "allergy", name: "Allergy & Immunology", count: 0 },
-  { id: "cardiovascular", name: "Cardiovascular System", count: 0 },
-  { id: "dermatology", name: "Dermatology", count: 0 },
-  { id: "ent", name: "Ear, Nose & Throat (ENT)", count: 0 },
-  { id: "endocrine", name: "Endocrine, Diabetes & Metabolism", count: 0 },
-  { id: "female-repro", name: "Female Reproductive System & Breast", count: 0 },
-  { id: "gi", name: "Gastrointestinal & Nutrition", count: 0 },
-  { id: "heme-onc", name: "Hematology & Oncology", count: 0 },
-  { id: "infectious", name: "Infectious Diseases", count: 0 },
-  { id: "male-repro", name: "Male Reproductive System", count: 0 },
-  { id: "nervous", name: "Nervous System", count: 0 },
-  { id: "ophthalmology", name: "Ophthalmology", count: 0 },
-  { id: "pregnancy", name: "Pregnancy, Childbirth & Puerperium", count: 0 },
-  { id: "pulmonary", name: "Pulmonary & Critical Care", count: 0 },
-  { id: "renal", name: "Renal, Urinary Systems & Electrolytes", count: 0 },
-  { id: "rheumatology", name: "Rheumatology/Orthopedics & Sports", count: 0 },
-];
-
-const questionModes = [
-  { id: "unused", label: "Unused", count: 3732 },
-  { id: "incorrect", label: "Incorrect", count: 0 },
-  { id: "marked", label: "Marked", count: 0 },
-  { id: "omitted", label: "Omitted", count: 0 },
-  { id: "correct", label: "Correct", count: 0 },
-];
 
 const CreateTest = () => {
   const navigate = useNavigate();
@@ -87,8 +37,51 @@ const CreateTest = () => {
   const [subjectsOpen, setSubjectsOpen] = useState(true);
   const [systemsOpen, setSystemsOpen] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [subjects, setSubjects] = useState<SubjectCount[]>([]);
+  const [systems, setSystems] = useState<SystemCount[]>([]);
+  const [totalAvailable, setTotalAvailable] = useState(0);
 
-  const totalAvailable = 10; // We have 10 sample questions
+  // Fetch counts from database
+  useEffect(() => {
+    const fetchCounts = async () => {
+      // Fetch subject counts
+      const { data: subjectData } = await supabase
+        .from("questions")
+        .select("subject");
+      
+      // Fetch system counts
+      const { data: systemData } = await supabase
+        .from("questions")
+        .select("system");
+
+      if (subjectData) {
+        const subjectCounts: Record<string, number> = {};
+        subjectData.forEach((q) => {
+          subjectCounts[q.subject] = (subjectCounts[q.subject] || 0) + 1;
+        });
+        const subjectList = Object.entries(subjectCounts).map(([name, count]) => ({
+          name,
+          count,
+        })).sort((a, b) => a.name.localeCompare(b.name));
+        setSubjects(subjectList);
+        setTotalAvailable(subjectData.length);
+      }
+
+      if (systemData) {
+        const systemCounts: Record<string, number> = {};
+        systemData.forEach((q) => {
+          systemCounts[q.system] = (systemCounts[q.system] || 0) + 1;
+        });
+        const systemList = Object.entries(systemCounts).map(([name, count]) => ({
+          name,
+          count,
+        })).sort((a, b) => a.name.localeCompare(b.name));
+        setSystems(systemList);
+      }
+    };
+
+    fetchCounts();
+  }, []);
 
   const toggleMode = (modeId: string) => {
     setSelectedModes((prev) =>
@@ -263,7 +256,13 @@ const CreateTest = () => {
 
             {/* Question Filters */}
             <div className="flex flex-wrap items-center gap-4">
-              {questionModes.map((mode) => (
+              {[
+                { id: "unused", label: "Unused", count: totalAvailable },
+                { id: "incorrect", label: "Incorrect", count: 0 },
+                { id: "marked", label: "Marked", count: 0 },
+                { id: "omitted", label: "Omitted", count: 0 },
+                { id: "correct", label: "Correct", count: 0 },
+              ].map((mode) => (
                 <div key={mode.id} className="flex items-center gap-2">
                   <Checkbox
                     id={mode.id}
@@ -290,10 +289,10 @@ const CreateTest = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Checkbox
-                      checked={selectedSubjects.length === subjects.length}
+                      checked={selectedSubjects.length === subjects.length && subjects.length > 0}
                       onCheckedChange={(checked) => {
                         if (checked) {
-                          setSelectedSubjects(subjects.map((s) => s.id));
+                          setSelectedSubjects(subjects.map((s) => s.name));
                         } else {
                           setSelectedSubjects([]);
                         }
@@ -314,13 +313,13 @@ const CreateTest = () => {
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   {subjects.map((subject) => (
-                    <div key={subject.id} className="flex items-center gap-2">
+                    <div key={subject.name} className="flex items-center gap-2">
                       <Checkbox
-                        id={subject.id}
-                        checked={selectedSubjects.includes(subject.id)}
-                        onCheckedChange={() => toggleSubject(subject.id)}
+                        id={`subject-${subject.name}`}
+                        checked={selectedSubjects.includes(subject.name)}
+                        onCheckedChange={() => toggleSubject(subject.name)}
                       />
-                      <Label htmlFor={subject.id} className="flex items-center gap-2">
+                      <Label htmlFor={`subject-${subject.name}`} className="flex items-center gap-2">
                         {subject.name}
                         <Badge variant="outline" className="font-normal">
                           {subject.count}
@@ -342,10 +341,10 @@ const CreateTest = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Checkbox
-                      checked={selectedSystems.length === systems.length}
+                      checked={selectedSystems.length === systems.length && systems.length > 0}
                       onCheckedChange={(checked) => {
                         if (checked) {
-                          setSelectedSystems(systems.map((s) => s.id));
+                          setSelectedSystems(systems.map((s) => s.name));
                         } else {
                           setSelectedSystems([]);
                         }
@@ -372,25 +371,20 @@ const CreateTest = () => {
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   {systems.map((system) => (
-                    <div key={system.id} className="flex items-center gap-2">
+                    <div key={system.name} className="flex items-center gap-2">
                       <Checkbox
-                        id={system.id}
-                        checked={selectedSystems.includes(system.id)}
-                        onCheckedChange={() => toggleSystem(system.id)}
-                        disabled={system.count === 0}
+                        id={`system-${system.name}`}
+                        checked={selectedSystems.includes(system.name)}
+                        onCheckedChange={() => toggleSystem(system.name)}
                       />
                       <Label
-                        htmlFor={system.id}
-                        className={cn(
-                          "flex items-center gap-2",
-                          system.count === 0 && "text-muted-foreground"
-                        )}
+                        htmlFor={`system-${system.name}`}
+                        className="flex items-center gap-2"
                       >
                         {system.name}
                         <Badge variant="outline" className="font-normal">
                           {system.count}
                         </Badge>
-                        <Plus className="h-4 w-4 text-muted-foreground" />
                       </Label>
                     </div>
                   ))}
