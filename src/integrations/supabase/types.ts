@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      achievements: {
+        Row: {
+          created_at: string
+          description: string
+          icon: string
+          id: string
+          name: string
+          requirement_type: string
+          requirement_value: number
+          tier: string
+          xp_reward: number
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          icon: string
+          id?: string
+          name: string
+          requirement_type: string
+          requirement_value: number
+          tier?: string
+          xp_reward?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          icon?: string
+          id?: string
+          name?: string
+          requirement_type?: string
+          requirement_value?: number
+          tier?: string
+          xp_reward?: number
+        }
+        Relationships: []
+      }
       flashcard_decks: {
         Row: {
           color: string | null
@@ -444,6 +480,77 @@ export type Database = {
           time_spent_seconds?: number | null
           timer_type?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      user_achievements: {
+        Row: {
+          achievement_id: string
+          earned_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          achievement_id: string
+          earned_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          achievement_id?: string
+          earned_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_achievements_achievement_id_fkey"
+            columns: ["achievement_id"]
+            isOneToOne: false
+            referencedRelation: "achievements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_gamification: {
+        Row: {
+          created_at: string
+          current_streak: number
+          focus_minutes: number
+          id: string
+          last_activity_date: string | null
+          level: number
+          longest_streak: number
+          tasks_completed: number
+          updated_at: string
+          user_id: string
+          xp_points: number
+        }
+        Insert: {
+          created_at?: string
+          current_streak?: number
+          focus_minutes?: number
+          id?: string
+          last_activity_date?: string | null
+          level?: number
+          longest_streak?: number
+          tasks_completed?: number
+          updated_at?: string
+          user_id: string
+          xp_points?: number
+        }
+        Update: {
+          created_at?: string
+          current_streak?: number
+          focus_minutes?: number
+          id?: string
+          last_activity_date?: string | null
+          level?: number
+          longest_streak?: number
+          tasks_completed?: number
+          updated_at?: string
+          user_id?: string
+          xp_points?: number
         }
         Relationships: []
       }
