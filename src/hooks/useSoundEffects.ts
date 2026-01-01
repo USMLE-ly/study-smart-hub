@@ -25,6 +25,22 @@ const toneConfigs = {
     taskComplete: { notes: [262, 330, 392], type: 'square' as OscillatorType, duration: 0.15 },
     achievement: { notes: [262, 330, 392, 523, 659], type: 'square' as OscillatorType, duration: 0.2 },
   },
+  nature: {
+    taskComplete: { notes: [293.66, 349.23, 440], type: 'sine' as OscillatorType, duration: 0.5 },
+    achievement: { notes: [261.63, 329.63, 392, 493.88, 587.33], type: 'sine' as OscillatorType, duration: 0.6 },
+  },
+  piano: {
+    taskComplete: { notes: [261.63, 329.63, 392], type: 'triangle' as OscillatorType, duration: 0.35 },
+    achievement: { notes: [261.63, 329.63, 392, 523.25, 659.25, 783.99], type: 'triangle' as OscillatorType, duration: 0.45 },
+  },
+  bells: {
+    taskComplete: { notes: [880, 1108.73, 1318.51], type: 'sine' as OscillatorType, duration: 0.4 },
+    achievement: { notes: [659.25, 880, 1108.73, 1318.51, 1760], type: 'sine' as OscillatorType, duration: 0.5 },
+  },
+  gaming: {
+    taskComplete: { notes: [440, 554.37, 659.25], type: 'sawtooth' as OscillatorType, duration: 0.12 },
+    achievement: { notes: [329.63, 415.30, 523.25, 659.25, 830.61], type: 'sawtooth' as OscillatorType, duration: 0.18 },
+  },
 };
 
 export function useSoundEffects(options: SoundOptions = {}) {
