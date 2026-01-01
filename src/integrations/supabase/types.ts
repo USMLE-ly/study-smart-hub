@@ -215,6 +215,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           email: string | null
+          email_verified: boolean | null
           full_name: string | null
           id: string
           medical_school: string | null
@@ -223,12 +224,15 @@ export type Database = {
           timezone: string | null
           updated_at: string
           user_id: string
+          weekly_email_day: number | null
+          weekly_email_enabled: boolean | null
           year_of_study: string | null
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
           email?: string | null
+          email_verified?: boolean | null
           full_name?: string | null
           id?: string
           medical_school?: string | null
@@ -237,12 +241,15 @@ export type Database = {
           timezone?: string | null
           updated_at?: string
           user_id: string
+          weekly_email_day?: number | null
+          weekly_email_enabled?: boolean | null
           year_of_study?: string | null
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
           email?: string | null
+          email_verified?: boolean | null
           full_name?: string | null
           id?: string
           medical_school?: string | null
@@ -251,6 +258,8 @@ export type Database = {
           timezone?: string | null
           updated_at?: string
           user_id?: string
+          weekly_email_day?: number | null
+          weekly_email_enabled?: boolean | null
           year_of_study?: string | null
         }
         Relationships: []
