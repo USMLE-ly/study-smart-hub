@@ -2,17 +2,20 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { StudyPlannerWidget } from "@/components/dashboard/StudyPlannerWidget";
 import { ProgressRing } from "@/components/dashboard/ProgressRing";
-import { FileText, Upload, ListChecks } from "lucide-react";
+import { FileText, BarChart3, CheckSquare } from "lucide-react";
 
 const Dashboard = () => {
   return (
     <AppLayout title="Dashboard">
-      <div className="space-y-6">
+      <div className="space-y-8 max-w-7xl">
         {/* Welcome Section */}
-        <p className="text-muted-foreground text-lg">Welcome</p>
+        <div>
+          <h2 className="text-2xl font-semibold text-foreground">Welcome back</h2>
+          <p className="text-muted-foreground mt-1">Track your progress and continue studying</p>
+        </div>
 
         {/* Stats Cards Row */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-3">
           <StatsCard
             title="Question Score"
             value="0%"
@@ -24,15 +27,15 @@ const Dashboard = () => {
             title="QBank Usage"
             value="1%"
             subtitle="40 / 3639 Used"
-            icon={Upload}
+            icon={BarChart3}
             variant="primary"
           />
           <StatsCard
             title="Test Count"
             value="100%"
             subtitle="1 / 1 Completed"
-            icon={ListChecks}
-            variant="primary"
+            icon={CheckSquare}
+            variant="success"
           />
         </div>
 

@@ -17,10 +17,10 @@ export function StatsCard({
   variant = "default",
 }: StatsCardProps) {
   const iconBgColors = {
-    default: "bg-primary/10",
-    primary: "bg-primary/10",
-    success: "bg-[hsl(var(--badge-success))]/10",
-    warning: "bg-[hsl(var(--badge-flashcard))]/10",
+    default: "bg-primary/8",
+    primary: "bg-primary/8",
+    success: "bg-[hsl(var(--badge-success))]/8",
+    warning: "bg-[hsl(var(--badge-flashcard))]/8",
   };
 
   const iconColors = {
@@ -31,28 +31,28 @@ export function StatsCard({
   };
 
   return (
-    <div className="bg-card rounded-lg border border-border p-5 hover:shadow-sm transition-shadow">
-      <div className="flex items-center justify-between">
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-muted-foreground tracking-wide">
+    <div className="bg-card rounded-lg border border-border/60 p-6 shadow-sm hover:shadow-md transition-all duration-200">
+      <div className="flex items-start justify-between">
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             {title}
           </p>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-foreground tracking-tight">
+          <div className="space-y-1">
+            <span className="text-2xl font-bold text-foreground tracking-tight block">
               {value}
             </span>
-            <span className="text-sm text-muted-foreground">
+            <span className="text-sm text-muted-foreground font-medium">
               {subtitle}
             </span>
           </div>
         </div>
         <div
           className={cn(
-            "flex h-12 w-12 items-center justify-center rounded-lg",
+            "flex h-11 w-11 items-center justify-center rounded-lg",
             iconBgColors[variant]
           )}
         >
-          <Icon className={cn("h-6 w-6", iconColors[variant])} />
+          <Icon className={cn("h-5 w-5", iconColors[variant])} strokeWidth={1.5} />
         </div>
       </div>
     </div>
