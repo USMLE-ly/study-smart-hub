@@ -255,6 +255,87 @@ export function useFlashcards() {
     return { error };
   };
 
+  const updateDeck = async (deckId: string, name: string, description?: string) => {
+    const { error } = await supabase
+      .from("flashcard_decks")
+      .update({ name, description, updated_at: new Date().toISOString() })
+      .eq("id", deckId);
+
+    if (!error) {
+      setDecks((prev) =>
+        prev.map((d) => (d.id === deckId ? { ...d, name, description: description || null } : d))
+      );
+    }
+
+    return { error };
+  };
+
+  const updateFlashcard = async (flashcardId: string, frontContent: string, backContent: string) => {
+    const { error } = await supabase
+      .from("flashcards")
+      .update({ front_content: frontContent, back_content: backContent, updated_at: new Date().toISOString() })
+      .eq("id", flashcardId);
+
+    return { error };
+  };
+
+  const getDeckStats = async (deckId: string) => {
+    if (!user) return { data: null, error: new Error("Not authenticated") };
+
+    const { data: flashcards } = await supabase
+      .from("flashcards")
+      .select("id")
+      .eq("deck_id", deckId);
+
+    if (!flashcards || flashcards.length === 0) {
+      return {
+        data: {
+          totalCards: 0,
+          mastered: 0,
+          learning: 0,
+          newCards: 0,
+          masteryPercentage: 0,
+        },
+        error: null,
+      };
+    }
+
+    const flashcardIds = flashcards.map((f) => f.id);
+    const { data: progress } = await supabase
+      .from("flashcard_progress")
+      .select("*")
+      .eq("user_id", user.id)
+      .in("flashcard_id", flashcardIds);
+
+    const progressMap = new Map(progress?.map((p) => [p.flashcard_id, p]));
+
+    let mastered = 0;
+    let learning = 0;
+    let newCards = 0;
+
+    flashcards.forEach((card) => {
+      const cardProgress = progressMap.get(card.id);
+      if (!cardProgress) {
+        newCards++;
+      } else if (cardProgress.box_number >= 4) {
+        mastered++;
+      } else {
+        learning++;
+      }
+    });
+
+    return {
+      data: {
+        totalCards: flashcards.length,
+        mastered,
+        learning,
+        newCards,
+        masteryPercentage: Math.round((mastered / flashcards.length) * 100),
+      },
+      error: null,
+    };
+  };
+
   return {
     decks,
     loading,
@@ -267,5 +348,8 @@ export function useFlashcards() {
     saveWrongAnswerAsFlashcard,
     deleteDeck,
     deleteFlashcard,
+    updateDeck,
+    updateFlashcard,
+    getDeckStats,
   };
 }

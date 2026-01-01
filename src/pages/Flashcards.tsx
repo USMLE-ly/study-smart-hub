@@ -22,16 +22,37 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, FolderPlus, Plus, FileText, BarChart3, ChevronDown, Trash2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Search, FolderPlus, Plus, FileText, BarChart3, Trash2, Pencil, Trophy, BookOpen, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useFlashcards, FlashcardDeck } from "@/hooks/useFlashcards";
+import { useFlashcards, FlashcardDeck, Flashcard } from "@/hooks/useFlashcards";
 import { toast } from "sonner";
 import { LoadingState } from "@/components/ui/LoadingSpinner";
 
+interface DeckStats {
+  totalCards: number;
+  mastered: number;
+  learning: number;
+  newCards: number;
+  masteryPercentage: number;
+}
+
 const Flashcards = () => {
   const navigate = useNavigate();
-  const { decks, loading, createDeck, addFlashcard, fetchDecks, deleteDeck, getFlashcardsForDeck } = useFlashcards();
+  const { 
+    decks, 
+    loading, 
+    createDeck, 
+    addFlashcard, 
+    fetchDecks, 
+    deleteDeck, 
+    getFlashcardsForDeck,
+    updateDeck,
+    updateFlashcard,
+    deleteFlashcard,
+    getDeckStats
+  } = useFlashcards();
   const [searchQuery, setSearchQuery] = useState("");
   
   // Create Deck Dialog state
@@ -39,27 +60,46 @@ const Flashcards = () => {
   const [newDeckName, setNewDeckName] = useState("");
   const [newDeckDescription, setNewDeckDescription] = useState("");
   
+  // Edit Deck Dialog state
+  const [editDeckOpen, setEditDeckOpen] = useState(false);
+  const [editingDeck, setEditingDeck] = useState<FlashcardDeck | null>(null);
+  const [editDeckName, setEditDeckName] = useState("");
+  const [editDeckDescription, setEditDeckDescription] = useState("");
+  
   // Create Card Dialog state
   const [createCardOpen, setCreateCardOpen] = useState(false);
   const [selectedDeckId, setSelectedDeckId] = useState("");
   const [newCardFront, setNewCardFront] = useState("");
   const [newCardBack, setNewCardBack] = useState("");
 
-  const [deckCardCounts, setDeckCardCounts] = useState<Record<string, number>>({});
+  // Edit Card Dialog state
+  const [editCardOpen, setEditCardOpen] = useState(false);
+  const [editingCard, setEditingCard] = useState<Flashcard | null>(null);
+  const [editCardFront, setEditCardFront] = useState("");
+  const [editCardBack, setEditCardBack] = useState("");
+
+  // View Cards Dialog state
+  const [viewCardsOpen, setViewCardsOpen] = useState(false);
+  const [viewingDeckId, setViewingDeckId] = useState("");
+  const [deckCards, setDeckCards] = useState<Flashcard[]>([]);
+
+  const [deckStats, setDeckStats] = useState<Record<string, DeckStats>>({});
 
   useEffect(() => {
-    const loadCounts = async () => {
-      const counts: Record<string, number> = {};
+    const loadStats = async () => {
+      const stats: Record<string, DeckStats> = {};
       for (const deck of decks) {
-        const { data } = await getFlashcardsForDeck(deck.id);
-        counts[deck.id] = data?.length || 0;
+        const { data } = await getDeckStats(deck.id);
+        if (data) {
+          stats[deck.id] = data;
+        }
       }
-      setDeckCardCounts(counts);
+      setDeckStats(stats);
     };
     if (decks.length > 0) {
-      loadCounts();
+      loadStats();
     }
-  }, [decks, getFlashcardsForDeck]);
+  }, [decks, getDeckStats]);
 
   const handleCreateDeck = async () => {
     if (!newDeckName.trim()) {
@@ -76,6 +116,29 @@ const Flashcards = () => {
       setNewDeckDescription("");
       setCreateDeckOpen(false);
     }
+  };
+
+  const handleEditDeck = async () => {
+    if (!editingDeck || !editDeckName.trim()) {
+      toast.error("Please enter a deck name");
+      return;
+    }
+
+    const { error } = await updateDeck(editingDeck.id, editDeckName, editDeckDescription);
+    if (error) {
+      toast.error("Failed to update deck");
+    } else {
+      toast.success("Deck updated successfully");
+      setEditDeckOpen(false);
+      setEditingDeck(null);
+    }
+  };
+
+  const openEditDeck = (deck: FlashcardDeck) => {
+    setEditingDeck(deck);
+    setEditDeckName(deck.name);
+    setEditDeckDescription(deck.description || "");
+    setEditDeckOpen(true);
   };
 
   const handleCreateCard = async () => {
@@ -97,6 +160,52 @@ const Flashcards = () => {
       setNewCardBack("");
       setSelectedDeckId("");
       setCreateCardOpen(false);
+      fetchDecks();
+    }
+  };
+
+  const handleEditCard = async () => {
+    if (!editingCard || !editCardFront.trim() || !editCardBack.trim()) {
+      toast.error("Please fill in both front and back");
+      return;
+    }
+
+    const { error } = await updateFlashcard(editingCard.id, editCardFront, editCardBack);
+    if (error) {
+      toast.error("Failed to update flashcard");
+    } else {
+      toast.success("Flashcard updated successfully");
+      setEditCardOpen(false);
+      setEditingCard(null);
+      // Refresh cards list
+      if (viewingDeckId) {
+        const { data } = await getFlashcardsForDeck(viewingDeckId);
+        setDeckCards(data || []);
+      }
+    }
+  };
+
+  const openEditCard = (card: Flashcard) => {
+    setEditingCard(card);
+    setEditCardFront(card.front_content);
+    setEditCardBack(card.back_content);
+    setEditCardOpen(true);
+  };
+
+  const handleViewCards = async (deckId: string) => {
+    setViewingDeckId(deckId);
+    const { data } = await getFlashcardsForDeck(deckId);
+    setDeckCards(data || []);
+    setViewCardsOpen(true);
+  };
+
+  const handleDeleteCard = async (cardId: string) => {
+    const { error } = await deleteFlashcard(cardId);
+    if (error) {
+      toast.error("Failed to delete flashcard");
+    } else {
+      toast.success("Flashcard deleted");
+      setDeckCards((prev) => prev.filter((c) => c.id !== cardId));
       fetchDecks();
     }
   };
@@ -125,6 +234,13 @@ const Flashcards = () => {
       "bg-[hsl(var(--badge-flashcard))]",
     ];
     return colors[index % colors.length];
+  };
+
+  const getMasteryColor = (percentage: number) => {
+    if (percentage >= 80) return "text-[hsl(var(--badge-success))]";
+    if (percentage >= 50) return "text-primary";
+    if (percentage >= 20) return "text-[hsl(var(--badge-practice))]";
+    return "text-muted-foreground";
   };
 
   if (loading) {
@@ -267,38 +383,88 @@ const Flashcards = () => {
               </CardContent>
             </Card>
 
-            {/* Deck List */}
+            {/* Deck List with Stats */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredDecks.map((deck, index) => (
-                <Card key={deck.id} className="hover:shadow-md transition-shadow cursor-pointer group">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-full ${getColorClass(index)} text-primary-foreground font-semibold`}>
-                        {getInitial(deck.name)}
+              {filteredDecks.map((deck, index) => {
+                const stats = deckStats[deck.id];
+                return (
+                  <Card key={deck.id} className="hover:shadow-md transition-shadow group">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-full ${getColorClass(index)} text-primary-foreground font-semibold shrink-0`}>
+                          {getInitial(deck.name)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <Link to={`/flashcards/study/${deck.id}`} className="font-medium text-foreground hover:text-primary truncate">
+                              {deck.name}
+                            </Link>
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  openEditDeck(deck);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleDeleteDeck(deck.id);
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          {stats && (
+                            <div className="mt-2 space-y-2">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">{stats.totalCards} cards</span>
+                                <span className={`font-medium ${getMasteryColor(stats.masteryPercentage)}`}>
+                                  {stats.masteryPercentage}% mastered
+                                </span>
+                              </div>
+                              <Progress value={stats.masteryPercentage} className="h-1.5" />
+                              <div className="flex gap-3 text-xs">
+                                <span className="flex items-center gap-1 text-[hsl(var(--badge-success))]">
+                                  <Trophy className="h-3 w-3" />
+                                  {stats.mastered}
+                                </span>
+                                <span className="flex items-center gap-1 text-primary">
+                                  <BookOpen className="h-3 w-3" />
+                                  {stats.learning}
+                                </span>
+                                <span className="flex items-center gap-1 text-muted-foreground">
+                                  <Sparkles className="h-3 w-3" />
+                                  {stats.newCards}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                          
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="px-0 h-6 mt-1"
+                            onClick={() => handleViewCards(deck.id)}
+                          >
+                            View & Edit Cards
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <Link to={`/flashcards/study/${deck.id}`} className="font-medium text-foreground hover:text-primary">
-                          {deck.name}
-                        </Link>
-                        <p className="text-sm text-muted-foreground">
-                          {deckCardCounts[deck.id] || 0} cards
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleDeleteDeck(deck.id);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
 
             {filteredDecks.length === 0 && (
@@ -344,42 +510,63 @@ const Flashcards = () => {
                   <TableHeader>
                     <TableRow className="bg-muted/30">
                       <TableHead>Choose Deck</TableHead>
-                      <TableHead className="text-center">Total Cards</TableHead>
+                      <TableHead className="text-center">Total</TableHead>
+                      <TableHead className="text-center">Mastered</TableHead>
+                      <TableHead className="text-center">Learning</TableHead>
+                      <TableHead className="text-center">New</TableHead>
+                      <TableHead className="text-center">Mastery</TableHead>
                       <TableHead className="text-center">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredDecks.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                           No decks found. Create one to get started!
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredDecks.map((deck, index) => (
-                        <TableRow key={deck.id} className="hover:bg-accent/50">
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <div className={`flex h-8 w-8 items-center justify-center rounded-full ${getColorClass(index)} text-primary-foreground text-sm font-semibold`}>
-                                {getInitial(deck.name)}
+                      filteredDecks.map((deck, index) => {
+                        const stats = deckStats[deck.id];
+                        return (
+                          <TableRow key={deck.id} className="hover:bg-accent/50">
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <div className={`flex h-8 w-8 items-center justify-center rounded-full ${getColorClass(index)} text-primary-foreground text-sm font-semibold`}>
+                                  {getInitial(deck.name)}
+                                </div>
+                                <span className="font-medium text-foreground">{deck.name}</span>
                               </div>
-                              <span className="font-medium text-foreground">{deck.name}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center text-primary font-medium">
-                            {deckCardCounts[deck.id] || 0}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Button 
-                              size="sm" 
-                              variant="default"
-                              onClick={() => navigate(`/flashcards/study/${deck.id}`)}
-                            >
-                              Study
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                            </TableCell>
+                            <TableCell className="text-center font-medium">
+                              {stats?.totalCards || 0}
+                            </TableCell>
+                            <TableCell className="text-center text-[hsl(var(--badge-success))] font-medium">
+                              {stats?.mastered || 0}
+                            </TableCell>
+                            <TableCell className="text-center text-primary font-medium">
+                              {stats?.learning || 0}
+                            </TableCell>
+                            <TableCell className="text-center text-muted-foreground font-medium">
+                              {stats?.newCards || 0}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <span className={`font-medium ${getMasteryColor(stats?.masteryPercentage || 0)}`}>
+                                {stats?.masteryPercentage || 0}%
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button 
+                                size="sm" 
+                                variant="default"
+                                onClick={() => navigate(`/flashcards/study/${deck.id}`)}
+                              >
+                                Study
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -388,6 +575,130 @@ const Flashcards = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit Deck Dialog */}
+      <Dialog open={editDeckOpen} onOpenChange={setEditDeckOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Deck</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="editDeckName">Deck Name</Label>
+              <Input
+                id="editDeckName"
+                value={editDeckName}
+                onChange={(e) => setEditDeckName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editDeckDesc">Description (optional)</Label>
+              <Textarea
+                id="editDeckDesc"
+                value={editDeckDescription}
+                onChange={(e) => setEditDeckDescription(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button onClick={handleEditDeck}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Card Dialog */}
+      <Dialog open={editCardOpen} onOpenChange={setEditCardOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Flashcard</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="editCardFront">Front (Question)</Label>
+              <Textarea
+                id="editCardFront"
+                value={editCardFront}
+                onChange={(e) => setEditCardFront(e.target.value)}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editCardBack">Back (Answer)</Label>
+              <Textarea
+                id="editCardBack"
+                value={editCardBack}
+                onChange={(e) => setEditCardBack(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button onClick={handleEditCard}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Cards Dialog */}
+      <Dialog open={viewCardsOpen} onOpenChange={setViewCardsOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Flashcards in Deck</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            {deckCards.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No cards in this deck yet</p>
+            ) : (
+              deckCards.map((card) => (
+                <Card key={card.id} className="group">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Front:</p>
+                          <p className="text-sm text-foreground">{card.front_content}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Back:</p>
+                          <p className="text-sm text-foreground whitespace-pre-wrap">{card.back_content}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => openEditCard(card)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteCard(card.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Close</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };

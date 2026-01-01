@@ -28,6 +28,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useTests, Question, QuestionOption } from "@/hooks/useTests";
 import { useFlashcards } from "@/hooks/useFlashcards";
+import { useConfetti } from "@/hooks/useConfetti";
 import { toast } from "sonner";
 
 interface QuestionWithOptions extends Question {
@@ -39,6 +40,7 @@ const PracticeTestWithData = () => {
   const { testId } = useParams();
   const { getTest, getTestAnswers, submitAnswer, markQuestion, completeTest } = useTests();
   const { saveWrongAnswerAsFlashcard } = useFlashcards();
+  const { triggerConfetti, triggerStars } = useConfetti();
   
   const [questions, setQuestions] = useState<QuestionWithOptions[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -173,6 +175,10 @@ const PracticeTestWithData = () => {
         );
         toast.info("Question saved to your Wrong Answers deck", { duration: 2000 });
       }
+    } else {
+      // Celebrate correct answers!
+      triggerStars();
+      toast.success("Correct! 🎉", { duration: 1500 });
     }
 
     setIsAnswered(true);
