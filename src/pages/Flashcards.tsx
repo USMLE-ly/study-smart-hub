@@ -24,7 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Search, FolderPlus, Plus, FileText, BarChart3, Trash2, Pencil, Trophy, BookOpen, Sparkles } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useFlashcards, FlashcardDeck, Flashcard } from "@/hooks/useFlashcards";
 import { toast } from "sonner";
@@ -85,21 +85,23 @@ const Flashcards = () => {
 
   const [deckStats, setDeckStats] = useState<Record<string, DeckStats>>({});
 
-  useEffect(() => {
-    const loadStats = async () => {
-      const stats: Record<string, DeckStats> = {};
-      for (const deck of decks) {
-        const { data } = await getDeckStats(deck.id);
-        if (data) {
-          stats[deck.id] = data;
-        }
+  // Load stats when decks change
+  const loadStats = useCallback(async () => {
+    const stats: Record<string, DeckStats> = {};
+    for (const deck of decks) {
+      const { data } = await getDeckStats(deck.id);
+      if (data) {
+        stats[deck.id] = data;
       }
-      setDeckStats(stats);
-    };
+    }
+    setDeckStats(stats);
+  }, [decks, getDeckStats]);
+
+  useEffect(() => {
     if (decks.length > 0) {
       loadStats();
     }
-  }, [decks, getDeckStats]);
+  }, [decks, loadStats]);
 
   const handleCreateDeck = async () => {
     if (!newDeckName.trim()) {
@@ -160,7 +162,13 @@ const Flashcards = () => {
       setNewCardBack("");
       setSelectedDeckId("");
       setCreateCardOpen(false);
-      fetchDecks();
+      // Refresh decks and stats
+      await fetchDecks();
+      // Refresh stats for the deck
+      const { data: newStats } = await getDeckStats(selectedDeckId);
+      if (newStats) {
+        setDeckStats(prev => ({ ...prev, [selectedDeckId]: newStats }));
+      }
     }
   };
 
@@ -260,10 +268,54 @@ const Flashcards = () => {
               <TabsTrigger value="browse">Browse</TabsTrigger>
               <TabsTrigger value="study">Study</TabsTrigger>
             </TabsList>
-            <Button variant="ghost" className="text-primary gap-2">
-              <FileText className="h-4 w-4" />
-              Using Your Flashcards
-            </Button>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="ghost" className="text-primary gap-2">
+                  <FileText className="h-4 w-4" />
+                  Using Your Flashcards
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>How to Use Flashcards</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4 text-sm text-muted-foreground">
+                  <div className="flex gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold shrink-0">1</div>
+                    <div>
+                      <p className="font-medium text-foreground">Create Decks</p>
+                      <p>Organize your flashcards into decks by subject or topic.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold shrink-0">2</div>
+                    <div>
+                      <p className="font-medium text-foreground">Add Cards</p>
+                      <p>Create new cards with questions on the front and answers on the back.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold shrink-0">3</div>
+                    <div>
+                      <p className="font-medium text-foreground">Study with Spaced Repetition</p>
+                      <p>Cards you get right move to higher boxes and appear less often. Wrong answers go back to box 1 for more practice.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[hsl(var(--badge-success))]/10 text-[hsl(var(--badge-success))] font-semibold shrink-0">✓</div>
+                    <div>
+                      <p className="font-medium text-foreground">Auto-Save Wrong Answers</p>
+                      <p>Questions you answer incorrectly in QBank are automatically saved to a "Wrong Answers" deck for review!</p>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button>Got it!</Button>
+                  </DialogClose>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
           <TabsContent value="browse" className="space-y-6">

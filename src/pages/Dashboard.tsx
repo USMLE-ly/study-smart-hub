@@ -6,6 +6,7 @@ import { SkeletonCard } from "@/components/ui/LoadingSpinner";
 import { LeaderboardWidget } from "@/components/gamification/LeaderboardWidget";
 import { StreakCelebration, useStreakCelebration } from "@/components/gamification/StreakCelebration";
 import { GamificationWidget } from "@/components/gamification/GamificationWidget";
+import { DailyGoalsWidget } from "@/components/dashboard/DailyGoalsWidget";
 import { FileText, Plus, ClipboardList } from "lucide-react";
 import { useTests } from "@/hooks/useTests";
 import { useAuth } from "@/contexts/AuthContext";
@@ -131,12 +132,15 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Gamification and Leaderboard Row */}
-        <div className="grid gap-4 lg:grid-cols-2">
+        {/* Gamification, Daily Goals and Leaderboard Row */}
+        <div className="grid gap-4 lg:grid-cols-3">
           <div className="animate-fade-in" style={{ animationDelay: '300ms' }}>
             <GamificationWidget />
           </div>
           <div className="animate-fade-in" style={{ animationDelay: '350ms' }}>
+            <DailyGoalsWidget />
+          </div>
+          <div className="animate-fade-in" style={{ animationDelay: '400ms' }}>
             <LeaderboardWidget />
           </div>
         </div>
