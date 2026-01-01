@@ -48,8 +48,8 @@ const qbankItems = [
 ];
 
 const flashcardItems = [
-  { title: "Study Flashcards", href: "/flashcards/study" },
   { title: "My Decks", href: "/flashcards/decks" },
+  { title: "Ready Decks", href: "/flashcards/study" },
 ];
 
 export function AppSidebar() {

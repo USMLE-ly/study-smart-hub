@@ -7,6 +7,12 @@ import Dashboard from "./pages/Dashboard";
 import StudyPlanner from "./pages/StudyPlanner";
 import MedicalLibrary from "./pages/MedicalLibrary";
 import CreateTest from "./pages/CreateTest";
+import PreviousTests from "./pages/PreviousTests";
+import Performance from "./pages/Performance";
+import SearchQuestions from "./pages/SearchQuestions";
+import Flashcards from "./pages/Flashcards";
+import Notebook from "./pages/Notebook";
+import Help from "./pages/Help";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,14 +28,15 @@ const App = () => (
           <Route path="/study-planner" element={<StudyPlanner />} />
           <Route path="/library" element={<MedicalLibrary />} />
           <Route path="/qbank/create" element={<CreateTest />} />
-          <Route path="/qbank/history" element={<NotFound />} />
-          <Route path="/qbank/performance" element={<NotFound />} />
-          <Route path="/qbank/search" element={<NotFound />} />
-          <Route path="/qbank/notes" element={<NotFound />} />
-          <Route path="/flashcards/study" element={<NotFound />} />
-          <Route path="/flashcards/decks" element={<NotFound />} />
-          <Route path="/notebook" element={<NotFound />} />
-          <Route path="/help" element={<NotFound />} />
+          <Route path="/qbank/history" element={<PreviousTests />} />
+          <Route path="/qbank/performance" element={<Performance />} />
+          <Route path="/qbank/search" element={<SearchQuestions />} />
+          <Route path="/qbank/notes" element={<Notebook />} />
+          <Route path="/flashcards" element={<Flashcards />} />
+          <Route path="/flashcards/study" element={<Flashcards />} />
+          <Route path="/flashcards/decks" element={<Flashcards />} />
+          <Route path="/notebook" element={<Notebook />} />
+          <Route path="/help" element={<Help />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
