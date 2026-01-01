@@ -131,10 +131,11 @@ export function StudyCalendarGrid({
     <div className="flex flex-col h-full">
       {/* Weekday Headers - fixed width with truncation */}
       <div className="grid grid-cols-7 border-b border-border">
-        {weekDays.map((day) => (
+        {weekDays.map((day, index) => (
           <div
             key={day}
-            className="py-2 px-1 text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide border-r border-border last:border-r-0 text-center truncate"
+            className="py-2 px-1 text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide border-r border-border last:border-r-0 text-center truncate animate-fade-in"
+            style={{ animationDelay: `${index * 30}ms` }}
           >
             {day}
           </div>
@@ -143,7 +144,7 @@ export function StudyCalendarGrid({
 
       {/* Calendar Grid */}
       <div className="flex-1 grid grid-cols-7 auto-rows-fr">
-        {days.map((day) => {
+        {days.map((day, dayIndex) => {
           const dayTasks = getTasksForDate(day);
           const isCurrentMonth = isSameMonth(day, currentMonth);
           const isHovered = hoveredDate && isSameDay(day, hoveredDate);
@@ -154,11 +155,11 @@ export function StudyCalendarGrid({
             <div
               key={day.toISOString()}
               className={cn(
-                "border-b border-r border-border last:border-r-0 p-1 sm:p-2 min-h-[100px] relative group transition-colors",
+                "border-b border-r border-border last:border-r-0 p-1 sm:p-2 min-h-[100px] relative group transition-all duration-200",
                 !isCurrentMonth && "bg-muted/20",
                 isToday(day) && "bg-primary/5",
                 isHovered && "bg-accent/30",
-                isDragOver && "bg-primary/20 ring-2 ring-primary/40 ring-inset"
+                isDragOver && "bg-primary/20 ring-2 ring-primary/40 ring-inset scale-[1.02] z-10"
               )}
               onMouseEnter={() => setHoveredDate(day)}
               onMouseLeave={() => setHoveredDate(null)}
@@ -170,21 +171,21 @@ export function StudyCalendarGrid({
               <div className="flex items-start justify-between mb-1">
                 <span
                   className={cn(
-                    "text-xs sm:text-sm font-medium",
+                    "text-xs sm:text-sm font-medium transition-all duration-200",
                     !isCurrentMonth && "text-muted-foreground/50",
-                    isToday(day) && "bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-xs"
+                    isToday(day) && "bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-xs animate-scale-in"
                   )}
                 >
                   {format(day, "d")}
                 </span>
                 {totalTime && (
-                  <span className="text-[10px] text-muted-foreground">{totalTime}</span>
+                  <span className="text-[10px] text-muted-foreground transition-opacity duration-200">{totalTime}</span>
                 )}
               </div>
 
               {/* Tasks */}
               <div className="space-y-0.5">
-                {dayTasks.slice(0, 3).map((task) => {
+                {dayTasks.slice(0, 3).map((task, taskIndex) => {
                   const colors = taskTypeColors[task.task_type] || taskTypeColors.review;
                   const isDragging = draggedTaskId === task.id;
                   return (
@@ -198,21 +199,23 @@ export function StudyCalendarGrid({
                         onTaskClick?.(task);
                       }}
                       className={cn(
-                        "w-full text-left px-1.5 py-0.5 text-[10px] sm:text-xs rounded border-l-2 truncate transition-all cursor-grab active:cursor-grabbing flex items-center gap-1",
+                        "w-full text-left px-1.5 py-0.5 text-[10px] sm:text-xs rounded border-l-2 truncate cursor-grab active:cursor-grabbing flex items-center gap-1",
+                        "transition-all duration-200 hover:scale-[1.02] hover:shadow-sm active:scale-95",
                         colors.border,
                         colors.bg,
                         colors.text,
                         task.is_completed && "opacity-50 line-through",
-                        isDragging && "opacity-50 ring-2 ring-primary"
+                        isDragging && "opacity-50 ring-2 ring-primary scale-105 rotate-1"
                       )}
+                      style={{ animationDelay: `${taskIndex * 50}ms` }}
                     >
-                      <GripVertical className="h-3 w-3 opacity-0 group-hover:opacity-50 shrink-0" />
+                      <GripVertical className="h-3 w-3 opacity-0 group-hover:opacity-50 shrink-0 transition-opacity duration-200" />
                       <span className="truncate">{task.title}</span>
                     </div>
                   );
                 })}
                 {dayTasks.length > 3 && (
-                  <div className="text-[10px] text-muted-foreground px-1.5">
+                  <div className="text-[10px] text-muted-foreground px-1.5 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
                     +{dayTasks.length - 3} more
                   </div>
                 )}
@@ -223,8 +226,9 @@ export function StudyCalendarGrid({
                 <button
                   onClick={() => onAddTask(day)}
                   className={cn(
-                    "absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] text-primary flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity",
-                    "hover:underline"
+                    "absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] text-primary flex items-center gap-0.5",
+                    "opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-1 group-hover:translate-y-0",
+                    "hover:scale-110 active:scale-95"
                   )}
                 >
                   <Plus className="h-3 w-3" />

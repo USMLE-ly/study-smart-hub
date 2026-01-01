@@ -78,7 +78,7 @@ export function StudyPlannerWidget() {
   }
 
   return (
-    <div className="bg-card rounded-lg border border-border h-full flex flex-col min-h-[380px]">
+    <div className="bg-card rounded-lg border border-border h-full flex flex-col min-h-[380px] transition-all duration-300 hover:shadow-md">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-border">
         <h3 className="text-lg font-semibold text-foreground">Study Planner</h3>
@@ -86,9 +86,10 @@ export function StudyPlannerWidget() {
           <span className="text-sm text-muted-foreground">{formattedDate}</span>
           <Link
             to="/study-planner"
-            className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+            className="text-sm font-medium text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1 group"
           >
             View Plan
+            <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
           </Link>
         </div>
       </div>
@@ -99,17 +100,17 @@ export function StudyPlannerWidget() {
           <TabsList className="h-auto bg-transparent p-0 gap-6">
             <TabsTrigger
               value="upcoming"
-              className="h-auto pb-3 px-0 rounded-none border-b-2 border-transparent text-sm font-medium text-muted-foreground data-[state=active]:text-primary data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="h-auto pb-3 px-0 rounded-none border-b-2 border-transparent text-sm font-medium text-muted-foreground data-[state=active]:text-primary data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none transition-all duration-200"
             >
               Upcoming
             </TabsTrigger>
             <TabsTrigger
               value="overdue"
-              className="h-auto pb-3 px-0 rounded-none border-b-2 border-transparent text-sm font-medium text-muted-foreground data-[state=active]:text-primary data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none flex items-center gap-2"
+              className="h-auto pb-3 px-0 rounded-none border-b-2 border-transparent text-sm font-medium text-muted-foreground data-[state=active]:text-primary data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none flex items-center gap-2 transition-all duration-200"
             >
               Overdue
               {overdueTasks.length > 0 && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground">
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground animate-pulse">
                   {overdueTasks.length}
                 </span>
               )}
@@ -120,7 +121,7 @@ export function StudyPlannerWidget() {
         <div className="flex-1 px-5 py-4">
           <TabsContent value="upcoming" className="mt-0 h-full">
             {upcomingTasks.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
+              <div className="flex flex-col items-center justify-center py-10 text-center animate-fade-in">
                 <div className="w-12 h-12 rounded-full bg-[hsl(142,71%,45%)]/10 flex items-center justify-center mb-3">
                   <CheckCircle2 className="h-5 w-5 text-[hsl(142,71%,45%)]" strokeWidth={1.75} />
                 </div>
@@ -129,20 +130,21 @@ export function StudyPlannerWidget() {
               </div>
             ) : (
               <div className="space-y-0">
-                {upcomingTasks.map((task) => (
+                {upcomingTasks.map((task, index) => (
                   <div
                     key={task.id}
-                    className="flex items-center py-3 border-b border-border/50 last:border-0"
+                    className="flex items-center py-3 border-b border-border/50 last:border-0 transition-all duration-200 hover:bg-muted/30 hover:px-2 -mx-2 px-2 rounded-md cursor-pointer group animate-fade-in"
+                    style={{ animationDelay: `${index * 50}ms` }}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <CheckCircle2 className="h-5 w-5 text-primary shrink-0" strokeWidth={1.5} />
+                      <CheckCircle2 className="h-5 w-5 text-primary shrink-0 transition-transform duration-200 group-hover:scale-110" strokeWidth={1.5} />
                       <span className="text-sm text-foreground truncate flex-1">
                         {task.title}
                       </span>
                     </div>
                     <div className="flex items-center gap-4 shrink-0">
                       <span className={cn(
-                        "px-2.5 py-1 rounded text-xs font-medium",
+                        "px-2.5 py-1 rounded text-xs font-medium transition-transform duration-200 group-hover:scale-105",
                         getBadgeStyles(task.task_type)
                       )}>
                         {typeLabels[task.task_type] || task.task_type}
@@ -161,7 +163,7 @@ export function StudyPlannerWidget() {
 
           <TabsContent value="overdue" className="mt-0 h-full">
             {overdueTasks.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
+              <div className="flex flex-col items-center justify-center py-10 text-center animate-fade-in">
                 <div className="w-12 h-12 rounded-full bg-[hsl(142,71%,45%)]/10 flex items-center justify-center mb-3">
                   <CheckCircle2 className="h-5 w-5 text-[hsl(142,71%,45%)]" strokeWidth={1.75} />
                 </div>
@@ -170,20 +172,21 @@ export function StudyPlannerWidget() {
               </div>
             ) : (
               <div className="space-y-0">
-                {overdueTasks.slice(0, 5).map((task) => (
+                {overdueTasks.slice(0, 5).map((task, index) => (
                   <div
                     key={task.id}
-                    className="flex items-center py-3 border-b border-border/50 last:border-0"
+                    className="flex items-center py-3 border-b border-border/50 last:border-0 transition-all duration-200 hover:bg-destructive/5 hover:px-2 -mx-2 px-2 rounded-md cursor-pointer group animate-fade-in"
+                    style={{ animationDelay: `${index * 50}ms` }}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <CheckCircle2 className="h-5 w-5 text-destructive shrink-0" strokeWidth={1.5} />
+                      <CheckCircle2 className="h-5 w-5 text-destructive shrink-0 transition-transform duration-200 group-hover:scale-110" strokeWidth={1.5} />
                       <span className="text-sm text-foreground truncate flex-1">
                         {task.title}
                       </span>
                     </div>
                     <div className="flex items-center gap-4 shrink-0">
                       <span className={cn(
-                        "px-2.5 py-1 rounded text-xs font-medium",
+                        "px-2.5 py-1 rounded text-xs font-medium transition-transform duration-200 group-hover:scale-105",
                         getBadgeStyles(task.task_type)
                       )}>
                         {typeLabels[task.task_type] || task.task_type}
