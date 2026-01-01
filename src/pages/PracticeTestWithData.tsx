@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useTests, Question, QuestionOption } from "@/hooks/useTests";
+import { useFlashcards } from "@/hooks/useFlashcards";
 import { toast } from "sonner";
 
 interface QuestionWithOptions extends Question {
@@ -37,6 +38,7 @@ const PracticeTestWithData = () => {
   const navigate = useNavigate();
   const { testId } = useParams();
   const { getTest, getTestAnswers, submitAnswer, markQuestion, completeTest } = useTests();
+  const { saveWrongAnswerAsFlashcard } = useFlashcards();
   
   const [questions, setQuestions] = useState<QuestionWithOptions[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -158,6 +160,19 @@ const PracticeTestWithData = () => {
         isCorrect,
         timeSpentSeconds: timeSpent,
       });
+    }
+
+    // Save wrong answers as flashcards automatically
+    if (!isCorrect) {
+      const correctOption = currentQuestion.options.find((o) => o.is_correct);
+      if (correctOption) {
+        await saveWrongAnswerAsFlashcard(
+          currentQuestion.question_text,
+          `${correctOption.option_letter}. ${correctOption.option_text}`,
+          currentQuestion.explanation || undefined
+        );
+        toast.info("Question saved to your Wrong Answers deck", { duration: 2000 });
+      }
     }
 
     setIsAnswered(true);
