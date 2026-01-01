@@ -14,6 +14,7 @@ export interface StudyTask {
   is_completed: boolean | null;
   completed_at: string | null;
   created_at: string;
+  color?: string | null;
 }
 
 export function useStudyTasks() {
@@ -47,6 +48,7 @@ export function useStudyTasks() {
     task_type: string;
     scheduled_date: string;
     estimated_duration_minutes?: number;
+    color?: string;
   }) => {
     if (!user) return { error: new Error("Not authenticated") };
 
@@ -60,6 +62,7 @@ export function useStudyTasks() {
         scheduled_date: task.scheduled_date,
         estimated_duration_minutes: task.estimated_duration_minutes || null,
         is_completed: false,
+        color: task.color || '#3b82f6',
       })
       .select()
       .single();

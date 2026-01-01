@@ -26,6 +26,7 @@ interface Task {
   estimated_duration_minutes: number | null;
   is_completed: boolean | null;
   completed_at: string | null;
+  color?: string | null;
 }
 
 interface DayConfig {
@@ -351,9 +352,9 @@ export function StudyCalendarGrid({
               {/* Tasks */}
               <div className="space-y-1">
                 {dayTasks.slice(0, 3).map((task, taskIndex) => {
-                  const styles = taskTypeStyles[task.task_type] || taskTypeStyles.review;
                   const isDragging = draggedTaskId === task.id;
                   const isOverdue = !task.is_completed && isBefore(new Date(task.scheduled_date), new Date(format(new Date(), "yyyy-MM-dd")));
+                  const taskColor = task.color || '#3b82f6';
                   
                   return (
                     <div
@@ -366,18 +367,19 @@ export function StudyCalendarGrid({
                         onTaskClick?.(task);
                       }}
                       className={cn(
-                        "w-full text-left px-2 py-1 text-[10px] sm:text-xs rounded-md border-l-[3px] cursor-grab active:cursor-grabbing",
-                        "transition-all duration-300 ease-out",
+                        "w-full text-left px-2 py-1.5 text-[10px] sm:text-xs rounded-md border-l-[3px] cursor-grab active:cursor-grabbing",
+                        "transition-all duration-300 ease-out bg-card/80",
                         "hover:scale-[1.03] hover:shadow-md hover:-translate-y-0.5",
                         "active:scale-[0.97] active:shadow-none",
-                        styles.border,
-                        styles.bg,
-                        styles.glow,
                         task.is_completed && "opacity-50",
                         isOverdue && !task.is_completed && "ring-1 ring-destructive/50",
                         isDragging && "opacity-60 ring-2 ring-primary shadow-lg scale-105 rotate-1"
                       )}
-                      style={{ animationDelay: `${taskIndex * 50}ms` }}
+                      style={{ 
+                        borderLeftColor: taskColor,
+                        backgroundColor: `${taskColor}15`,
+                        animationDelay: `${taskIndex * 50}ms` 
+                      }}
                     >
                       <div className="flex items-center gap-1">
                         <GripVertical className="h-3 w-3 opacity-0 group-hover:opacity-40 shrink-0 transition-opacity duration-200" />
@@ -386,11 +388,13 @@ export function StudyCalendarGrid({
                         ) : isOverdue ? (
                           <Clock className="h-3 w-3 text-destructive shrink-0 animate-pulse" />
                         ) : null}
-                        <span className={cn(
-                          "truncate font-medium",
-                          styles.text,
-                          task.is_completed && "line-through opacity-70"
-                        )}>
+                        <span 
+                          className={cn(
+                            "truncate font-medium",
+                            task.is_completed && "line-through opacity-70"
+                          )}
+                          style={{ color: taskColor }}
+                        >
                           {task.title}
                         </span>
                       </div>
