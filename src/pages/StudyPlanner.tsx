@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,8 +17,11 @@ import {
   Focus,
   X,
   Sparkles,
-  Music
+  Music,
+  Keyboard
 } from "lucide-react";
+import { useConfetti } from "@/hooks/useConfetti";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { format, addMonths, subMonths, differenceInDays } from "date-fns";
 import { StudyCalendarGrid } from "@/components/study-planner/StudyCalendarGrid";
 import { AddTaskDialog } from "@/components/study-planner/AddTaskDialog";
@@ -47,6 +50,31 @@ const StudyPlanner = () => {
   
   const { tasks, loading, addTask, updateTask, toggleComplete, deleteTask, stats } = useStudyTasks();
   const { profile } = useProfile();
+  const { triggerConfetti, triggerStars } = useConfetti();
+  const prevCompletedRef = useRef<number>(0);
+
+  // Track completed tasks for confetti trigger
+  useEffect(() => {
+    if (!loading && tasks.length > 0) {
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      const todayTasks = tasks.filter(t => t.scheduled_date === todayStr);
+      const completedToday = todayTasks.filter(t => t.is_completed).length;
+      const totalToday = todayTasks.length;
+
+      // All daily tasks completed - big celebration!
+      if (totalToday > 0 && completedToday === totalToday && prevCompletedRef.current < totalToday) {
+        triggerConfetti();
+        toast.success("🎉 All daily tasks completed! Amazing work!");
+      }
+      // Milestone: 5 tasks completed
+      else if (completedToday >= 5 && prevCompletedRef.current < 5) {
+        triggerStars();
+        toast.success("⭐ 5 tasks completed! Keep it up!");
+      }
+
+      prevCompletedRef.current = completedToday;
+    }
+  }, [tasks, loading, triggerConfetti, triggerStars]);
 
   const handleAddTask = async (task: {
     title: string;
@@ -68,9 +96,22 @@ const StudyPlanner = () => {
     const { error } = await toggleComplete(taskId, completed);
     if (error) {
       toast.error("Failed to update task");
+    } else if (completed) {
+      // Small celebration for individual task completion
+      toast.success("✓ Task completed!");
     }
     return { error };
   };
+
+  // Keyboard shortcuts
+  const { showShortcutsHelp } = useKeyboardShortcuts({
+    onAddTask: () => {
+      setSelectedDate(new Date());
+      setShowAddTask(true);
+    },
+    onStartFocus: () => handleStartFocusMode(),
+    onTogglePanel: () => setShowRightPanel(prev => !prev),
+  });
 
   const handleDeleteTask = async (taskId: string) => {
     const { error } = await deleteTask(taskId);
@@ -291,6 +332,17 @@ const StudyPlanner = () => {
                 onClick={() => setShowRightPanel(!showRightPanel)}
               >
                 <Sparkles className={cn("h-4 w-4 transition-colors", showRightPanel && "text-primary")} />
+              </Button>
+
+              {/* Keyboard Shortcuts Help */}
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-9 w-9"
+                onClick={showShortcutsHelp}
+                title="Keyboard shortcuts (Ctrl+/)"
+              >
+                <Keyboard className="h-4 w-4" />
               </Button>
 
               {/* Settings */}
