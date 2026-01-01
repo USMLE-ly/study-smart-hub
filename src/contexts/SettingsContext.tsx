@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-export type SoundTone = 'default' | 'soft' | 'chime' | 'retro';
+export type SoundTone = 'default' | 'soft' | 'chime' | 'retro' | 'nature' | 'piano' | 'bells' | 'gaming';
 
 interface UserSettings {
   soundEnabled: boolean;

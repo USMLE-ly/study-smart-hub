@@ -39,6 +39,10 @@ const soundToneOptions: { value: SoundTone; label: string; description: string }
   { value: 'soft', label: 'Soft', description: 'Gentle and calming tones' },
   { value: 'chime', label: 'Chime', description: 'High-pitched bell sounds' },
   { value: 'retro', label: 'Retro', description: '8-bit game style sounds' },
+  { value: 'nature', label: 'Nature', description: 'Organic, flowing sounds' },
+  { value: 'piano', label: 'Piano', description: 'Warm piano key tones' },
+  { value: 'bells', label: 'Bells', description: 'Crystal clear bell sounds' },
+  { value: 'gaming', label: 'Gaming', description: 'Energetic arcade style' },
 ];
 
 const dayOptions = [
