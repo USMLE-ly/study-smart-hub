@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, DragEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { 
   format, 
@@ -31,6 +31,8 @@ interface StudyCalendarGridProps {
   onAddTask: (date: Date) => void;
   onToggleComplete: (taskId: string, completed: boolean) => void;
   onDeleteTask: (taskId: string) => void;
+  onTaskClick?: (task: Task) => void;
+  onMoveTask?: (taskId: string, newDate: string) => void;
 }
 
 const taskTypeColors: Record<string, { border: string; bg: string; text: string }> = {
@@ -56,16 +58,21 @@ const taskTypeColors: Record<string, { border: string; bg: string; text: string 
   }
 };
 
-const weekDays = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+// Shorter day labels for mobile/narrow views
+const weekDays = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 export function StudyCalendarGrid({
   currentMonth,
   tasks,
   onAddTask,
   onToggleComplete,
-  onDeleteTask
+  onDeleteTask,
+  onTaskClick,
+  onMoveTask
 }: StudyCalendarGridProps) {
   const [hoveredDate, setHoveredDate] = useState<Date | null>(null);
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<Date | null>(null);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -86,17 +93,48 @@ export function StudyCalendarGrid({
     if (hours === 0 && mins === 0) return "";
     if (hours === 0) return `${mins}m`;
     if (mins === 0) return `${hours}h`;
-    return `${hours}h ${mins}m`;
+    return `${hours}h`;
+  };
+
+  const handleDragStart = (e: DragEvent<HTMLDivElement>, taskId: string) => {
+    e.dataTransfer.setData("taskId", taskId);
+    setDraggedTaskId(taskId);
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>, date: Date) => {
+    e.preventDefault();
+    if (isSameMonth(date, currentMonth)) {
+      setDragOverDate(date);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverDate(null);
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>, date: Date) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData("taskId");
+    if (taskId && onMoveTask && isSameMonth(date, currentMonth)) {
+      onMoveTask(taskId, format(date, "yyyy-MM-dd"));
+    }
+    setDraggedTaskId(null);
+    setDragOverDate(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTaskId(null);
+    setDragOverDate(null);
   };
 
   return (
     <div className="flex flex-col h-full">
-      {/* Weekday Headers */}
+      {/* Weekday Headers - fixed width with truncation */}
       <div className="grid grid-cols-7 border-b border-border">
         {weekDays.map((day) => (
           <div
             key={day}
-            className="py-3 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wide border-r border-border last:border-r-0"
+            className="py-2 px-1 text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide border-r border-border last:border-r-0 text-center truncate"
           >
             {day}
           </div>
@@ -105,62 +143,76 @@ export function StudyCalendarGrid({
 
       {/* Calendar Grid */}
       <div className="flex-1 grid grid-cols-7 auto-rows-fr">
-        {days.map((day, idx) => {
+        {days.map((day) => {
           const dayTasks = getTasksForDate(day);
           const isCurrentMonth = isSameMonth(day, currentMonth);
           const isHovered = hoveredDate && isSameDay(day, hoveredDate);
+          const isDragOver = dragOverDate && isSameDay(day, dragOverDate);
           const totalTime = getTotalHoursForDate(day);
 
           return (
             <div
               key={day.toISOString()}
               className={cn(
-                "border-b border-r border-border last:border-r-0 p-2 min-h-[120px] relative group transition-colors",
+                "border-b border-r border-border last:border-r-0 p-1 sm:p-2 min-h-[100px] relative group transition-colors",
                 !isCurrentMonth && "bg-muted/20",
                 isToday(day) && "bg-primary/5",
-                isHovered && "bg-accent/30"
+                isHovered && "bg-accent/30",
+                isDragOver && "bg-primary/20 ring-2 ring-primary/40 ring-inset"
               )}
               onMouseEnter={() => setHoveredDate(day)}
               onMouseLeave={() => setHoveredDate(null)}
+              onDragOver={(e) => handleDragOver(e, day)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, day)}
             >
               {/* Day Header */}
-              <div className="flex items-start justify-between mb-2">
+              <div className="flex items-start justify-between mb-1">
                 <span
                   className={cn(
-                    "text-sm font-medium",
+                    "text-xs sm:text-sm font-medium",
                     !isCurrentMonth && "text-muted-foreground/50",
-                    isToday(day) && "bg-primary text-primary-foreground w-7 h-7 rounded-full flex items-center justify-center"
+                    isToday(day) && "bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-xs"
                   )}
                 >
                   {format(day, "d")}
                 </span>
                 {totalTime && (
-                  <span className="text-xs text-muted-foreground">{totalTime}</span>
+                  <span className="text-[10px] text-muted-foreground">{totalTime}</span>
                 )}
               </div>
 
               {/* Tasks */}
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {dayTasks.slice(0, 3).map((task) => {
                   const colors = taskTypeColors[task.task_type] || taskTypeColors.review;
+                  const isDragging = draggedTaskId === task.id;
                   return (
-                    <button
+                    <div
                       key={task.id}
-                      onClick={() => onToggleComplete(task.id, !task.is_completed)}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, task.id)}
+                      onDragEnd={handleDragEnd}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTaskClick?.(task);
+                      }}
                       className={cn(
-                        "w-full text-left px-2 py-1 text-xs rounded border-l-2 truncate transition-all",
+                        "w-full text-left px-1.5 py-0.5 text-[10px] sm:text-xs rounded border-l-2 truncate transition-all cursor-grab active:cursor-grabbing flex items-center gap-1",
                         colors.border,
                         colors.bg,
                         colors.text,
-                        task.is_completed && "opacity-50 line-through"
+                        task.is_completed && "opacity-50 line-through",
+                        isDragging && "opacity-50 ring-2 ring-primary"
                       )}
                     >
-                      {task.title}
-                    </button>
+                      <GripVertical className="h-3 w-3 opacity-0 group-hover:opacity-50 shrink-0" />
+                      <span className="truncate">{task.title}</span>
+                    </div>
                   );
                 })}
                 {dayTasks.length > 3 && (
-                  <div className="text-xs text-muted-foreground px-2">
+                  <div className="text-[10px] text-muted-foreground px-1.5">
                     +{dayTasks.length - 3} more
                   </div>
                 )}
@@ -171,12 +223,12 @@ export function StudyCalendarGrid({
                 <button
                   onClick={() => onAddTask(day)}
                   className={cn(
-                    "absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-primary flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity",
+                    "absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] text-primary flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity",
                     "hover:underline"
                   )}
                 >
                   <Plus className="h-3 w-3" />
-                  Add Task
+                  Add
                 </button>
               )}
             </div>
