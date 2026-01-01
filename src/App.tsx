@@ -10,7 +10,6 @@ import { PageTransition } from "@/components/ui/PageTransition";
 import Dashboard from "./pages/Dashboard";
 import StudyPlanner from "./pages/StudyPlanner";
 import StudyPlanSetup from "./pages/StudyPlanSetup";
-import MedicalLibrary from "./pages/MedicalLibrary";
 import CreateTest from "./pages/CreateTest";
 import PreviousTests from "./pages/PreviousTests";
 import Performance from "./pages/Performance";
@@ -66,16 +65,6 @@ const App = () => (
                 <ProtectedRoute>
                   <PageTransition>
                     <StudyPlanSetup />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/library"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <MedicalLibrary />
                   </PageTransition>
                 </ProtectedRoute>
               }

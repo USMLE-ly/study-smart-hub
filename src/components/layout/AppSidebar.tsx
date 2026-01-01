@@ -44,7 +44,6 @@ const mainNavItems = [
   { title: "Study Planner", icon: Calendar, href: "/study-planner" },
   { title: "Weekly Report", icon: FileBarChart, href: "/weekly-report" },
   { title: "Analytics", icon: BarChart3, href: "/analytics" },
-  { title: "Medical Library", icon: BookOpen, href: "/library" },
 ];
 
 const qbankItems = [

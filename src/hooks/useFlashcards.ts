@@ -202,6 +202,59 @@ export function useFlashcards() {
     return { data, error };
   };
 
+  const saveWrongAnswerAsFlashcard = async (
+    questionText: string,
+    correctAnswer: string,
+    explanation?: string
+  ) => {
+    if (!user) return { error: new Error("Not authenticated") };
+
+    // Get or create a "Wrong Answers" deck
+    let wrongAnswersDeck = decks.find((d) => d.name === "Wrong Answers");
+    
+    if (!wrongAnswersDeck) {
+      const { data, error } = await createDeck(
+        "Wrong Answers",
+        "Questions you got wrong during practice tests",
+        "Review",
+        "#ef4444"
+      );
+      if (error) return { error };
+      wrongAnswersDeck = data;
+    }
+
+    if (!wrongAnswersDeck) return { error: new Error("Could not find or create deck") };
+
+    const frontContent = questionText;
+    const backContent = explanation 
+      ? `Correct Answer: ${correctAnswer}\n\nExplanation: ${explanation}`
+      : `Correct Answer: ${correctAnswer}`;
+
+    return addFlashcard(wrongAnswersDeck.id, frontContent, backContent);
+  };
+
+  const deleteDeck = async (deckId: string) => {
+    const { error } = await supabase
+      .from("flashcard_decks")
+      .delete()
+      .eq("id", deckId);
+
+    if (!error) {
+      setDecks((prev) => prev.filter((d) => d.id !== deckId));
+    }
+
+    return { error };
+  };
+
+  const deleteFlashcard = async (flashcardId: string) => {
+    const { error } = await supabase
+      .from("flashcards")
+      .delete()
+      .eq("id", flashcardId);
+
+    return { error };
+  };
+
   return {
     decks,
     loading,
@@ -211,5 +264,8 @@ export function useFlashcards() {
     getDueFlashcards,
     recordAnswer,
     addFlashcard,
+    saveWrongAnswerAsFlashcard,
+    deleteDeck,
+    deleteFlashcard,
   };
 }
