@@ -472,6 +472,10 @@ const StudyPlanner = () => {
                 }}
                 onTaskClick={handleTaskClick}
                 onMoveTask={handleMoveTask}
+                startDate={startDate}
+                endDate={endDate}
+                studyDays={savedSchedule?.schedule_data as any}
+                blockedDates={savedSchedule?.blocked_dates || []}
               />
             </div>
           )}
