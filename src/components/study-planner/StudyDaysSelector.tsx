@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
-import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronUp, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,6 +14,7 @@ interface DayConfig {
 
 interface StudyDaysSelectorProps {
   totalTimeNeeded?: number; // in hours
+  initialSchedule?: DayConfig[];
   onScheduleChange?: (schedule: DayConfig[]) => void;
 }
 
@@ -28,11 +28,22 @@ const DAYS: { day: string; shortName: string }[] = [
   { day: "Saturday", shortName: "Sat" },
 ];
 
-export function StudyDaysSelector({ totalTimeNeeded = 100, onScheduleChange }: StudyDaysSelectorProps) {
+export function StudyDaysSelector({ 
+  totalTimeNeeded = 100, 
+  initialSchedule,
+  onScheduleChange 
+}: StudyDaysSelectorProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [schedule, setSchedule] = useState<DayConfig[]>(
-    DAYS.map(d => ({ ...d, enabled: false, hours: 0 }))
+    initialSchedule || DAYS.map(d => ({ ...d, enabled: false, hours: 0 }))
   );
+
+  // Sync with initial schedule when it changes
+  useEffect(() => {
+    if (initialSchedule && initialSchedule.length > 0) {
+      setSchedule(initialSchedule);
+    }
+  }, [initialSchedule]);
 
   const totalScheduledHours = schedule.reduce((sum, day) => sum + (day.enabled ? day.hours : 0), 0);
   const progressPercentage = Math.min(100, (totalScheduledHours / totalTimeNeeded) * 100);

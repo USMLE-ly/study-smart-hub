@@ -23,7 +23,7 @@ import {
 import { useConfetti } from "@/hooks/useConfetti";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
-import { format, addMonths, subMonths, differenceInDays } from "date-fns";
+import { format, addMonths, subMonths, differenceInDays, parseISO } from "date-fns";
 import { StudyCalendarGrid } from "@/components/study-planner/StudyCalendarGrid";
 import { AddTaskDialog } from "@/components/study-planner/AddTaskDialog";
 import { TaskDetailSheet } from "@/components/study-planner/TaskDetailSheet";
@@ -32,7 +32,10 @@ import { PremiumProgressPanel } from "@/components/study-planner/PremiumProgress
 import { AIStudyAssistant } from "@/components/ai/AIStudyAssistant";
 import { GamificationWidget } from "@/components/gamification/GamificationWidget";
 import { StudyDaysSelector } from "@/components/study-planner/StudyDaysSelector";
+import { DateRangePicker } from "@/components/study-planner/DateRangePicker";
+import { BlockedDatesManager } from "@/components/study-planner/BlockedDatesManager";
 import { useStudyTasks, StudyTask } from "@/hooks/useStudyTasks";
+import { useStudySchedule } from "@/hooks/useStudySchedule";
 import { LoadingState } from "@/components/ui/LoadingSpinner";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -50,11 +53,30 @@ const StudyPlanner = () => {
   const [showRightPanel, setShowRightPanel] = useState(true);
   const [focusTask, setFocusTask] = useState<StudyTask | null>(null);
   
+  // Date range picker state
+  const [dateRangeOpen, setDateRangeOpen] = useState(true);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [showMainCalendar, setShowMainCalendar] = useState(true);
+  
   const { tasks, loading, addTask, updateTask, toggleComplete, deleteTask, stats } = useStudyTasks();
+  const { schedule: savedSchedule, saveSchedule, updateBlockedDates } = useStudySchedule();
   const { profile } = useProfile();
   const { triggerConfetti, triggerStars } = useConfetti();
   const { playTaskComplete, playAchievement } = useSoundEffects({ volume: 0.3, enabled: true });
   const prevCompletedRef = useRef<number>(0);
+
+  // Load saved schedule on mount
+  useEffect(() => {
+    if (savedSchedule) {
+      if (savedSchedule.start_date) {
+        setStartDate(parseISO(savedSchedule.start_date));
+      }
+      if (savedSchedule.end_date) {
+        setEndDate(parseISO(savedSchedule.end_date));
+      }
+    }
+  }, [savedSchedule]);
 
   // Track completed tasks for confetti trigger
   useEffect(() => {
@@ -358,29 +380,61 @@ const StudyPlanner = () => {
             </div>
           </div>
 
-          {/* Calendar Grid */}
-          <div className="flex-1 min-h-[500px] bg-card rounded-lg border border-border overflow-hidden shadow-sm">
-            <StudyCalendarGrid
-              currentMonth={currentMonth}
-              tasks={tasks}
-              onAddTask={openAddTaskForDate}
-              onToggleComplete={(id, completed) => {
-                handleToggleComplete(id, completed);
-              }}
-              onDeleteTask={(id) => {
-                handleDeleteTask(id);
-              }}
-              onTaskClick={handleTaskClick}
-              onMoveTask={handleMoveTask}
-            />
-          </div>
+          {/* Date Range Picker - Above Calendar (conditionally) */}
+          <DateRangePicker
+            startDate={startDate}
+            endDate={endDate}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
+            isOpen={dateRangeOpen}
+            onOpenChange={setDateRangeOpen}
+            onSave={async () => {
+              const scheduleData = savedSchedule?.schedule_data || [];
+              await saveSchedule(scheduleData, startDate, endDate);
+              setShowMainCalendar(true);
+              toast.success("Date range saved successfully");
+            }}
+            onReset={() => {
+              setStartDate(null);
+              setEndDate(null);
+            }}
+          />
+
+          {/* Calendar Grid - Hidden when date range picker is active with calendar showing */}
+          {showMainCalendar && (
+            <div className="flex-1 min-h-[500px] bg-card rounded-lg border border-border overflow-hidden shadow-sm">
+              <StudyCalendarGrid
+                currentMonth={currentMonth}
+                tasks={tasks}
+                onAddTask={openAddTaskForDate}
+                onToggleComplete={(id, completed) => {
+                  handleToggleComplete(id, completed);
+                }}
+                onDeleteTask={(id) => {
+                  handleDeleteTask(id);
+                }}
+                onTaskClick={handleTaskClick}
+                onMoveTask={handleMoveTask}
+              />
+            </div>
+          )}
+
+          {/* Blocked Dates Manager - Below Calendar */}
+          <BlockedDatesManager
+            blockedDates={savedSchedule?.blocked_dates || []}
+            onBlockedDatesChange={async (dates) => {
+              await updateBlockedDates(dates);
+              toast.success("Blocked dates updated");
+            }}
+          />
 
           {/* Study Days Selector - Below Calendar */}
           <div className="mt-4">
             <StudyDaysSelector 
               totalTimeNeeded={Math.round(totalTimeMinutes / 60) || 100}
-              onScheduleChange={(schedule) => {
-                console.log("Study schedule updated:", schedule);
+              initialSchedule={savedSchedule?.schedule_data}
+              onScheduleChange={async (schedule) => {
+                await saveSchedule(schedule, startDate, endDate);
               }}
             />
           </div>
