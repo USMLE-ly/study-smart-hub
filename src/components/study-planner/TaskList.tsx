@@ -26,31 +26,42 @@ interface TaskListProps {
   showAllTasks?: boolean;
 }
 
-const typeStyles: Record<string, { bg: string; text: string; label: string }> = {
+// Premium task type styling
+const typeStyles: Record<string, { bg: string; text: string; label: string; gradient: string; border: string }> = {
   practice: {
-    bg: "bg-[hsl(330,81%,60%)]/10",
-    text: "text-[hsl(330,81%,60%)]",
+    bg: "bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-950/30 dark:to-pink-950/20",
+    text: "text-rose-700 dark:text-rose-400",
     label: "Practice Questions",
+    gradient: "from-rose-500 to-pink-500",
+    border: "border-rose-500/30 hover:border-rose-500/50",
   },
   flashcard: {
-    bg: "bg-[hsl(38,92%,50%)]/10",
-    text: "text-[hsl(30,80%,40%)]",
+    bg: "bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20",
+    text: "text-amber-700 dark:text-amber-400",
     label: "Flashcards",
+    gradient: "from-amber-500 to-orange-500",
+    border: "border-amber-500/30 hover:border-amber-500/50",
   },
   tutorial: {
-    bg: "bg-[hsl(142,71%,45%)]/10",
-    text: "text-[hsl(142,71%,45%)]",
+    bg: "bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/20",
+    text: "text-blue-700 dark:text-blue-400",
     label: "Tutorial",
+    gradient: "from-blue-500 to-cyan-500",
+    border: "border-blue-500/30 hover:border-blue-500/50",
   },
   review: {
-    bg: "bg-[hsl(142,71%,45%)]/10",
-    text: "text-[hsl(142,71%,45%)]",
+    bg: "bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/20",
+    text: "text-emerald-700 dark:text-emerald-400",
     label: "Review",
+    gradient: "from-emerald-500 to-green-500",
+    border: "border-emerald-500/30 hover:border-emerald-500/50",
   },
   focus: {
-    bg: "bg-primary/10",
-    text: "text-primary",
+    bg: "bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/20",
+    text: "text-violet-700 dark:text-violet-400",
     label: "Focus Time",
+    gradient: "from-violet-500 to-purple-500",
+    border: "border-violet-500/30 hover:border-violet-500/50",
   },
 };
 
@@ -100,8 +111,8 @@ export function TaskList({
   }
 
   return (
-    <div className="space-y-2">
-      {sortedTasks.map((task) => {
+    <div className="space-y-3">
+      {sortedTasks.map((task, index) => {
         const style = typeStyles[task.task_type] || typeStyles.review;
         const isOverdue =
           !task.is_completed &&
@@ -111,13 +122,17 @@ export function TaskList({
           <div
             key={task.id}
             className={cn(
-              "group flex items-center gap-4 p-4 rounded-lg border transition-all",
+              "group flex items-center gap-4 p-4 rounded-xl border transition-all duration-300 ease-out",
+              "hover:shadow-lg hover:-translate-y-1 hover:scale-[1.01]",
+              "active:scale-[0.99] active:shadow-none",
+              "animate-fade-in",
               task.is_completed
                 ? "bg-muted/30 border-border/40"
                 : isOverdue
-                ? "bg-destructive/5 border-destructive/30"
-                : "bg-card border-border/60 hover:border-primary/30 hover:shadow-sm"
+                ? "bg-destructive/5 border-destructive/30 hover:border-destructive/50"
+                : cn("bg-card", style.border)
             )}
+            style={{ animationDelay: `${index * 50}ms` }}
           >
             {/* Checkbox */}
             <button
