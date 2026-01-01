@@ -172,13 +172,13 @@ export function StudyCalendarGrid({
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Weekday Headers - fixed width with truncation */}
-      <div className="grid grid-cols-7 border-b border-border">
+    <div className="flex flex-col h-full overflow-hidden rounded-xl">
+      {/* Weekday Headers - premium glass effect */}
+      <div className="grid grid-cols-7 border-b border-border bg-gradient-to-r from-muted/50 via-muted/30 to-muted/50 backdrop-blur-sm">
         {weekDays.map((day, index) => (
           <div
             key={day}
-            className="py-2 px-1 text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide border-r border-border last:border-r-0 text-center truncate animate-fade-in"
+            className="py-3 px-1 text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider border-r border-border/50 last:border-r-0 text-center truncate animate-fade-in"
             style={{ animationDelay: `${index * 30}ms` }}
           >
             {day}
@@ -203,17 +203,16 @@ export function StudyCalendarGrid({
               key={day.toISOString()}
               onClick={() => handleDateClick(day)}
               className={cn(
-                "border-b border-r border-border last:border-r-0 p-1.5 sm:p-2 min-h-[100px] relative group cursor-pointer",
-                "transition-all duration-300 ease-out",
-                !isCurrentMonth && "bg-muted/20 cursor-default",
-                isToday(day) && "bg-gradient-to-br from-primary/5 to-primary/10",
-                isHovered && isCurrentMonth && "bg-accent/40 scale-[1.02] z-10 shadow-md",
-                isSelected && "bg-primary/10 ring-2 ring-primary/50 ring-inset scale-[1.02] z-20 shadow-lg",
-                isDragOver && "bg-primary/20 ring-2 ring-primary/60 ring-inset scale-[1.03] z-20 shadow-xl"
+                "border-b border-r border-border/60 last:border-r-0 p-1.5 sm:p-2 min-h-[100px] relative group cursor-pointer",
+                "transition-all duration-300 ease-out animate-fade-in",
+                !isCurrentMonth && "bg-muted/10 cursor-default opacity-50",
+                isToday(day) && "bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-inner",
+                isHovered && isCurrentMonth && "bg-gradient-to-br from-accent/60 to-accent/20 scale-[1.03] z-10 shadow-lg shadow-accent/20",
+                isSelected && "bg-gradient-to-br from-primary/20 to-primary/5 ring-2 ring-primary/60 ring-inset scale-[1.03] z-20 shadow-xl shadow-primary/10",
+                isDragOver && "bg-gradient-to-br from-primary/30 to-primary/10 ring-2 ring-primary ring-inset scale-[1.05] z-20 shadow-2xl"
               )}
               style={{ 
-                animationDelay: `${dayIndex * 15}ms`,
-                transform: isSelected || isHovered && isCurrentMonth ? 'scale(1.02)' : 'scale(1)'
+                animationDelay: `${dayIndex * 10}ms`
               }}
               onMouseEnter={() => setHoveredDate(day)}
               onMouseLeave={() => setHoveredDate(null)}
@@ -221,41 +220,41 @@ export function StudyCalendarGrid({
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, day)}
             >
-              {/* Completion indicator bar at top */}
+              {/* Completion indicator bar at top with gradient */}
               {hasTasks && completionPct > 0 && (
-                <div className="absolute top-0 left-0 right-0 h-0.5 bg-muted overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-muted/30 overflow-hidden rounded-t-sm">
                   <div 
-                    className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-700 ease-out"
+                    className="h-full bg-gradient-to-r from-emerald-400 via-emerald-500 to-green-500 transition-all duration-1000 ease-out shadow-sm shadow-emerald-500/50"
                     style={{ width: `${completionPct}%` }}
                   />
                 </div>
               )}
 
-              {/* Day Header */}
-              <div className="flex items-start justify-between mb-1.5">
+              {/* Day Header - enhanced */}
+              <div className="flex items-start justify-between mb-2">
                 <div
                   className={cn(
-                    "text-xs sm:text-sm font-semibold transition-all duration-300",
+                    "text-xs sm:text-sm font-bold transition-all duration-300",
                     "flex items-center justify-center",
-                    !isCurrentMonth && "text-muted-foreground/40",
+                    !isCurrentMonth && "text-muted-foreground/30",
                     isCurrentMonth && !isToday(day) && "text-foreground",
-                    isToday(day) && "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground w-7 h-7 rounded-full shadow-md shadow-primary/30 animate-scale-in",
-                    isSelected && !isToday(day) && "bg-primary/20 w-6 h-6 rounded-full"
+                    isToday(day) && "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground w-7 h-7 rounded-full shadow-lg shadow-primary/40 ring-2 ring-primary/20",
+                    isSelected && !isToday(day) && "bg-primary/30 w-6 h-6 rounded-full ring-1 ring-primary/30"
                   )}
                 >
                   {format(day, "d")}
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   {totalTime && (
-                    <span className="text-[10px] text-muted-foreground/70 font-medium transition-opacity duration-200">
+                    <span className="text-[10px] text-muted-foreground/60 font-semibold px-1.5 py-0.5 rounded-full bg-muted/50 transition-all duration-200 group-hover:bg-muted group-hover:text-muted-foreground">
                       {totalTime}
                     </span>
                   )}
                   {hasTasks && (
                     <div className={cn(
-                      "w-1.5 h-1.5 rounded-full transition-all duration-300",
-                      completionPct === 100 ? "bg-emerald-500" : 
-                      completionPct > 0 ? "bg-amber-500" : "bg-muted-foreground/30"
+                      "w-2 h-2 rounded-full transition-all duration-300 shadow-sm",
+                      completionPct === 100 ? "bg-emerald-500 shadow-emerald-500/50" : 
+                      completionPct > 0 ? "bg-amber-500 shadow-amber-500/50" : "bg-muted-foreground/20"
                     )} />
                   )}
                 </div>
