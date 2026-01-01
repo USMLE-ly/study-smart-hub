@@ -400,24 +400,7 @@ const StudyPlanner = () => {
             }}
           />
 
-          {/* Calendar Grid - Hidden when date range picker is active with calendar showing */}
-          {showMainCalendar && (
-            <div className="flex-1 min-h-[500px] bg-card rounded-lg border border-border overflow-hidden shadow-sm">
-              <StudyCalendarGrid
-                currentMonth={currentMonth}
-                tasks={tasks}
-                onAddTask={openAddTaskForDate}
-                onToggleComplete={(id, completed) => {
-                  handleToggleComplete(id, completed);
-                }}
-                onDeleteTask={(id) => {
-                  handleDeleteTask(id);
-                }}
-                onTaskClick={handleTaskClick}
-                onMoveTask={handleMoveTask}
-              />
-            </div>
-          )}
+          {/* Calendar Grid - Removed for now, will be used later */}
 
           {/* Blocked Dates Manager - Below Calendar */}
           <BlockedDatesManager
@@ -437,6 +420,32 @@ const StudyPlanner = () => {
                 await saveSchedule(schedule, startDate, endDate);
               }}
             />
+          </div>
+
+          {/* Create Plan Footer */}
+          <div className="mt-6 pt-4 border-t border-border flex items-center justify-between">
+            <Button 
+              variant="ghost" 
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setStartDate(null);
+                setEndDate(null);
+                toast.info("Plan cancelled");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={async () => {
+                const scheduleData = savedSchedule?.schedule_data || [];
+                await saveSchedule(scheduleData, startDate, endDate);
+                toast.success("Study plan created successfully!");
+                triggerConfetti();
+              }}
+              className="bg-primary hover:bg-primary/90"
+            >
+              Create Plan
+            </Button>
           </div>
         </div>
 
