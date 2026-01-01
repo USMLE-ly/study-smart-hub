@@ -5,54 +5,40 @@ interface StatsCardProps {
   title: string;
   value: string;
   subtitle: string;
+  detail?: string;
   icon: LucideIcon;
-  variant?: "default" | "primary" | "success" | "warning";
 }
 
 export function StatsCard({
   title,
   value,
   subtitle,
+  detail,
   icon: Icon,
-  variant = "default",
 }: StatsCardProps) {
-  const iconBgColors = {
-    default: "bg-primary/10",
-    primary: "bg-primary/10",
-    success: "bg-[hsl(var(--badge-success))]/10",
-    warning: "bg-[hsl(var(--badge-flashcard))]/10",
-  };
-
-  const iconColors = {
-    default: "text-primary",
-    primary: "text-primary",
-    success: "text-[hsl(var(--badge-success))]",
-    warning: "text-[hsl(var(--badge-flashcard))]",
-  };
-
   return (
-    <div className="bg-card rounded-xl border border-border/50 p-5 shadow-xs hover:shadow-sm transition-all duration-300 group">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2.5 min-w-0 flex-1">
-          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+    <div className="bg-card rounded-lg border border-border p-5 hover:shadow-sm transition-shadow">
+      <div className="flex items-start justify-between">
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-muted-foreground">
             {title}
           </p>
-          <div className="space-y-0.5">
-            <span className="text-[28px] font-bold text-foreground tracking-tight block leading-none">
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-foreground">
               {value}
             </span>
-            <span className="text-[13px] text-muted-foreground/80 font-medium">
-              {subtitle}
-            </span>
+            {detail && (
+              <span className="text-sm text-muted-foreground">
+                {detail}
+              </span>
+            )}
           </div>
+          <p className="text-sm text-muted-foreground">
+            {subtitle}
+          </p>
         </div>
-        <div
-          className={cn(
-            "flex h-10 w-10 items-center justify-center rounded-xl shrink-0 transition-transform duration-300 group-hover:scale-105",
-            iconBgColors[variant]
-          )}
-        >
-          <Icon className={cn("h-[18px] w-[18px]", iconColors[variant])} strokeWidth={1.75} />
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/50">
+          <Icon className="h-5 w-5 text-muted-foreground" strokeWidth={1.5} />
         </div>
       </div>
     </div>
