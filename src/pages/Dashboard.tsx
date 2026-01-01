@@ -7,12 +7,15 @@ import { LeaderboardWidget } from "@/components/gamification/LeaderboardWidget";
 import { StreakCelebration, useStreakCelebration } from "@/components/gamification/StreakCelebration";
 import { GamificationWidget } from "@/components/gamification/GamificationWidget";
 import { DailyGoalsWidget } from "@/components/dashboard/DailyGoalsWidget";
-import { FileText, Plus, ClipboardList } from "lucide-react";
+import { WeeklyProgressNotification } from "@/components/notifications/WeeklyProgressNotification";
+import { Button } from "@/components/ui/button";
+import { FileText, Plus, ClipboardList, Sparkles } from "lucide-react";
 import { useTests } from "@/hooks/useTests";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useStudyTasks } from "@/hooks/useStudyTasks";
 import { useGamification } from "@/hooks/useGamification";
+import { useWeeklyNotification } from "@/hooks/useWeeklyNotification";
 import { useEffect } from "react";
 
 const Dashboard = () => {
@@ -22,6 +25,7 @@ const Dashboard = () => {
   const { stats, loading: tasksLoading } = useStudyTasks();
   const { stats: gamificationStats } = useGamification();
   const { celebratingStreak, checkAndCelebrate, closeCelebration } = useStreakCelebration();
+  const { showNotification, summary, triggerWeeklyNotification, dismissNotification } = useWeeklyNotification();
 
   const isLoading = profileLoading || testsLoading;
 
@@ -82,9 +86,27 @@ const Dashboard = () => {
         <StreakCelebration streak={celebratingStreak} onClose={closeCelebration} />
       )}
 
+      {/* Weekly Progress Notification */}
+      <WeeklyProgressNotification
+        open={showNotification}
+        onClose={dismissNotification}
+        summary={summary}
+      />
+
       <div className="space-y-5 max-w-7xl">
-        {/* Welcome Text */}
-        <p className="text-base text-foreground animate-fade-in">Welcome</p>
+        {/* Welcome Text with Weekly Report Button */}
+        <div className="flex items-center justify-between animate-fade-in">
+          <p className="text-base text-foreground">Welcome</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={triggerWeeklyNotification}
+            className="gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            Weekly Summary
+          </Button>
+        </div>
 
         {/* Stats Cards Row */}
         <div className="grid gap-4 md:grid-cols-3">

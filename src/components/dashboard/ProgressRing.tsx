@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { useSoundEffects } from "@/hooks/useSoundEffects";
 
 interface ProgressRingProps {
   progress: number;
@@ -20,9 +21,11 @@ export function ProgressRing({
   isPulsing = false,
 }: ProgressRingProps) {
   const size = 200;
-  const strokeWidth = 10; // Thinner ring like reference
+  const strokeWidth = 10;
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
+  
+  const { playTaskComplete } = useSoundEffects({ volume: 0.3, enabled: true });
 
   // Animation state with smooth counting
   const [animatedProgress, setAnimatedProgress] = useState(0);
@@ -32,16 +35,17 @@ export function ProgressRing({
   const prevProgressRef = useRef(0);
   const prevCompletedRef = useRef(completed);
 
-  // Trigger pulse animation when a task is completed
+  // Trigger pulse animation and sound when a task is completed
   useEffect(() => {
     if (completed > prevCompletedRef.current) {
       setShowPulse(true);
+      playTaskComplete(); // Play sound effect
       const timer = setTimeout(() => setShowPulse(false), 600);
       prevCompletedRef.current = completed;
       return () => clearTimeout(timer);
     }
     prevCompletedRef.current = completed;
-  }, [completed]);
+  }, [completed, playTaskComplete]);
 
   // Also respond to external isPulsing prop
   useEffect(() => {
