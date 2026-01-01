@@ -323,6 +323,39 @@ export type Database = {
         }
         Relationships: []
       }
+      study_schedules: {
+        Row: {
+          blocked_dates: string[] | null
+          created_at: string
+          end_date: string | null
+          id: string
+          schedule_data: Json
+          start_date: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          blocked_dates?: string[] | null
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          schedule_data?: Json
+          start_date?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          blocked_dates?: string[] | null
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          schedule_data?: Json
+          start_date?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       study_tasks: {
         Row: {
           completed_at: string | null

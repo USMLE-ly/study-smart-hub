@@ -28,6 +28,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useFlashcards, FlashcardDeck, Flashcard } from "@/hooks/useFlashcards";
 import { ImportFlashcardsDialog } from "@/components/flashcards/ImportFlashcardsDialog";
+import { SpacedRepetitionAnalytics } from "@/components/analytics/SpacedRepetitionAnalytics";
 import { toast } from "sonner";
 import { LoadingState } from "@/components/ui/LoadingSpinner";
 
@@ -548,97 +549,107 @@ const Flashcards = () => {
           </TabsContent>
 
           <TabsContent value="study" className="space-y-6">
-            {/* Search */}
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="relative flex-1 max-w-md">
-                    <Input
-                      placeholder="Search deck names"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pr-10"
-                    />
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  </div>
+            <div className="flex gap-6">
+              {/* Main Study Content */}
+              <div className="flex-1 space-y-6">
+                {/* Search */}
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="relative flex-1 max-w-md">
+                        <Input
+                          placeholder="Search deck names"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pr-10"
+                        />
+                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      </div>
 
-                  <Button variant="ghost" className="text-primary gap-2">
-                    <BarChart3 className="h-4 w-4" />
-                    View Stats
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                      <Button variant="ghost" className="text-primary gap-2">
+                        <BarChart3 className="h-4 w-4" />
+                        View Stats
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
 
-            {/* Decks Table */}
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/30">
-                      <TableHead>Choose Deck</TableHead>
-                      <TableHead className="text-center">Total</TableHead>
-                      <TableHead className="text-center">Mastered</TableHead>
-                      <TableHead className="text-center">Learning</TableHead>
-                      <TableHead className="text-center">New</TableHead>
-                      <TableHead className="text-center">Mastery</TableHead>
-                      <TableHead className="text-center">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredDecks.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                          No decks found. Create one to get started!
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredDecks.map((deck, index) => {
-                        const stats = deckStats[deck.id];
-                        return (
-                          <TableRow key={deck.id} className="hover:bg-accent/50">
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <div className={`flex h-8 w-8 items-center justify-center rounded-full ${getColorClass(index)} text-primary-foreground text-sm font-semibold`}>
-                                  {getInitial(deck.name)}
-                                </div>
-                                <span className="font-medium text-foreground">{deck.name}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-center font-medium">
-                              {stats?.totalCards || 0}
-                            </TableCell>
-                            <TableCell className="text-center text-[hsl(var(--badge-success))] font-medium">
-                              {stats?.mastered || 0}
-                            </TableCell>
-                            <TableCell className="text-center text-primary font-medium">
-                              {stats?.learning || 0}
-                            </TableCell>
-                            <TableCell className="text-center text-muted-foreground font-medium">
-                              {stats?.newCards || 0}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <span className={`font-medium ${getMasteryColor(stats?.masteryPercentage || 0)}`}>
-                                {stats?.masteryPercentage || 0}%
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <Button 
-                                size="sm" 
-                                variant="default"
-                                onClick={() => navigate(`/flashcards/study/${deck.id}`)}
-                              >
-                                Study
-                              </Button>
+                {/* Decks Table */}
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/30">
+                          <TableHead>Choose Deck</TableHead>
+                          <TableHead className="text-center">Total</TableHead>
+                          <TableHead className="text-center">Mastered</TableHead>
+                          <TableHead className="text-center">Learning</TableHead>
+                          <TableHead className="text-center">New</TableHead>
+                          <TableHead className="text-center">Mastery</TableHead>
+                          <TableHead className="text-center">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredDecks.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                              No decks found. Create one to get started!
                             </TableCell>
                           </TableRow>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                        ) : (
+                          filteredDecks.map((deck, index) => {
+                            const stats = deckStats[deck.id];
+                            return (
+                              <TableRow key={deck.id} className="hover:bg-accent/50">
+                                <TableCell>
+                                  <div className="flex items-center gap-3">
+                                    <div className={`flex h-8 w-8 items-center justify-center rounded-full ${getColorClass(index)} text-primary-foreground text-sm font-semibold`}>
+                                      {getInitial(deck.name)}
+                                    </div>
+                                    <span className="font-medium text-foreground">{deck.name}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-center font-medium">
+                                  {stats?.totalCards || 0}
+                                </TableCell>
+                                <TableCell className="text-center text-[hsl(var(--badge-success))] font-medium">
+                                  {stats?.mastered || 0}
+                                </TableCell>
+                                <TableCell className="text-center text-primary font-medium">
+                                  {stats?.learning || 0}
+                                </TableCell>
+                                <TableCell className="text-center text-muted-foreground font-medium">
+                                  {stats?.newCards || 0}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <span className={`font-medium ${getMasteryColor(stats?.masteryPercentage || 0)}`}>
+                                    {stats?.masteryPercentage || 0}%
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Button 
+                                    size="sm" 
+                                    variant="default"
+                                    onClick={() => navigate(`/flashcards/study/${deck.id}`)}
+                                  >
+                                    Study
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Spaced Repetition Analytics Sidebar */}
+              <div className="hidden lg:block w-80 shrink-0">
+                <SpacedRepetitionAnalytics compact />
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
