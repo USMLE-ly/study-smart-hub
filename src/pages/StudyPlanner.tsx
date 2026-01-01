@@ -18,7 +18,8 @@ import {
   X,
   Sparkles,
   Music,
-  Keyboard
+  Keyboard,
+  Pencil
 } from "lucide-react";
 import { useConfetti } from "@/hooks/useConfetti";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -459,24 +460,39 @@ const StudyPlanner = () => {
 
           {/* Calendar Grid - Show AFTER plan is created */}
           {planCreated && (
-            <div className="flex-1 min-h-[500px] bg-card rounded-lg border border-border overflow-hidden shadow-sm">
-              <StudyCalendarGrid
-                currentMonth={currentMonth}
-                tasks={tasks}
-                onAddTask={openAddTaskForDate}
-                onToggleComplete={(id, completed) => {
-                  handleToggleComplete(id, completed);
-                }}
-                onDeleteTask={(id) => {
-                  handleDeleteTask(id);
-                }}
-                onTaskClick={handleTaskClick}
-                onMoveTask={handleMoveTask}
-                startDate={startDate}
-                endDate={endDate}
-                studyDays={savedSchedule?.schedule_data as any}
-                blockedDates={savedSchedule?.blocked_dates || []}
-              />
+            <div className="flex-1 flex flex-col min-h-[500px]">
+              {/* Edit Plan Button */}
+              <div className="flex items-center justify-end mb-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPlanCreated(false)}
+                  className="gap-2"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Edit Plan
+                </Button>
+              </div>
+              
+              <div className="flex-1 bg-card rounded-lg border border-border overflow-hidden shadow-sm">
+                <StudyCalendarGrid
+                  currentMonth={currentMonth}
+                  tasks={tasks}
+                  onAddTask={openAddTaskForDate}
+                  onToggleComplete={(id, completed) => {
+                    handleToggleComplete(id, completed);
+                  }}
+                  onDeleteTask={(id) => {
+                    handleDeleteTask(id);
+                  }}
+                  onTaskClick={handleTaskClick}
+                  onMoveTask={handleMoveTask}
+                  startDate={startDate}
+                  endDate={endDate}
+                  studyDays={savedSchedule?.schedule_data as any}
+                  blockedDates={savedSchedule?.blocked_dates || []}
+                />
+              </div>
             </div>
           )}
         </div>
