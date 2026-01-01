@@ -18,9 +18,10 @@ import Flashcards from "./pages/Flashcards";
 import FlashcardStudy from "./pages/FlashcardStudy";
 import Notebook from "./pages/Notebook";
 import Help from "./pages/Help";
-import PracticeTest from "./pages/PracticeTest";
+import PracticeTestWithData from "./pages/PracticeTestWithData";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
+import QuestionImport from "./pages/QuestionImport";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,7 +49,9 @@ const App = () => (
               path="/study-planner"
               element={
                 <ProtectedRoute>
-                  <StudyPlanner />
+                  <PageTransition>
+                    <StudyPlanner />
+                  </PageTransition>
                 </ProtectedRoute>
               }
             />
@@ -56,7 +59,9 @@ const App = () => (
               path="/study-planner/setup"
               element={
                 <ProtectedRoute>
-                  <StudyPlanSetup />
+                  <PageTransition>
+                    <StudyPlanSetup />
+                  </PageTransition>
                 </ProtectedRoute>
               }
             />
@@ -64,7 +69,9 @@ const App = () => (
               path="/library"
               element={
                 <ProtectedRoute>
-                  <MedicalLibrary />
+                  <PageTransition>
+                    <MedicalLibrary />
+                  </PageTransition>
                 </ProtectedRoute>
               }
             />
@@ -72,7 +79,9 @@ const App = () => (
               path="/qbank/create"
               element={
                 <ProtectedRoute>
-                  <CreateTest />
+                  <PageTransition>
+                    <CreateTest />
+                  </PageTransition>
                 </ProtectedRoute>
               }
             />
@@ -80,7 +89,9 @@ const App = () => (
               path="/qbank/history"
               element={
                 <ProtectedRoute>
-                  <PreviousTests />
+                  <PageTransition>
+                    <PreviousTests />
+                  </PageTransition>
                 </ProtectedRoute>
               }
             />
@@ -88,7 +99,9 @@ const App = () => (
               path="/qbank/performance"
               element={
                 <ProtectedRoute>
-                  <Performance />
+                  <PageTransition>
+                    <Performance />
+                  </PageTransition>
                 </ProtectedRoute>
               }
             />
@@ -96,7 +109,9 @@ const App = () => (
               path="/qbank/search"
               element={
                 <ProtectedRoute>
-                  <SearchQuestions />
+                  <PageTransition>
+                    <SearchQuestions />
+                  </PageTransition>
                 </ProtectedRoute>
               }
             />
@@ -104,7 +119,9 @@ const App = () => (
               path="/qbank/notes"
               element={
                 <ProtectedRoute>
-                  <Notebook />
+                  <PageTransition>
+                    <Notebook />
+                  </PageTransition>
                 </ProtectedRoute>
               }
             />
@@ -112,7 +129,25 @@ const App = () => (
               path="/qbank/practice"
               element={
                 <ProtectedRoute>
-                  <PracticeTest />
+                  <PracticeTestWithData />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/qbank/practice/:testId"
+              element={
+                <ProtectedRoute>
+                  <PracticeTestWithData />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/qbank/import"
+              element={
+                <ProtectedRoute>
+                  <PageTransition>
+                    <QuestionImport />
+                  </PageTransition>
                 </ProtectedRoute>
               }
             />
@@ -120,7 +155,9 @@ const App = () => (
               path="/flashcards"
               element={
                 <ProtectedRoute>
-                  <Flashcards />
+                  <PageTransition>
+                    <Flashcards />
+                  </PageTransition>
                 </ProtectedRoute>
               }
             />
@@ -128,7 +165,9 @@ const App = () => (
               path="/flashcards/study/:deckId"
               element={
                 <ProtectedRoute>
-                  <FlashcardStudy />
+                  <PageTransition>
+                    <FlashcardStudy />
+                  </PageTransition>
                 </ProtectedRoute>
               }
             />
@@ -136,7 +175,9 @@ const App = () => (
               path="/flashcards/decks"
               element={
                 <ProtectedRoute>
-                  <Flashcards />
+                  <PageTransition>
+                    <Flashcards />
+                  </PageTransition>
                 </ProtectedRoute>
               }
             />
@@ -144,7 +185,9 @@ const App = () => (
               path="/notebook"
               element={
                 <ProtectedRoute>
-                  <Notebook />
+                  <PageTransition>
+                    <Notebook />
+                  </PageTransition>
                 </ProtectedRoute>
               }
             />
@@ -152,7 +195,9 @@ const App = () => (
               path="/help"
               element={
                 <ProtectedRoute>
-                  <Help />
+                  <PageTransition>
+                    <Help />
+                  </PageTransition>
                 </ProtectedRoute>
               }
             />
@@ -160,7 +205,9 @@ const App = () => (
               path="/profile"
               element={
                 <ProtectedRoute>
-                  <Profile />
+                  <PageTransition>
+                    <Profile />
+                  </PageTransition>
                 </ProtectedRoute>
               }
             />

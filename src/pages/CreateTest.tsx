@@ -7,9 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronUp, Info, Rocket, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Info, Rocket, Plus, Upload } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useNavigate, Link } from "react-router-dom";
+import { useTests } from "@/hooks/useTests";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface Subject {
   id: string;
@@ -72,16 +76,19 @@ const questionModes = [
 ];
 
 const CreateTest = () => {
+  const navigate = useNavigate();
+  const { createTest } = useTests();
   const [testMode, setTestMode] = useState<"tutor" | "timed">("tutor");
   const [questionMode, setQuestionMode] = useState<"standard" | "custom">("standard");
   const [selectedModes, setSelectedModes] = useState<string[]>(["unused"]);
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [selectedSystems, setSelectedSystems] = useState<string[]>([]);
-  const [questionCount, setQuestionCount] = useState(40);
+  const [questionCount, setQuestionCount] = useState(10);
   const [subjectsOpen, setSubjectsOpen] = useState(true);
   const [systemsOpen, setSystemsOpen] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const totalAvailable = 3732;
+  const totalAvailable = 10; // We have 10 sample questions
 
   const toggleMode = (modeId: string) => {
     setSelectedModes((prev) =>
@@ -107,15 +114,86 @@ const CreateTest = () => {
     );
   };
 
+  const handleGenerateTest = async () => {
+    setIsGenerating(true);
+    try {
+      // Fetch random questions from the database
+      const { data: questions, error: questionsError } = await supabase
+        .from("questions")
+        .select("id")
+        .limit(Math.min(questionCount, 10));
+
+      if (questionsError || !questions || questions.length === 0) {
+        toast.error("No questions available. Import some questions first.");
+        setIsGenerating(false);
+        return;
+      }
+
+      // Create the test
+      const testName = `Test ${new Date().toLocaleDateString()} - ${testMode === "tutor" ? "Tutor" : "Timed"}`;
+      const { data: test, error: testError } = await createTest({
+        name: testName,
+        mode: testMode,
+        timerType: testMode === "timed" ? "block" : "question",
+        timeLimitSeconds: testMode === "timed" ? questionCount * 90 : undefined,
+        questionCount: questions.length,
+        subjects: selectedSubjects,
+        systems: selectedSystems,
+      });
+
+      if (testError || !test) {
+        toast.error("Failed to create test");
+        setIsGenerating(false);
+        return;
+      }
+
+      // Create test answers (question placeholders)
+      const testAnswers = questions.map((q, index) => ({
+        test_id: test.id,
+        question_id: q.id,
+        question_order: index + 1,
+      }));
+
+      const { error: answersError } = await supabase
+        .from("test_answers")
+        .insert(testAnswers);
+
+      if (answersError) {
+        toast.error("Failed to set up test questions");
+        setIsGenerating(false);
+        return;
+      }
+
+      toast.success("Test created successfully!");
+      navigate(`/qbank/practice/${test.id}`);
+    } catch (error) {
+      toast.error("Something went wrong");
+      console.error(error);
+    }
+    setIsGenerating(false);
+  };
+
   return (
     <AppLayout title="Create Test">
       <div className="space-y-6 max-w-4xl">
-        {/* Launch Tutorial */}
-        <div className="flex justify-end">
-          <Button variant="link" className="text-primary gap-2">
-            <Rocket className="h-4 w-4" />
-            Launch Tutorial
-          </Button>
+        {/* Header with Import Link */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">Create a New Test</h2>
+            <p className="text-sm text-muted-foreground">Configure your test settings</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" asChild className="gap-2">
+              <Link to="/qbank/import">
+                <Upload className="h-4 w-4" />
+                Import Questions
+              </Link>
+            </Button>
+            <Button variant="link" className="text-primary gap-2">
+              <Rocket className="h-4 w-4" />
+              Launch Tutorial
+            </Button>
+          </div>
         </div>
 
         {/* Test Mode Section */}
@@ -348,8 +426,8 @@ const CreateTest = () => {
 
         {/* Generate Test Button */}
         <div className="flex justify-center pt-4">
-          <Button size="lg" className="px-12">
-            Generate Test
+          <Button size="lg" className="px-12" onClick={handleGenerateTest} disabled={isGenerating}>
+            {isGenerating ? "Generating..." : "Generate Test"}
           </Button>
         </div>
       </div>
