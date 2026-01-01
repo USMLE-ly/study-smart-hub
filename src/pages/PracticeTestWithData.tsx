@@ -5,7 +5,16 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { LoadingState } from "@/components/ui/LoadingSpinner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 import {
   Bookmark,
   Calculator,
@@ -22,6 +31,8 @@ import {
   X,
   Strikethrough,
   Pause,
+  StickyNote,
+  Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate, useParams } from "react-router-dom";
@@ -53,6 +64,11 @@ const PracticeTestWithData = () => {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [startTime, setStartTime] = useState<number>(Date.now());
   const [testMode, setTestMode] = useState<"tutor" | "timed">("tutor");
+  
+  // Notes state
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [questionNotes, setQuestionNotes] = useState<Record<string, string>>({});
+  const [currentNote, setCurrentNote] = useState("");
 
   const currentQuestion = questions[currentIndex];
   const totalQuestions = questions.length;
@@ -232,6 +248,26 @@ const PracticeTestWithData = () => {
     }
   };
 
+  const handleOpenNotes = () => {
+    if (currentQuestion) {
+      setCurrentNote(questionNotes[currentQuestion.id] || "");
+    }
+    setNotesOpen(true);
+  };
+
+  const handleSaveNote = () => {
+    if (currentQuestion) {
+      setQuestionNotes((prev) => ({
+        ...prev,
+        [currentQuestion.id]: currentNote,
+      }));
+      toast.success("Note saved");
+    }
+    setNotesOpen(false);
+  };
+
+  const hasNote = currentQuestion && questionNotes[currentQuestion.id];
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -272,6 +308,14 @@ const PracticeTestWithData = () => {
             className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
           >
             <Highlighter className="h-5 w-5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            onClick={handleOpenNotes}
+          >
+            <StickyNote className={cn("h-5 w-5", hasNote && "fill-primary text-primary")} />
           </Button>
           <Button
             variant="ghost"
@@ -518,6 +562,39 @@ const PracticeTestWithData = () => {
           </Button>
         </div>
       </footer>
+
+      {/* Notes Dialog */}
+      <Dialog open={notesOpen} onOpenChange={setNotesOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <StickyNote className="h-5 w-5 text-primary" />
+              Question Notes
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea
+              placeholder="Write your notes for this question..."
+              value={currentNote}
+              onChange={(e) => setCurrentNote(e.target.value)}
+              rows={6}
+              className="resize-none"
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              Notes are saved locally for this session and will appear in your notebook.
+            </p>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button onClick={handleSaveNote}>
+              <Save className="h-4 w-4 mr-2" />
+              Save Note
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
