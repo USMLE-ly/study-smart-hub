@@ -17,8 +17,8 @@ export function ProgressRing({
   overdue,
   incomplete,
 }: ProgressRingProps) {
-  const size = 180;
-  const strokeWidth = 14;
+  const size = 200;
+  const strokeWidth = 18;
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
 
@@ -43,9 +43,13 @@ export function ProgressRing({
   const overdueDash = (overdueAngle / 360) * circumference;
   const incompleteDash = (incompleteAngle / 360) * circumference;
 
-  const gap = total > 1 ? 6 : 0;
-
+  const gap = 4;
   const displayTotal = completed + overdue + incomplete;
+
+  // Colors matching UWorld exactly
+  const greenColor = "#22C55E"; // Bright green
+  const pinkColor = "#F9A8B8"; // Light pink
+  const blueColor = "#93C5FD"; // Light blue
 
   return (
     <div className="bg-card rounded-lg border border-border p-5 h-full flex flex-col min-h-[380px]">
@@ -53,7 +57,7 @@ export function ProgressRing({
       <div className="mb-2">
         <h3 className="text-lg font-semibold text-foreground">Study Plan Progress</h3>
         <p className="text-base text-foreground mt-1">
-          <span className="font-semibold">{completed} / {displayTotal || 10}</span>
+          <span className="font-bold">{completed} / {displayTotal || 10}</span>
           <span className="text-muted-foreground ml-1">{daysRemaining} days remaining</span>
         </p>
       </div>
@@ -68,55 +72,53 @@ export function ProgressRing({
               cy={size / 2}
               r={radius}
               fill="none"
-              stroke="hsl(var(--muted))"
+              stroke="#E5E7EB"
               strokeWidth={strokeWidth}
-              opacity={0.3}
             />
 
-            {/* Incomplete segment (light blue/primary) */}
+            {/* Incomplete segment (light blue) - draw first (bottom layer) */}
             {incomplete > 0 && (
               <circle
                 cx={size / 2}
                 cy={size / 2}
                 r={radius}
                 fill="none"
-                stroke="hsl(var(--primary))"
+                stroke={blueColor}
                 strokeWidth={strokeWidth}
-                strokeDasharray={`${incompleteDash - (total > 1 ? gap : 0)} ${circumference - incompleteDash + (total > 1 ? gap : 0)}`}
-                strokeDashoffset={-(completedDash + overdueDash)}
+                strokeDasharray={`${incompleteDash} ${circumference - incompleteDash}`}
+                strokeDashoffset={-(completedDash + overdueDash + gap)}
                 strokeLinecap="round"
-                opacity={0.4}
                 className="transition-all duration-1000 ease-out"
               />
             )}
 
-            {/* Overdue segment (pink/red) */}
+            {/* Overdue segment (pink) */}
             {overdue > 0 && (
               <circle
                 cx={size / 2}
                 cy={size / 2}
                 r={radius}
                 fill="none"
-                stroke="hsl(350, 80%, 70%)"
+                stroke={pinkColor}
                 strokeWidth={strokeWidth}
-                strokeDasharray={`${overdueDash - (total > 1 ? gap : 0)} ${circumference - overdueDash + (total > 1 ? gap : 0)}`}
-                strokeDashoffset={-completedDash}
+                strokeDasharray={`${overdueDash} ${circumference - overdueDash}`}
+                strokeDashoffset={-(completedDash + gap)}
                 strokeLinecap="round"
                 className="transition-all duration-1000 ease-out"
               />
             )}
 
-            {/* Completed segment (green) */}
+            {/* Completed segment (green) - draw last (top layer) */}
             {completed > 0 && (
               <circle
                 cx={size / 2}
                 cy={size / 2}
                 r={radius}
                 fill="none"
-                stroke="hsl(142, 71%, 45%)"
+                stroke={greenColor}
                 strokeWidth={strokeWidth}
-                strokeDasharray={`${completedDash - (total > 1 ? gap : 0)} ${circumference - completedDash + (total > 1 ? gap : 0)}`}
-                strokeDashoffset={0}
+                strokeDasharray={`${completedDash} ${circumference - completedDash}`}
+                strokeDashoffset={gap / 2}
                 strokeLinecap="round"
                 className="transition-all duration-1000 ease-out"
               />
@@ -125,7 +127,7 @@ export function ProgressRing({
 
           {/* Center text */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-4xl font-bold text-[hsl(142,71%,45%)]">
+            <span className="text-4xl font-bold" style={{ color: greenColor }}>
               {animatedProgress.toFixed(2)}%
             </span>
             <span className="text-sm text-muted-foreground mt-1">
@@ -138,15 +140,15 @@ export function ProgressRing({
       {/* Legend - inline format like UWorld */}
       <div className="flex items-center justify-center gap-4 mt-4 flex-wrap">
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-[hsl(142,71%,45%)]" />
+          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: greenColor }} />
           <span className="text-xs text-foreground">Completed <span className="font-medium">{completed}</span></span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-[hsl(350,80%,70%)]" />
+          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: pinkColor }} />
           <span className="text-xs text-foreground">Overdue <span className="font-medium">{overdue}</span></span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-primary/50" />
+          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: blueColor }} />
           <span className="text-xs text-foreground">Incomplete <span className="font-medium">{incomplete}</span></span>
         </div>
       </div>
