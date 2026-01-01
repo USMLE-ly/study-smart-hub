@@ -78,15 +78,18 @@ export function StudyPlannerWidget() {
   }
 
   return (
-    <div className="bg-card rounded-lg border border-border h-full flex flex-col min-h-[380px] transition-all duration-300 hover:shadow-md">
+    <div className="relative overflow-hidden bg-card rounded-xl border border-border h-full flex flex-col min-h-[380px] transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20 group/widget">
+      {/* Decorative gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover/widget:opacity-100 transition-opacity duration-500" />
+      
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+      <div className="relative flex items-center justify-between px-5 py-4 border-b border-border">
         <h3 className="text-lg font-semibold text-foreground">Study Planner</h3>
         <div className="flex items-center gap-6">
           <span className="text-sm text-muted-foreground">{formattedDate}</span>
           <Link
             to="/study-planner"
-            className="text-sm font-medium text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1 group"
+            className="text-sm font-medium text-primary hover:text-primary/80 transition-all duration-200 inline-flex items-center gap-1 group hover:gap-2"
           >
             View Plan
             <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -95,23 +98,24 @@ export function StudyPlannerWidget() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="upcoming" className="flex-1 flex flex-col">
-        <div className="px-5 pt-4 border-b border-border">
+      <Tabs defaultValue="upcoming" className="relative flex-1 flex flex-col">
+        <div className="relative px-5 pt-4 border-b border-border">
           <TabsList className="h-auto bg-transparent p-0 gap-6">
             <TabsTrigger
               value="upcoming"
-              className="h-auto pb-3 px-0 rounded-none border-b-2 border-transparent text-sm font-medium text-muted-foreground data-[state=active]:text-primary data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none transition-all duration-200"
+              className="h-auto pb-3 px-0 rounded-none border-b-2 border-transparent text-sm font-medium text-muted-foreground data-[state=active]:text-primary data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none transition-all duration-300 hover:text-foreground"
             >
               Upcoming
             </TabsTrigger>
             <TabsTrigger
               value="overdue"
-              className="h-auto pb-3 px-0 rounded-none border-b-2 border-transparent text-sm font-medium text-muted-foreground data-[state=active]:text-primary data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none flex items-center gap-2 transition-all duration-200"
+              className="h-auto pb-3 px-0 rounded-none border-b-2 border-transparent text-sm font-medium text-muted-foreground data-[state=active]:text-primary data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none flex items-center gap-2 transition-all duration-300 hover:text-foreground"
             >
               Overdue
               {overdueTasks.length > 0 && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground animate-pulse">
-                  {overdueTasks.length}
+                <span className="relative flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-medium text-destructive-foreground">
+                  <span className="absolute inset-0 rounded-full bg-destructive animate-ping opacity-40" />
+                  <span className="relative">{overdueTasks.length}</span>
                 </span>
               )}
             </TabsTrigger>
@@ -202,6 +206,9 @@ export function StudyPlannerWidget() {
           </TabsContent>
         </div>
       </Tabs>
+      
+      {/* Animated bottom accent line */}
+      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent scale-x-0 group-hover/widget:scale-x-100 transition-transform duration-500" />
     </div>
   );
 }

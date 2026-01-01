@@ -98,21 +98,26 @@ export function GamificationWidget({ compact = false }: GamificationWidgetProps)
   }
 
   return (
-    <div className="bg-card rounded-lg border border-border p-5 space-y-6 transition-all duration-300 hover:shadow-md">
+    <div className="relative overflow-hidden bg-card rounded-xl border border-border p-5 space-y-6 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/5 hover:border-purple-500/20 group">
+      {/* Decorative gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="relative flex items-center justify-between">
         <h3 className="text-lg font-semibold text-foreground">Your Progress</h3>
-        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 text-orange-500">
-          <Flame className="h-4 w-4" />
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-500/10 text-orange-500 transition-all duration-300 hover:bg-orange-500/15 hover:scale-105">
+          <Flame className="h-4 w-4 animate-pulse" />
           <span className="text-sm font-medium">{stats.current_streak} day streak</span>
         </div>
       </div>
 
       {/* Level Progress */}
-      <div className="space-y-3">
+      <div className="relative space-y-3">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-purple-500/25 transition-transform duration-300 hover:scale-110">
-            <span className="text-2xl font-bold">{stats.level}</span>
+          <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-purple-500/25 transition-all duration-300 group-hover:scale-110 group-hover:shadow-purple-500/40">
+            {/* Glow ring on hover */}
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-400 to-indigo-500 opacity-0 group-hover:opacity-50 blur-md transition-opacity duration-500" />
+            <span className="relative text-2xl font-bold">{stats.level}</span>
           </div>
           <div className="flex-1">
             <p className="text-lg font-semibold text-foreground">Level {stats.level}</p>
@@ -129,28 +134,28 @@ export function GamificationWidget({ compact = false }: GamificationWidgetProps)
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="text-center p-3 rounded-lg bg-muted/50 transition-all duration-200 hover:bg-muted">
-          <p className="text-2xl font-bold text-foreground">{stats.tasks_completed}</p>
+      <div className="relative grid grid-cols-3 gap-4">
+        <div className="text-center p-3 rounded-xl bg-muted/50 transition-all duration-300 hover:bg-primary/10 hover:scale-105 hover:-translate-y-0.5 cursor-default group/stat">
+          <p className="text-2xl font-bold text-foreground transition-colors duration-200 group-hover/stat:text-primary">{stats.tasks_completed}</p>
           <p className="text-xs text-muted-foreground">Tasks Done</p>
         </div>
-        <div className="text-center p-3 rounded-lg bg-muted/50 transition-all duration-200 hover:bg-muted">
-          <p className="text-2xl font-bold text-foreground">{Math.floor(stats.focus_minutes / 60)}h</p>
+        <div className="text-center p-3 rounded-xl bg-muted/50 transition-all duration-300 hover:bg-primary/10 hover:scale-105 hover:-translate-y-0.5 cursor-default group/stat">
+          <p className="text-2xl font-bold text-foreground transition-colors duration-200 group-hover/stat:text-primary">{Math.floor(stats.focus_minutes / 60)}h</p>
           <p className="text-xs text-muted-foreground">Focus Time</p>
         </div>
-        <div className="text-center p-3 rounded-lg bg-muted/50 transition-all duration-200 hover:bg-muted">
-          <p className="text-2xl font-bold text-foreground">{stats.longest_streak}</p>
+        <div className="text-center p-3 rounded-xl bg-muted/50 transition-all duration-300 hover:bg-primary/10 hover:scale-105 hover:-translate-y-0.5 cursor-default group/stat">
+          <p className="text-2xl font-bold text-foreground transition-colors duration-200 group-hover/stat:text-primary">{stats.longest_streak}</p>
           <p className="text-xs text-muted-foreground">Best Streak</p>
         </div>
       </div>
 
       {/* Recent Achievements */}
-      <div className="space-y-3">
+      <div className="relative space-y-3">
         <p className="text-sm font-medium text-foreground">
           Achievements ({earnedIds.length}/{achievements.length})
         </p>
         <div className="flex flex-wrap gap-2">
-          {achievements.slice(0, 8).map((achievement) => {
+          {achievements.slice(0, 8).map((achievement, index) => {
             const earned = earnedIds.includes(achievement.id);
             const Icon = iconMap[achievement.icon] || Trophy;
             const tier = achievement.tier as keyof typeof tierColors;
@@ -159,15 +164,16 @@ export function GamificationWidget({ compact = false }: GamificationWidgetProps)
               <div
                 key={achievement.id}
                 className={cn(
-                  "w-10 h-10 rounded-lg flex items-center justify-center border transition-all duration-300",
+                  "w-10 h-10 rounded-xl flex items-center justify-center border transition-all duration-300 animate-fade-in",
                   earned 
-                    ? `${tierBgColors[tier]} hover:scale-110` 
-                    : "bg-muted/30 border-muted opacity-40"
+                    ? `${tierBgColors[tier]} hover:scale-125 hover:rotate-6 hover:shadow-lg cursor-pointer` 
+                    : "bg-muted/30 border-muted opacity-40 hover:opacity-60"
                 )}
+                style={{ animationDelay: `${index * 50}ms` }}
                 title={`${achievement.name}: ${achievement.description}`}
               >
                 <Icon className={cn(
-                  "h-5 w-5",
+                  "h-5 w-5 transition-all duration-200",
                   earned ? `bg-gradient-to-r ${tierColors[tier]} bg-clip-text text-transparent` : "text-muted-foreground"
                 )} />
               </div>
@@ -175,6 +181,9 @@ export function GamificationWidget({ compact = false }: GamificationWidgetProps)
           })}
         </div>
       </div>
+      
+      {/* Animated bottom accent line */}
+      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-purple-500/50 to-transparent scale-x-0 group-hover:scale-x-100 transition-transform duration-500" />
     </div>
   );
 }
