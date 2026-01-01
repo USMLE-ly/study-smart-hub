@@ -57,7 +57,9 @@ const StudyPlanner = () => {
   const [dateRangeOpen, setDateRangeOpen] = useState(true);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
-  const [showMainCalendar, setShowMainCalendar] = useState(true);
+  
+  // Plan created state - show calendar after plan is created
+  const [planCreated, setPlanCreated] = useState(false);
   
   const { tasks, loading, addTask, updateTask, toggleComplete, deleteTask, stats } = useStudyTasks();
   const { schedule: savedSchedule, saveSchedule, updateBlockedDates } = useStudySchedule();
@@ -380,73 +382,99 @@ const StudyPlanner = () => {
             </div>
           </div>
 
-          {/* Date Range Picker - Above Calendar (conditionally) */}
-          <DateRangePicker
-            startDate={startDate}
-            endDate={endDate}
-            onStartDateChange={setStartDate}
-            onEndDateChange={setEndDate}
-            isOpen={dateRangeOpen}
-            onOpenChange={setDateRangeOpen}
-            onSave={async () => {
-              const scheduleData = savedSchedule?.schedule_data || [];
-              await saveSchedule(scheduleData, startDate, endDate);
-              setShowMainCalendar(true);
-              toast.success("Date range saved successfully");
-            }}
-            onReset={() => {
-              setStartDate(null);
-              setEndDate(null);
-            }}
-          />
+          {/* Setup sections - only show when plan NOT created */}
+          {!planCreated && (
+            <>
+              {/* Date Range Picker - Above Calendar */}
+              <DateRangePicker
+                startDate={startDate}
+                endDate={endDate}
+                onStartDateChange={setStartDate}
+                onEndDateChange={setEndDate}
+                isOpen={dateRangeOpen}
+                onOpenChange={setDateRangeOpen}
+                onSave={async () => {
+                  const scheduleData = savedSchedule?.schedule_data || [];
+                  await saveSchedule(scheduleData, startDate, endDate);
+                  toast.success("Date range saved successfully");
+                }}
+                onReset={() => {
+                  setStartDate(null);
+                  setEndDate(null);
+                }}
+              />
 
-          {/* Calendar Grid - Removed for now, will be used later */}
+              {/* Blocked Dates Manager */}
+              <BlockedDatesManager
+                blockedDates={savedSchedule?.blocked_dates || []}
+                onBlockedDatesChange={async (dates) => {
+                  await updateBlockedDates(dates);
+                  toast.success("Blocked dates updated");
+                }}
+              />
 
-          {/* Blocked Dates Manager - Below Calendar */}
-          <BlockedDatesManager
-            blockedDates={savedSchedule?.blocked_dates || []}
-            onBlockedDatesChange={async (dates) => {
-              await updateBlockedDates(dates);
-              toast.success("Blocked dates updated");
-            }}
-          />
+              {/* Study Days Selector */}
+              <div className="mt-4">
+                <StudyDaysSelector 
+                  totalTimeNeeded={Math.round(totalTimeMinutes / 60) || 100}
+                  initialSchedule={savedSchedule?.schedule_data}
+                  onScheduleChange={async (schedule) => {
+                    await saveSchedule(schedule, startDate, endDate);
+                  }}
+                />
+              </div>
 
-          {/* Study Days Selector - Below Calendar */}
-          <div className="mt-4">
-            <StudyDaysSelector 
-              totalTimeNeeded={Math.round(totalTimeMinutes / 60) || 100}
-              initialSchedule={savedSchedule?.schedule_data}
-              onScheduleChange={async (schedule) => {
-                await saveSchedule(schedule, startDate, endDate);
-              }}
-            />
-          </div>
+              {/* Create Plan Footer */}
+              <div className="mt-6 pt-4 border-t border-border flex items-center justify-between">
+                <Button 
+                  variant="ghost" 
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setStartDate(null);
+                    setEndDate(null);
+                    toast.info("Plan cancelled");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={async () => {
+                    if (!startDate || !endDate) {
+                      toast.error("Please select start and end dates first");
+                      return;
+                    }
+                    const scheduleData = savedSchedule?.schedule_data || [];
+                    await saveSchedule(scheduleData, startDate, endDate);
+                    setPlanCreated(true);
+                    toast.success("Study plan created successfully!");
+                    triggerConfetti();
+                  }}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  Create Plan
+                </Button>
+              </div>
+            </>
+          )}
 
-          {/* Create Plan Footer */}
-          <div className="mt-6 pt-4 border-t border-border flex items-center justify-between">
-            <Button 
-              variant="ghost" 
-              className="text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                setStartDate(null);
-                setEndDate(null);
-                toast.info("Plan cancelled");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={async () => {
-                const scheduleData = savedSchedule?.schedule_data || [];
-                await saveSchedule(scheduleData, startDate, endDate);
-                toast.success("Study plan created successfully!");
-                triggerConfetti();
-              }}
-              className="bg-primary hover:bg-primary/90"
-            >
-              Create Plan
-            </Button>
-          </div>
+          {/* Calendar Grid - Show AFTER plan is created */}
+          {planCreated && (
+            <div className="flex-1 min-h-[500px] bg-card rounded-lg border border-border overflow-hidden shadow-sm">
+              <StudyCalendarGrid
+                currentMonth={currentMonth}
+                tasks={tasks}
+                onAddTask={openAddTaskForDate}
+                onToggleComplete={(id, completed) => {
+                  handleToggleComplete(id, completed);
+                }}
+                onDeleteTask={(id) => {
+                  handleDeleteTask(id);
+                }}
+                onTaskClick={handleTaskClick}
+                onMoveTask={handleMoveTask}
+              />
+            </div>
+          )}
         </div>
 
         {/* Right Side Panel - Premium Features */}
