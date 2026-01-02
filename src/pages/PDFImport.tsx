@@ -15,6 +15,9 @@ interface PDFFile {
   name: string;
   file: File;
   size?: number;
+  status: 'pending' | 'processing' | 'complete' | 'error';
+  questionsImported?: number;
+  error?: string;
 }
 
 interface ImportProgress {
@@ -25,6 +28,15 @@ interface ImportProgress {
   duplicatesSkipped: number;
   message: string;
   percent: number;
+}
+
+interface BulkProgress {
+  totalFiles: number;
+  currentFileIndex: number;
+  currentFileName: string;
+  overallPercent: number;
+  totalQuestionsImported: number;
+  totalDuplicatesSkipped: number;
 }
 
 interface ExtractedQuestion {
@@ -61,9 +73,9 @@ HistoryRow.displayName = 'HistoryRow';
 
 const PDFImport = () => {
   const [availablePDFs, setAvailablePDFs] = useState<PDFFile[]>([]);
-  const [selectedPDFIndex, setSelectedPDFIndex] = useState<number>(-1);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [selectedSystem, setSelectedSystem] = useState<string>("");
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [progress, setProgress] = useState<ImportProgress>({
     status: 'idle',
     currentStep: '',
@@ -72,6 +84,14 @@ const PDFImport = () => {
     duplicatesSkipped: 0,
     message: '',
     percent: 0
+  });
+  const [bulkProgress, setBulkProgress] = useState<BulkProgress>({
+    totalFiles: 0,
+    currentFileIndex: 0,
+    currentFileName: '',
+    overallPercent: 0,
+    totalQuestionsImported: 0,
+    totalDuplicatesSkipped: 0
   });
   const [importHistory, setImportHistory] = useState<HistoryItem[]>([]);
   const [displayCount, setDisplayCount] = useState(10);
@@ -166,12 +186,17 @@ const PDFImport = () => {
         .map(file => ({
           name: file.name,
           file: file,
-          size: file.size
+          size: file.size,
+          status: 'pending' as const
         }));
       
       setAvailablePDFs(prev => [...prev, ...pdfFiles]);
       toast.success(`Added ${pdfFiles.length} PDF(s) to the queue`);
     }
+  };
+
+  const removePDF = (index: number) => {
+    setAvailablePDFs(prev => prev.filter((_, i) => i !== index));
   };
 
   const extractTextFromPDF = async (file: File): Promise<string> => {
@@ -235,161 +260,194 @@ const PDFImport = () => {
     });
   };
 
-  const handleImport = async () => {
-    if (selectedPDFIndex < 0 || !selectedSubject || !selectedSystem) {
-      toast.error("Please select a PDF, subject, and system before importing");
-      return;
+  // Process a single PDF and return results
+  const processOnePDF = async (pdf: PDFFile): Promise<{ imported: number; skipped: number }> => {
+    // Extract text
+    const pdfText = await extractTextFromPDF(pdf.file);
+    
+    if (pdfText.length < 50) {
+      throw new Error('Could not extract enough text from PDF. The file may be image-based.');
     }
 
-    const selectedPDF = availablePDFs[selectedPDFIndex];
-    if (!selectedPDF) return;
+    setProgress(prev => ({
+      ...prev,
+      status: 'parsing',
+      currentStep: 'AI is analyzing questions...',
+      message: `Extracted ${pdfText.length} characters. Sending to AI...`,
+      percent: 30
+    }));
 
-    setProgress({
-      status: 'extracting',
-      currentStep: 'Extracting text from PDF...',
-      questionsFound: 0,
-      questionsImported: 0,
-      duplicatesSkipped: 0,
-      message: 'Reading PDF file...',
-      percent: 10
+    // Call edge function
+    const { data: aiResult, error: aiError } = await supabase.functions.invoke('parse-pdf-questions', {
+      body: {
+        pdfText: pdfText.substring(0, 100000),
+        subject: selectedSubject,
+        system: selectedSystem
+      }
     });
 
-    try {
-      // Step 1: Extract text from PDF
-      const pdfText = await extractTextFromPDF(selectedPDF.file);
-      
-      if (pdfText.length < 50) {
-        throw new Error('Could not extract enough text from PDF. The file may be image-based.');
+    if (aiError) throw aiError;
+    if (!aiResult?.success) {
+      throw new Error(aiResult?.error || 'Failed to parse questions');
+    }
+
+    const questions: ExtractedQuestion[] = aiResult.questions || [];
+    
+    setProgress(prev => ({
+      ...prev,
+      status: 'importing',
+      currentStep: 'Importing to database...',
+      questionsFound: questions.length,
+      message: `Found ${questions.length} questions...`,
+      percent: 50
+    }));
+
+    let imported = 0;
+    let skipped = 0;
+
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      const hash = generateQuestionHash(q.question_text);
+
+      if (existingHashes.has(hash)) {
+        skipped++;
+        continue;
       }
 
-      setProgress(prev => ({
-        ...prev,
-        status: 'parsing',
-        currentStep: 'AI is analyzing questions...',
-        message: `Extracted ${pdfText.length} characters. Sending to AI...`,
-        percent: 30
-      }));
+      try {
+        const { data: questionData, error: questionError } = await supabase
+          .from('questions')
+          .insert({
+            question_text: q.question_text,
+            subject: selectedSubject,
+            system: q.system || selectedSystem,
+            difficulty: 'medium',
+            explanation: q.explanation || '',
+            question_hash: hash,
+            source_pdf: pdf.name
+          })
+          .select()
+          .single();
 
-      // Step 2: Call edge function to parse questions with AI
-      const { data: aiResult, error: aiError } = await supabase.functions.invoke('parse-pdf-questions', {
-        body: {
-          pdfText: pdfText.substring(0, 100000), // Limit to 100k chars
-          subject: selectedSubject,
-          system: selectedSystem
-        }
-      });
+        if (questionError) continue;
 
-      if (aiError) throw aiError;
-      if (!aiResult?.success) {
-        throw new Error(aiResult?.error || 'Failed to parse questions');
-      }
-
-      const questions: ExtractedQuestion[] = aiResult.questions || [];
-      
-      setProgress(prev => ({
-        ...prev,
-        status: 'importing',
-        currentStep: 'Importing questions to database...',
-        questionsFound: questions.length,
-        message: `Found ${questions.length} questions. Checking for duplicates...`,
-        percent: 50
-      }));
-
-      // Step 3: Import questions to database
-      let imported = 0;
-      let skipped = 0;
-
-      for (let i = 0; i < questions.length; i++) {
-        const q = questions[i];
-        const hash = generateQuestionHash(q.question_text);
-
-        // Check for duplicate
-        if (existingHashes.has(hash)) {
-          skipped++;
-          continue;
-        }
-
-        try {
-          // Insert question
-          const { data: questionData, error: questionError } = await supabase
-            .from('questions')
-            .insert({
-              question_text: q.question_text,
-              subject: selectedSubject,
-              system: q.system || selectedSystem,
-              difficulty: 'medium',
-              explanation: q.explanation || '',
-              question_hash: hash,
-              source_pdf: selectedPDF.name
-            })
-            .select()
-            .single();
-
-          if (questionError) {
-            console.error('Question insert error:', questionError);
-            continue;
-          }
-
-          // Insert options
-          if (q.options && q.options.length > 0) {
-            const optionsToInsert = q.options.map(opt => ({
+        if (q.options && q.options.length > 0) {
+          await supabase.from('question_options').insert(
+            q.options.map(opt => ({
               question_id: questionData.id,
               option_letter: opt.letter,
               option_text: opt.text,
               is_correct: opt.is_correct,
               explanation: opt.explanation || null
-            }));
-
-            const { error: optionsError } = await supabase
-              .from('question_options')
-              .insert(optionsToInsert);
-
-            if (optionsError) {
-              console.error('Options insert error:', optionsError);
-            }
-          }
-
-          imported++;
-          existingHashes.add(hash);
-        } catch (insertError) {
-          console.error('Insert error:', insertError);
+            }))
+          );
         }
 
-        // Update progress
-        setProgress(prev => ({
-          ...prev,
-          questionsImported: imported,
-          duplicatesSkipped: skipped,
-          percent: 50 + Math.round((i / questions.length) * 50),
-          message: `Imported ${imported}/${questions.length} questions...`
-        }));
+        imported++;
+        existingHashes.add(hash);
+      } catch (insertError) {
+        console.error('Insert error:', insertError);
       }
 
-      setProgress({
-        status: 'complete',
-        currentStep: 'Import complete!',
-        questionsFound: questions.length,
-        questionsImported: imported,
-        duplicatesSkipped: skipped,
-        message: `Successfully imported ${imported} questions, skipped ${skipped} duplicates.`,
-        percent: 100
-      });
-
-      toast.success(`Import complete! ${imported} questions added, ${skipped} duplicates skipped.`);
-      loadImportHistory();
-
-    } catch (error) {
-      console.error('Import error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setProgress(prev => ({
         ...prev,
-        status: 'error',
-        currentStep: 'Import failed',
-        message: errorMessage,
-        percent: 0
+        questionsImported: imported,
+        duplicatesSkipped: skipped,
+        percent: 50 + Math.round((i / questions.length) * 50)
       }));
-      toast.error(`Import failed: ${errorMessage}`);
     }
+
+    return { imported, skipped };
+  };
+
+  // Bulk import all pending PDFs sequentially
+  const handleBulkImport = async () => {
+    const pendingPDFs = availablePDFs.filter(p => p.status === 'pending');
+    if (pendingPDFs.length === 0) {
+      toast.error("No PDFs in queue to import");
+      return;
+    }
+
+    if (!selectedSubject || !selectedSystem) {
+      toast.error("Please select subject and system before importing");
+      return;
+    }
+
+    setIsBulkProcessing(true);
+    setBulkProgress({
+      totalFiles: pendingPDFs.length,
+      currentFileIndex: 0,
+      currentFileName: '',
+      overallPercent: 0,
+      totalQuestionsImported: 0,
+      totalDuplicatesSkipped: 0
+    });
+
+    let totalImported = 0;
+    let totalSkipped = 0;
+
+    for (let i = 0; i < availablePDFs.length; i++) {
+      const pdf = availablePDFs[i];
+      if (pdf.status !== 'pending') continue;
+
+      setBulkProgress(prev => ({
+        ...prev,
+        currentFileIndex: prev.currentFileIndex + 1,
+        currentFileName: pdf.name,
+        overallPercent: Math.round((prev.currentFileIndex / prev.totalFiles) * 100)
+      }));
+
+      setProgress({
+        status: 'extracting',
+        currentStep: 'Extracting text...',
+        questionsFound: 0,
+        questionsImported: 0,
+        duplicatesSkipped: 0,
+        message: `Processing ${pdf.name}...`,
+        percent: 10
+      });
+
+      // Update PDF status
+      setAvailablePDFs(prev => prev.map((p, idx) => 
+        idx === i ? { ...p, status: 'processing' as const } : p
+      ));
+
+      try {
+        const { imported, skipped } = await processOnePDF(pdf);
+        totalImported += imported;
+        totalSkipped += skipped;
+
+        setAvailablePDFs(prev => prev.map((p, idx) => 
+          idx === i ? { ...p, status: 'complete' as const, questionsImported: imported } : p
+        ));
+
+        setBulkProgress(prev => ({
+          ...prev,
+          totalQuestionsImported: totalImported,
+          totalDuplicatesSkipped: totalSkipped
+        }));
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        setAvailablePDFs(prev => prev.map((p, idx) => 
+          idx === i ? { ...p, status: 'error' as const, error: errorMessage } : p
+        ));
+      }
+    }
+
+    setIsBulkProcessing(false);
+    setBulkProgress(prev => ({ ...prev, overallPercent: 100 }));
+    setProgress({
+      status: 'complete',
+      currentStep: 'All imports complete!',
+      questionsFound: 0,
+      questionsImported: totalImported,
+      duplicatesSkipped: totalSkipped,
+      message: `Imported ${totalImported} questions from ${pendingPDFs.length} PDFs.`,
+      percent: 100
+    });
+
+    toast.success(`Bulk import complete! ${totalImported} questions added.`);
+    loadImportHistory();
   };
 
   const resetImport = () => {
@@ -402,7 +460,20 @@ const PDFImport = () => {
       message: '',
       percent: 0
     });
-    setSelectedPDFIndex(-1);
+    setBulkProgress({
+      totalFiles: 0,
+      currentFileIndex: 0,
+      currentFileName: '',
+      overallPercent: 0,
+      totalQuestionsImported: 0,
+      totalDuplicatesSkipped: 0
+    });
+    setAvailablePDFs(prev => prev.map(p => ({ ...p, status: 'pending' as const, error: undefined })));
+  };
+
+  const clearQueue = () => {
+    setAvailablePDFs([]);
+    resetImport();
   };
 
   const formatFileSize = (bytes?: number) => {
@@ -473,34 +544,57 @@ const PDFImport = () => {
               </label>
             </div>
 
-            {/* PDF List */}
+            {/* PDF Queue */}
             {availablePDFs.length > 0 && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Available PDFs</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">PDF Queue ({availablePDFs.length} files)</label>
+                  <Button variant="ghost" size="sm" onClick={clearQueue} disabled={isBulkProcessing}>
+                    Clear All
+                  </Button>
+                </div>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {availablePDFs.map((pdf, index) => (
                     <div
                       key={index}
                       className={`flex items-center justify-between p-3 rounded-lg border ${
-                        selectedPDFIndex === index ? 'border-primary bg-primary/5' : 'border-border'
+                        pdf.status === 'complete' ? 'border-green-500/50 bg-green-500/5' :
+                        pdf.status === 'error' ? 'border-destructive/50 bg-destructive/5' :
+                        pdf.status === 'processing' ? 'border-primary bg-primary/5' :
+                        'border-border'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-muted-foreground" />
+                        {pdf.status === 'complete' ? (
+                          <CheckCircle className="h-5 w-5 text-green-500" />
+                        ) : pdf.status === 'error' ? (
+                          <AlertCircle className="h-5 w-5 text-destructive" />
+                        ) : pdf.status === 'processing' ? (
+                          <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                        ) : (
+                          <FileText className="h-5 w-5 text-muted-foreground" />
+                        )}
                         <div>
-                          <p className="font-medium text-sm">{pdf.name}</p>
+                          <p className="font-medium text-sm truncate max-w-[200px]">{pdf.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {formatFileSize(pdf.size)}
+                            {pdf.status === 'complete' ? `${pdf.questionsImported} questions imported` :
+                             pdf.status === 'error' ? pdf.error :
+                             formatFileSize(pdf.size)}
                           </p>
                         </div>
                       </div>
-                      <Button
-                        variant={selectedPDFIndex === index ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setSelectedPDFIndex(index)}
-                      >
-                        {selectedPDFIndex === index ? "Selected" : "Select"}
-                      </Button>
+                      {pdf.status === 'pending' && !isBulkProcessing && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removePDF(index)}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                      {pdf.status === 'complete' && (
+                        <Badge variant="secondary" className="bg-green-500/10 text-green-600">Done</Badge>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -510,8 +604,8 @@ const PDFImport = () => {
             {/* Subject & System Selection */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Subject</label>
-                <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                <label className="text-sm font-medium">Subject (for all PDFs)</label>
+                <Select value={selectedSubject} onValueChange={setSelectedSubject} disabled={isBulkProcessing}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select subject" />
                   </SelectTrigger>
@@ -525,8 +619,8 @@ const PDFImport = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">System</label>
-                <Select value={selectedSystem} onValueChange={setSelectedSystem}>
+                <label className="text-sm font-medium">System (for all PDFs)</label>
+                <Select value={selectedSystem} onValueChange={setSelectedSystem} disabled={isBulkProcessing}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select system" />
                   </SelectTrigger>
@@ -541,31 +635,47 @@ const PDFImport = () => {
               </div>
             </div>
 
-            {/* Import Button */}
+            {/* Bulk Import Button */}
             <div className="flex gap-2">
               <Button
-                onClick={handleImport}
-                disabled={selectedPDFIndex < 0 || !selectedSubject || !selectedSystem || progress.status !== 'idle'}
+                onClick={handleBulkImport}
+                disabled={availablePDFs.filter(p => p.status === 'pending').length === 0 || !selectedSubject || !selectedSystem || isBulkProcessing}
                 className="flex-1"
               >
-                {progress.status !== 'idle' && progress.status !== 'complete' && progress.status !== 'error' ? (
+                {isBulkProcessing ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    {progress.currentStep}
+                    Processing {bulkProgress.currentFileIndex}/{bulkProgress.totalFiles}...
                   </>
                 ) : (
                   <>
                     <Upload className="h-4 w-4 mr-2" />
-                    Start AI Import
+                    Import All PDFs ({availablePDFs.filter(p => p.status === 'pending').length})
                   </>
                 )}
               </Button>
-              {progress.status !== 'idle' && (
-                <Button variant="outline" onClick={resetImport}>
+              {(progress.status !== 'idle' || isBulkProcessing) && (
+                <Button variant="outline" onClick={resetImport} disabled={isBulkProcessing}>
                   Reset
                 </Button>
               )}
             </div>
+
+            {/* Bulk Progress */}
+            {isBulkProcessing && (
+              <div className="space-y-2 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Overall Progress</span>
+                  <Badge variant="secondary">
+                    {bulkProgress.currentFileIndex}/{bulkProgress.totalFiles} files
+                  </Badge>
+                </div>
+                <Progress value={bulkProgress.overallPercent} />
+                <p className="text-xs text-muted-foreground">
+                  Currently processing: {bulkProgress.currentFileName}
+                </p>
+              </div>
+            )}
 
             {/* Progress Display */}
             {progress.status !== 'idle' && (
