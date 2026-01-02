@@ -24,8 +24,11 @@ import {
   RotateCcw,
   Mail,
   Loader2,
-  Check
+  Sun,
+  Moon,
+  Monitor,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useSettings, SoundTone } from "@/contexts/SettingsContext";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
@@ -57,6 +60,7 @@ const dayOptions = [
 
 const Settings = () => {
   const { settings, updateSettings } = useSettings();
+  const { theme, setTheme } = useTheme();
   const { user } = useAuth();
   const { profile, updateProfile } = useProfile();
   const [savingEmail, setSavingEmail] = useState(false);
@@ -168,6 +172,59 @@ const Settings = () => {
   return (
     <AppLayout title="Settings">
       <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
+        {/* Appearance Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {theme === 'dark' ? (
+                <Moon className="h-5 w-5 text-primary" />
+              ) : theme === 'light' ? (
+                <Sun className="h-5 w-5 text-primary" />
+              ) : (
+                <Monitor className="h-5 w-5 text-primary" />
+              )}
+              Appearance
+            </CardTitle>
+            <CardDescription>
+              Customize the look and feel of the application
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-3">
+              <Label>Theme</Label>
+              <div className="grid grid-cols-3 gap-3">
+                <Button
+                  variant={theme === 'light' ? 'default' : 'outline'}
+                  className="flex flex-col items-center gap-2 h-auto py-4"
+                  onClick={() => setTheme('light')}
+                >
+                  <Sun className="h-5 w-5" />
+                  <span className="text-sm">Light</span>
+                </Button>
+                <Button
+                  variant={theme === 'dark' ? 'default' : 'outline'}
+                  className="flex flex-col items-center gap-2 h-auto py-4"
+                  onClick={() => setTheme('dark')}
+                >
+                  <Moon className="h-5 w-5" />
+                  <span className="text-sm">Dark</span>
+                </Button>
+                <Button
+                  variant={theme === 'system' ? 'default' : 'outline'}
+                  className="flex flex-col items-center gap-2 h-auto py-4"
+                  onClick={() => setTheme('system')}
+                >
+                  <Monitor className="h-5 w-5" />
+                  <span className="text-sm">System</span>
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Choose your preferred theme. Dark mode is great for studying at night.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Sound Settings */}
         <Card>
           <CardHeader>
