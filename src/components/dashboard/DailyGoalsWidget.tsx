@@ -79,15 +79,17 @@ export const DailyGoalsWidget = () => {
     },
   ];
 
-  const [goals, setGoals] = useState<DailyGoal[]>(() => {
+  const [goals, setGoals] = useState<DailyGoal[]>(defaultGoals);
+
+  // Load goals from localStorage on mount (safely)
+  useEffect(() => {
     try {
       const saved = localStorage.getItem("dailyStudyGoals");
-      if (!saved) return defaultGoals;
+      if (!saved) return;
 
       const parsed = JSON.parse(saved);
-      if (!Array.isArray(parsed)) return defaultGoals;
+      if (!Array.isArray(parsed)) return;
 
-      // Only trust saved targets; keep icons/labels stable from defaults
       const targetById = new Map<string, number>();
       for (const g of parsed) {
         if (g && typeof g.id === "string") {
@@ -96,20 +98,15 @@ export const DailyGoalsWidget = () => {
         }
       }
 
-      return defaultGoals.map((g) => ({
+      setGoals(prev => prev.map((g) => ({
         ...g,
         target: targetById.get(g.id) ?? g.target,
-      }));
-    } catch (e) {
-      // If storage is blocked or JSON is corrupted, fall back safely.
-      try {
-        localStorage.removeItem("dailyStudyGoals");
-      } catch {
-        // ignore
-      }
-      return defaultGoals;
+      })));
+    } catch {
+      // Corrupted data - clear it
+      try { localStorage.removeItem("dailyStudyGoals"); } catch { /* ignore */ }
     }
-  });
+  }, []);
 
   // Update goals with real data
   useEffect(() => {
