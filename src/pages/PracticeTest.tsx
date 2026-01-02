@@ -22,17 +22,20 @@ import {
   X,
   Strikethrough,
   Pause,
+  Play,
   Menu,
   Maximize,
   Settings,
   ZoomIn,
   Palette,
+  StickyNote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { LabValuesPanel } from "@/components/practice-test/LabValuesPanel";
 import { CalculatorModal } from "@/components/practice-test/CalculatorModal";
 import { QuestionNavigationGrid } from "@/components/practice-test/QuestionNavigationGrid";
+import { useTestTimer } from "@/components/practice-test/TestTimer";
 
 interface AnswerOption {
   id: string;
@@ -72,12 +75,20 @@ const PracticeTest = () => {
   const [strikethroughOptions, setStrikethroughOptions] = useState<string[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState(1);
   const [totalQuestions] = useState(10);
-  const [timeRemaining] = useState("33:43");
   
   // Panel states
   const [labValuesOpen, setLabValuesOpen] = useState(false);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [navigationOpen, setNavigationOpen] = useState(false);
+
+  // Timer
+  const { elapsedTime, isPaused, toggle: togglePause } = useTestTimer(0, "tutor");
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
 
   // Mock question statuses for navigation
   const questionStatuses = useMemo(() => 
@@ -154,7 +165,7 @@ const PracticeTest = () => {
             </div>
           </div>
 
-          {/* Center - Mark checkbox and Navigation */}
+          {/* Center - Mark checkbox, Navigation, Timer */}
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -187,6 +198,15 @@ const PracticeTest = () => {
               Next
               <ChevronRight className="h-4 w-4" />
             </Button>
+            
+            {/* Timer */}
+            <div className="flex items-center gap-2 px-3 py-1 bg-white/10 rounded">
+              <Clock className={cn("h-4 w-4", isPaused && "opacity-50")} />
+              <span className="font-mono font-semibold text-sm">
+                {formatTime(elapsedTime)}
+              </span>
+              {isPaused && <span className="text-xs opacity-70">PAUSED</span>}
+            </div>
           </div>
 
           {/* Right - Toolbar Icons */}
@@ -194,7 +214,7 @@ const PracticeTest = () => {
             <ToolbarIcon icon={Maximize} label="Full Screen" />
             <ToolbarIcon icon={HelpCircle} label="Tutorial" />
             <ToolbarIcon icon={FlaskConical} label="Lab Values" onClick={() => setLabValuesOpen(true)} />
-            <ToolbarIcon icon={FileText} label="Notes" />
+            <ToolbarIcon icon={StickyNote} label="Notes" />
             <ToolbarIcon icon={Calculator} label="Calculator" onClick={() => setCalculatorOpen(true)} />
             <ToolbarIcon icon={Palette} label="Reverse Color" />
             <ToolbarIcon icon={ZoomIn} label="Text Zoom" />
@@ -380,9 +400,10 @@ const PracticeTest = () => {
           <Button
             variant="ghost"
             className="text-white hover:bg-white/20 gap-2"
+            onClick={togglePause}
           >
-            <Pause className="h-4 w-4" />
-            Suspend
+            {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+            {isPaused ? "Resume" : "Suspend"}
           </Button>
         </div>
 

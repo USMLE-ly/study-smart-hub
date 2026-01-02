@@ -1,19 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
 import { LoadingState } from "@/components/ui/LoadingSpinner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
 import {
   Flag,
   Calculator,
@@ -27,9 +18,8 @@ import {
   X,
   Strikethrough,
   Pause,
+  Play,
   StickyNote,
-  Save,
-  Download,
   Menu,
   FlaskConical,
   Type,
@@ -44,58 +34,75 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTests, Question, QuestionOption } from "@/hooks/useTests";
 import { useFlashcards } from "@/hooks/useFlashcards";
 import { useConfetti } from "@/hooks/useConfetti";
-import { exportNotesToText } from "@/utils/exportNotes";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { LabValuesPanel } from "@/components/practice-test/LabValuesPanel";
+import { CalculatorModal } from "@/components/practice-test/CalculatorModal";
+import { QuestionNavigationGrid } from "@/components/practice-test/QuestionNavigationGrid";
+import { NotesPanel } from "@/components/practice-test/NotesPanel";
+import { useTestTimer } from "@/components/practice-test/TestTimer";
 
 interface QuestionWithOptions extends Question {
   options: QuestionOption[];
 }
 
+interface AnswerState {
+  selectedOptionId: string | null;
+  isAnswered: boolean;
+  isCorrect: boolean | null;
+  isMarked: boolean;
+}
+
 const PracticeTestWithData = () => {
   const navigate = useNavigate();
   const { testId } = useParams();
+  const { user } = useAuth();
   const { getTest, getTestAnswers, submitAnswer, markQuestion, completeTest } = useTests();
   const { saveWrongAnswerAsFlashcard } = useFlashcards();
-  const { triggerConfetti, triggerStars } = useConfetti();
+  const { triggerStars } = useConfetti();
   
   const [questions, setQuestions] = useState<QuestionWithOptions[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState<string>("");
-  const [isAnswered, setIsAnswered] = useState(false);
-  const [showExplanation, setShowExplanation] = useState(false);
-  const [isMarked, setIsMarked] = useState(false);
-  const [strikethroughOptions, setStrikethroughOptions] = useState<string[]>([]);
+  const [answerStates, setAnswerStates] = useState<Record<string, AnswerState>>({});
+  const [strikethroughOptions, setStrikethroughOptions] = useState<Record<string, string[]>>({});
+  const [questionNotes, setQuestionNotes] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [timeRemaining, setTimeRemaining] = useState(0);
-  const [startTime, setStartTime] = useState<number>(Date.now());
   const [testMode, setTestMode] = useState<"tutor" | "timed">("tutor");
-  
-  // Notes state
+  const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now());
+
+  // Panel states
+  const [labValuesOpen, setLabValuesOpen] = useState(false);
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
-  const [questionNotes, setQuestionNotes] = useState<Record<string, string>>({});
-  const [currentNote, setCurrentNote] = useState("");
+
+  // Timer
+  const { timeRemaining, elapsedTime, isPaused, isExpired, toggle: togglePause, pause, resume } = 
+    useTestTimer(3600, testMode);
 
   const currentQuestion = questions[currentIndex];
   const totalQuestions = questions.length;
 
+  const currentAnswerState = currentQuestion ? answerStates[currentQuestion.id] : null;
+  const selectedAnswer = currentAnswerState?.selectedOptionId || "";
+  const isAnswered = currentAnswerState?.isAnswered || false;
+  const isMarked = currentAnswerState?.isMarked || false;
+
+  // Load test data
   const loadTestData = useCallback(async () => {
     if (!testId) {
+      // Quick mode - load random questions directly
       const { data: questionsData } = await supabase
         .from("questions")
-        .select("*")
+        .select("*, question_options(*)")
         .limit(10);
 
       if (questionsData) {
-        const questionsWithOptions = await Promise.all(
-          questionsData.map(async (q) => {
-            const { data: options } = await supabase
-              .from("question_options")
-              .select("*")
-              .eq("question_id", q.id);
-            return { ...q, options: options || [] };
-          })
-        );
-        setQuestions(questionsWithOptions);
+        const formatted = questionsData.map((q: any) => ({
+          ...q,
+          options: q.question_options || [],
+        }));
+        setQuestions(formatted);
       }
       setLoading(false);
       return;
@@ -104,60 +111,79 @@ const PracticeTestWithData = () => {
     const { data: test } = await getTest(testId);
     if (test) {
       setTestMode(test.mode as "tutor" | "timed");
-      if (test.time_limit_seconds) {
-        setTimeRemaining(test.time_limit_seconds - (test.time_spent_seconds || 0));
-      }
     }
 
     const { data: answers } = await getTestAnswers(testId);
     if (answers && answers.length > 0) {
       const questionIds = answers.map((a) => a.question_id);
+      
       const { data: questionsData } = await supabase
         .from("questions")
-        .select("*")
+        .select("*, question_options(*)")
         .in("id", questionIds);
 
       if (questionsData) {
-        const questionsWithOptions = await Promise.all(
-          questionsData.map(async (q) => {
-            const { data: options } = await supabase
-              .from("question_options")
-              .select("*")
-              .eq("question_id", q.id);
-            return { ...q, options: options || [] };
-          })
-        );
+        const formatted = questionsData.map((q: any) => ({
+          ...q,
+          options: q.question_options || [],
+        }));
         
+        // Order by test answers
         const orderedQuestions = answers
           .sort((a, b) => a.question_order - b.question_order)
-          .map((a) => questionsWithOptions.find((q) => q.id === a.question_id))
+          .map((a) => formatted.find((q) => q.id === a.question_id))
           .filter(Boolean) as QuestionWithOptions[];
         
         setQuestions(orderedQuestions);
+
+        // Restore answer states
+        const states: Record<string, AnswerState> = {};
+        answers.forEach((a) => {
+          if (a.selected_option_id) {
+            states[a.question_id] = {
+              selectedOptionId: a.selected_option_id,
+              isAnswered: true,
+              isCorrect: a.is_correct,
+              isMarked: a.is_marked || false,
+            };
+          }
+        });
+        setAnswerStates(states);
       }
     }
     setLoading(false);
   }, [testId, getTest, getTestAnswers]);
+
+  // Load user's notes for questions
+  const loadUserNotes = useCallback(async () => {
+    if (!user || questions.length === 0) return;
+    
+    const questionIds = questions.map(q => q.id);
+    const { data } = await supabase
+      .from("question_notes")
+      .select("question_id")
+      .eq("user_id", user.id)
+      .in("question_id", questionIds);
+    
+    if (data) {
+      setQuestionNotes(new Set(data.map(n => n.question_id)));
+    }
+  }, [user, questions]);
 
   useEffect(() => {
     loadTestData();
   }, [loadTestData]);
 
   useEffect(() => {
-    if (testMode === "timed" && timeRemaining > 0) {
-      const timer = setInterval(() => {
-        setTimeRemaining((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            handleEndTest();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => clearInterval(timer);
+    loadUserNotes();
+  }, [loadUserNotes]);
+
+  // Handle time expiration
+  useEffect(() => {
+    if (isExpired) {
+      handleEndTest();
     }
-  }, [testMode, timeRemaining]);
+  }, [isExpired]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -165,12 +191,39 @@ const PracticeTestWithData = () => {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const handleSelectAnswer = (optionId: string) => {
+    if (!currentQuestion || isAnswered) return;
+    
+    setAnswerStates((prev) => ({
+      ...prev,
+      [currentQuestion.id]: {
+        ...prev[currentQuestion.id],
+        selectedOptionId: optionId,
+        isAnswered: false,
+        isCorrect: null,
+        isMarked: prev[currentQuestion.id]?.isMarked || false,
+      },
+    }));
+  };
+
   const handleSubmitAnswer = async () => {
     if (!selectedAnswer || !currentQuestion) return;
 
     const selectedOption = currentQuestion.options.find((o) => o.id === selectedAnswer);
     const isCorrect = selectedOption?.is_correct || false;
-    const timeSpent = Math.round((Date.now() - startTime) / 1000);
+    const timeSpent = Math.round((Date.now() - questionStartTime) / 1000);
+
+    // Update local state
+    setAnswerStates((prev) => ({
+      ...prev,
+      [currentQuestion.id]: {
+        ...prev[currentQuestion.id],
+        selectedOptionId: selectedAnswer,
+        isAnswered: true,
+        isCorrect,
+        isMarked: prev[currentQuestion.id]?.isMarked || false,
+      },
+    }));
 
     if (testId) {
       await submitAnswer({
@@ -197,34 +250,25 @@ const PracticeTestWithData = () => {
       triggerStars();
       toast.success("Correct! 🎉", { duration: 1500 });
     }
-
-    setIsAnswered(true);
-    if (testMode === "tutor") {
-      setShowExplanation(true);
-    }
   };
 
   const handleNext = () => {
     if (currentIndex < totalQuestions - 1) {
       setCurrentIndex((prev) => prev + 1);
-      resetQuestionState();
+      setQuestionStartTime(Date.now());
     }
   };
 
   const handlePrevious = () => {
     if (currentIndex > 0) {
       setCurrentIndex((prev) => prev - 1);
-      resetQuestionState();
+      setQuestionStartTime(Date.now());
     }
   };
 
-  const resetQuestionState = () => {
-    setSelectedAnswer("");
-    setIsAnswered(false);
-    setShowExplanation(false);
-    setIsMarked(false);
-    setStrikethroughOptions([]);
-    setStartTime(Date.now());
+  const handleJumpToQuestion = (num: number) => {
+    setCurrentIndex(num - 1);
+    setQuestionStartTime(Date.now());
   };
 
   const handleEndTest = async () => {
@@ -235,61 +279,62 @@ const PracticeTestWithData = () => {
     navigate("/qbank/history");
   };
 
+  const handleSuspend = () => {
+    togglePause();
+    toast.info(isPaused ? "Test resumed" : "Test suspended - timer paused");
+  };
+
   const toggleStrikethrough = (optionId: string) => {
-    setStrikethroughOptions((prev) =>
-      prev.includes(optionId) ? prev.filter((id) => id !== optionId) : [...prev, optionId]
-    );
+    if (!currentQuestion) return;
+    setStrikethroughOptions((prev) => ({
+      ...prev,
+      [currentQuestion.id]: prev[currentQuestion.id]?.includes(optionId)
+        ? prev[currentQuestion.id].filter((id) => id !== optionId)
+        : [...(prev[currentQuestion.id] || []), optionId],
+    }));
   };
 
   const handleMarkQuestion = async () => {
+    if (!currentQuestion) return;
     const newMarked = !isMarked;
-    setIsMarked(newMarked);
-    if (testId && currentQuestion) {
+    
+    setAnswerStates((prev) => ({
+      ...prev,
+      [currentQuestion.id]: {
+        ...prev[currentQuestion.id],
+        selectedOptionId: prev[currentQuestion.id]?.selectedOptionId || null,
+        isAnswered: prev[currentQuestion.id]?.isAnswered || false,
+        isCorrect: prev[currentQuestion.id]?.isCorrect || null,
+        isMarked: newMarked,
+      },
+    }));
+
+    if (testId) {
       await markQuestion(testId, currentQuestion.id, newMarked);
     }
   };
 
-  const handleOpenNotes = () => {
+  const handleNoteSaved = () => {
     if (currentQuestion) {
-      setCurrentNote(questionNotes[currentQuestion.id] || "");
+      setQuestionNotes((prev) => new Set([...prev, currentQuestion.id]));
     }
-    setNotesOpen(true);
   };
 
-  const handleSaveNote = () => {
-    if (currentQuestion) {
-      setQuestionNotes((prev) => ({
-        ...prev,
-        [currentQuestion.id]: currentNote,
-      }));
-      toast.success("Note saved");
-    }
-    setNotesOpen(false);
-  };
+  // Question navigation statuses
+  const questionStatuses = useMemo(() => 
+    questions.map((q, i) => ({
+      questionNumber: i + 1,
+      isAnswered: answerStates[q.id]?.isAnswered || false,
+      isCorrect: answerStates[q.id]?.isCorrect ?? undefined,
+      isMarked: answerStates[q.id]?.isMarked || false,
+    })),
+    [questions, answerStates]
+  );
 
-  const handleExportNotes = () => {
-    const notesArray = questions
-      .filter((q) => questionNotes[q.id])
-      .map((q) => ({
-        questionText: q.question_text,
-        note: questionNotes[q.id],
-        subject: q.subject,
-        system: q.system,
-        timestamp: new Date().toISOString(),
-      }));
-
-    if (notesArray.length === 0) {
-      toast.error("No notes to export");
-      return;
-    }
-
-    exportNotesToText(notesArray, `Practice Test ${testId || "Session"}`);
-    toast.success(`Exported ${notesArray.length} notes`);
-  };
-
-  const hasNote = currentQuestion && questionNotes[currentQuestion.id];
+  const currentStrikethroughs = currentQuestion ? strikethroughOptions[currentQuestion.id] || [] : [];
+  const hasNote = currentQuestion && questionNotes.has(currentQuestion.id);
   const questionId = currentQuestion?.id?.slice(0, 8) || "------";
-  const timeSpentOnQuestion = Math.round((Date.now() - startTime) / 1000);
+  const timeSpentOnQuestion = Math.round((Date.now() - questionStartTime) / 1000);
 
   if (loading) {
     return (
@@ -314,15 +359,16 @@ const PracticeTestWithData = () => {
   const selectedOption = currentQuestion.options.find((o) => o.id === selectedAnswer);
   const isCorrectAnswer = selectedOption?.is_correct || false;
 
-  // Removed unused ToolbarButton component - using inline buttons now
-
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
-      {/* UWorld-style Header */}
+      {/* Header */}
       <header className="bg-[#005BAC] flex items-center h-14 shadow-md shrink-0">
-        {/* Left section - Menu and Item info */}
+        {/* Left section */}
         <div className="flex items-center h-full">
-          <button className="h-full px-3 hover:bg-[#004A8C] transition-colors flex items-center justify-center">
+          <button 
+            onClick={() => setNavigationOpen(true)}
+            className="h-full px-3 hover:bg-[#004A8C] transition-colors flex items-center justify-center"
+          >
             <Menu className="h-5 w-5 text-white" />
           </button>
           
@@ -370,6 +416,18 @@ const PracticeTestWithData = () => {
           </button>
         </div>
 
+        {/* Timer - center */}
+        <div className="flex items-center gap-2 px-4 h-full border-l border-white/20">
+          <Clock className={cn("h-4 w-4 text-white", isPaused && "opacity-50")} />
+          <span className={cn(
+            "font-mono font-semibold text-white text-sm",
+            testMode === "timed" && timeRemaining < 300 && "text-red-300 animate-pulse"
+          )}>
+            {testMode === "timed" ? formatTime(timeRemaining) : formatTime(elapsedTime)}
+          </span>
+          {isPaused && <span className="text-xs text-white/70">PAUSED</span>}
+        </div>
+
         {/* Right section - Tools */}
         <div className="flex items-center ml-auto h-full">
           <button className="h-full flex flex-col items-center justify-center px-2 hover:bg-[#004A8C] transition-colors min-w-[56px]">
@@ -380,12 +438,15 @@ const PracticeTestWithData = () => {
             <HelpCircle className="h-5 w-5 text-white" />
             <span className="text-[10px] text-white leading-tight">Tutorial</span>
           </button>
-          <button className="h-full flex flex-col items-center justify-center px-2 hover:bg-[#004A8C] transition-colors min-w-[56px]">
+          <button 
+            onClick={() => setLabValuesOpen(true)}
+            className="h-full flex flex-col items-center justify-center px-2 hover:bg-[#004A8C] transition-colors min-w-[56px]"
+          >
             <FlaskConical className="h-5 w-5 text-white" />
             <span className="text-[10px] text-white leading-tight">Lab Values</span>
           </button>
           <button 
-            onClick={handleOpenNotes}
+            onClick={() => setNotesOpen(true)}
             className={cn(
               "h-full flex flex-col items-center justify-center px-2 hover:bg-[#004A8C] transition-colors min-w-[56px]",
               hasNote && "bg-[#004A8C]"
@@ -394,7 +455,10 @@ const PracticeTestWithData = () => {
             <StickyNote className="h-5 w-5 text-white" />
             <span className="text-[10px] text-white leading-tight">Notes</span>
           </button>
-          <button className="h-full flex flex-col items-center justify-center px-2 hover:bg-[#004A8C] transition-colors min-w-[56px]">
+          <button 
+            onClick={() => setCalculatorOpen(true)}
+            className="h-full flex flex-col items-center justify-center px-2 hover:bg-[#004A8C] transition-colors min-w-[56px]"
+          >
             <Calculator className="h-5 w-5 text-white" />
             <span className="text-[10px] text-white leading-tight">Calculator</span>
           </button>
@@ -413,7 +477,7 @@ const PracticeTestWithData = () => {
         </div>
       </header>
 
-      {/* Main Content - Clean white background */}
+      {/* Main Content */}
       <main className="flex-1 overflow-auto bg-white">
         <div className="max-w-4xl mx-auto px-6 py-8">
           {/* Question Text */}
@@ -423,11 +487,11 @@ const PracticeTestWithData = () => {
             </p>
           </div>
 
-          {/* Answer Options in bordered box - EXACT UWorld style */}
+          {/* Answer Options */}
           <div className="border-2 border-[#B8D4E8] p-4 mb-6 bg-white">
             <RadioGroup
               value={selectedAnswer}
-              onValueChange={setSelectedAnswer}
+              onValueChange={handleSelectAnswer}
               className="space-y-0"
               disabled={isAnswered}
             >
@@ -435,7 +499,7 @@ const PracticeTestWithData = () => {
                 const isSelected = selectedAnswer === option.id;
                 const isCorrectOpt = option.is_correct;
                 const showResult = isAnswered;
-                const isStruck = strikethroughOptions.includes(option.id);
+                const isStruck = currentStrikethroughs.includes(option.id);
 
                 return (
                   <div
@@ -448,7 +512,6 @@ const PracticeTestWithData = () => {
                       isStruck && "opacity-50"
                     )}
                   >
-                    {/* Correct answer indicator */}
                     {showResult && isCorrectOpt && (
                       <Check className="h-5 w-5 text-green-600 shrink-0" />
                     )}
@@ -488,7 +551,7 @@ const PracticeTestWithData = () => {
             </RadioGroup>
           </div>
 
-          {/* Submit / Proceed Button */}
+          {/* Submit Button */}
           {!isAnswered && (
             <div className="flex justify-center">
               <Button
@@ -501,17 +564,16 @@ const PracticeTestWithData = () => {
             </div>
           )}
 
-          {/* Results Section - UWorld style */}
+          {/* Results Section */}
           {isAnswered && (
             <div className="border border-border rounded-sm bg-muted/30 p-4 mb-6">
               <div className="flex flex-wrap items-center gap-6">
-                {/* Status */}
                 <div>
                   <div className={cn(
                     "text-sm font-medium",
                     isCorrectAnswer ? "text-[hsl(var(--badge-success))]" : "text-destructive"
                   )}>
-                    {isCorrectAnswer ? "Correct" : "Omitted"}
+                    {isCorrectAnswer ? "Correct" : "Incorrect"}
                   </div>
                   <div className="text-xs text-muted-foreground">Correct answer</div>
                   <div className="text-sm font-semibold text-foreground">
@@ -521,7 +583,6 @@ const PracticeTestWithData = () => {
 
                 <Separator orientation="vertical" className="h-12 hidden sm:block" />
 
-                {/* Stats */}
                 <div className="flex items-center gap-2">
                   <BarChart3 className="h-4 w-4 text-muted-foreground" />
                   <div>
@@ -534,7 +595,7 @@ const PracticeTestWithData = () => {
                   <Clock className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <div className="text-sm font-semibold text-foreground">
-                      {timeSpentOnQuestion < 10 ? `0${timeSpentOnQuestion}` : timeSpentOnQuestion} secs
+                      {timeSpentOnQuestion} secs
                     </div>
                     <div className="text-xs text-muted-foreground">Time Spent</div>
                   </div>
@@ -551,8 +612,8 @@ const PracticeTestWithData = () => {
             </div>
           )}
 
-          {/* Explanation Section - UWorld style */}
-          {showExplanation && currentQuestion.explanation && (
+          {/* Explanation Section */}
+          {isAnswered && testMode === "tutor" && currentQuestion.explanation && (
             <div className="border-t border-border pt-6">
               <h3 className="text-lg font-semibold text-foreground mb-4">Explanation</h3>
               <div className="prose prose-slate max-w-none">
@@ -567,7 +628,7 @@ const PracticeTestWithData = () => {
               <Button
                 onClick={handleNext}
                 disabled={currentIndex === totalQuestions - 1}
-                className="px-8 py-2"
+                className="px-8 py-2 bg-[#005BAC] hover:bg-[#004A8C]"
               >
                 Proceed To Next Item
               </Button>
@@ -576,7 +637,7 @@ const PracticeTestWithData = () => {
         </div>
       </main>
 
-      {/* Bottom Navigation - UWorld style */}
+      {/* Footer */}
       <footer className="bg-[#005BAC] h-12 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-6">
           <button
@@ -586,9 +647,12 @@ const PracticeTestWithData = () => {
             <X className="h-4 w-4" />
             End
           </button>
-          <button className="text-white text-sm hover:underline flex items-center gap-1.5 font-medium">
-            <Pause className="h-4 w-4" />
-            Suspend
+          <button 
+            onClick={handleSuspend}
+            className="text-white text-sm hover:underline flex items-center gap-1.5 font-medium"
+          >
+            {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+            {isPaused ? "Resume" : "Suspend"}
           </button>
         </div>
 
@@ -618,38 +682,24 @@ const PracticeTestWithData = () => {
         </div>
       </footer>
 
-      {/* Notes Dialog */}
-      <Dialog open={notesOpen} onOpenChange={setNotesOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <StickyNote className="h-5 w-5 text-primary" />
-              Question Notes
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Textarea
-              placeholder="Write your notes for this question..."
-              value={currentNote}
-              onChange={(e) => setCurrentNote(e.target.value)}
-              rows={6}
-              className="resize-none"
-            />
-            <p className="text-xs text-muted-foreground mt-2">
-              Notes are saved locally for this session and will appear in your notebook.
-            </p>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button onClick={handleSaveNote}>
-              <Save className="h-4 w-4 mr-2" />
-              Save Note
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Panels and Modals */}
+      <LabValuesPanel open={labValuesOpen} onOpenChange={setLabValuesOpen} />
+      <CalculatorModal open={calculatorOpen} onOpenChange={setCalculatorOpen} />
+      <QuestionNavigationGrid
+        open={navigationOpen}
+        onOpenChange={setNavigationOpen}
+        questions={questionStatuses}
+        currentQuestion={currentIndex + 1}
+        onQuestionSelect={handleJumpToQuestion}
+      />
+      <NotesPanel
+        open={notesOpen}
+        onOpenChange={setNotesOpen}
+        currentQuestionId={currentQuestion.id}
+        currentQuestionText={currentQuestion.question_text}
+        testId={testId}
+        onNoteSaved={handleNoteSaved}
+      />
     </div>
   );
 };
