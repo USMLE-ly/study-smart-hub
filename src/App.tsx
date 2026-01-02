@@ -7,6 +7,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { PageTransition } from "@/components/ui/PageTransition";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import { GlobalErrorHandler } from "@/components/GlobalErrorHandler";
 import Dashboard from "./pages/Dashboard";
 import StudyPlanner from "./pages/StudyPlanner";
 import StudyPlanSetup from "./pages/StudyPlanSetup";
@@ -31,239 +33,242 @@ import Settings from "./pages/Settings";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <SettingsProvider>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <Dashboard />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/study-planner"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <StudyPlanner />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/study-planner/setup"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <StudyPlanSetup />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/qbank/create"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <CreateTest />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/qbank/history"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <PreviousTests />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/qbank/performance"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <Performance />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/qbank/search"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <SearchQuestions />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/qbank/notes"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <Notebook />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/qbank/practice"
-              element={
-                <ProtectedRoute>
-                  <PracticeTestWithData />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/qbank/practice/:testId"
-              element={
-                <ProtectedRoute>
-                  <PracticeTestWithData />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/qbank/import"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <QuestionImport />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/pdf-import"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <PDFImport />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/flashcards"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <Flashcards />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/flashcards/study/:deckId"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <FlashcardStudy />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/flashcards/study"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <Flashcards />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/flashcards/decks"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <Flashcards />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/notebook"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <Notebook />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/help"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <Help />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <Profile />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/analytics"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <Analytics />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/weekly-report"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <WeeklyReport />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute>
-                  <PageTransition>
-                    <Settings />
-                  </PageTransition>
-                </ProtectedRoute>
-              }
-            />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </SettingsProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <SettingsProvider>
+        <AuthProvider>
+          <GlobalErrorHandler />
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/auth" element={<Auth />} />
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <Dashboard />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/study-planner"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <StudyPlanner />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/study-planner/setup"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <StudyPlanSetup />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/qbank/create"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <CreateTest />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/qbank/history"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <PreviousTests />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/qbank/performance"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <Performance />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/qbank/search"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <SearchQuestions />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/qbank/notes"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <Notebook />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/qbank/practice"
+                  element={
+                    <ProtectedRoute>
+                      <PracticeTestWithData />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/qbank/practice/:testId"
+                  element={
+                    <ProtectedRoute>
+                      <PracticeTestWithData />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/qbank/import"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <QuestionImport />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/pdf-import"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <PDFImport />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/flashcards"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <Flashcards />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/flashcards/study/:deckId"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <FlashcardStudy />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/flashcards/study"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <Flashcards />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/flashcards/decks"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <Flashcards />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/notebook"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <Notebook />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/help"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <Help />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/profile"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <Profile />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/analytics"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <Analytics />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/weekly-report"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <WeeklyReport />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <Settings />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </AuthProvider>
+      </SettingsProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
