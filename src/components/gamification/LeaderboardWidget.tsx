@@ -45,46 +45,60 @@ export function LeaderboardWidget() {
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
-      setLoading(true);
+      try {
+        setLoading(true);
 
-      // Fetch top performers
-      const { data: gamificationData } = await supabase
-        .from("user_gamification")
-        .select("user_id, xp_points, level, current_streak")
-        .order("xp_points", { ascending: false })
-        .limit(10);
+        // Fetch top performers
+        const { data: gamificationData, error: gamError } = await supabase
+          .from("user_gamification")
+          .select("user_id, xp_points, level, current_streak")
+          .order("xp_points", { ascending: false })
+          .limit(10);
 
-      if (gamificationData) {
-        // Get profiles for display names
-        const userIds = gamificationData.map((g) => g.user_id);
-        const { data: profilesData } = await supabase
-          .from("profiles")
-          .select("user_id, full_name, email")
-          .in("user_id", userIds);
-
-        const profileMap = new Map(
-          profilesData?.map((p) => [p.user_id, p.full_name || p.email?.split("@")[0] || "Anonymous"])
-        );
-
-        const leaderboard = gamificationData.map((entry, index) => ({
-          user_id: entry.user_id,
-          display_name: profileMap.get(entry.user_id) || "Anonymous",
-          xp_points: entry.xp_points,
-          level: entry.level,
-          current_streak: entry.current_streak,
-          rank: index + 1,
-        }));
-
-        setEntries(leaderboard);
-
-        // Find current user's rank
-        const currentUserEntry = leaderboard.find((e) => e.user_id === user?.id);
-        if (currentUserEntry) {
-          setUserRank(currentUserEntry);
+        if (gamError) {
+          console.error("Error fetching leaderboard:", gamError);
+          setLoading(false);
+          return;
         }
-      }
 
-      setLoading(false);
+        if (gamificationData && gamificationData.length > 0) {
+          // Get profiles for display names
+          const userIds = gamificationData.map((g) => g.user_id);
+          const { data: profilesData, error: profileError } = await supabase
+            .from("profiles")
+            .select("user_id, full_name, email")
+            .in("user_id", userIds);
+
+          if (profileError) {
+            console.error("Error fetching profiles:", profileError);
+          }
+
+          const profileMap = new Map(
+            (profilesData || []).map((p) => [p.user_id, p.full_name || p.email?.split("@")[0] || "Anonymous"])
+          );
+
+          const leaderboard = gamificationData.map((entry, index) => ({
+            user_id: entry.user_id,
+            display_name: profileMap.get(entry.user_id) || "Anonymous",
+            xp_points: entry.xp_points || 0,
+            level: entry.level || 1,
+            current_streak: entry.current_streak || 0,
+            rank: index + 1,
+          }));
+
+          setEntries(leaderboard);
+
+          // Find current user's rank
+          const currentUserEntry = leaderboard.find((e) => e.user_id === user?.id);
+          if (currentUserEntry) {
+            setUserRank(currentUserEntry);
+          }
+        }
+      } catch (error) {
+        console.error("Error in leaderboard fetch:", error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchLeaderboard();
