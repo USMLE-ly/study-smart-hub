@@ -382,12 +382,14 @@ export type Database = {
       }
       questions: {
         Row: {
+          category: string | null
           created_at: string
           difficulty: string | null
           explanation: string | null
           explanation_image_url: string | null
           id: string
           question_hash: string | null
+          question_image_url: string | null
           question_text: string
           source_page: number | null
           source_pdf: string | null
@@ -395,12 +397,14 @@ export type Database = {
           system: string
         }
         Insert: {
+          category?: string | null
           created_at?: string
           difficulty?: string | null
           explanation?: string | null
           explanation_image_url?: string | null
           id?: string
           question_hash?: string | null
+          question_image_url?: string | null
           question_text: string
           source_page?: number | null
           source_pdf?: string | null
@@ -408,12 +412,14 @@ export type Database = {
           system: string
         }
         Update: {
+          category?: string | null
           created_at?: string
           difficulty?: string | null
           explanation?: string | null
           explanation_image_url?: string | null
           id?: string
           question_hash?: string | null
+          question_image_url?: string | null
           question_text?: string
           source_page?: number | null
           source_pdf?: string | null
