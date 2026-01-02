@@ -314,60 +314,38 @@ const PracticeTestWithData = () => {
   const selectedOption = currentQuestion.options.find((o) => o.id === selectedAnswer);
   const isCorrectAnswer = selectedOption?.is_correct || false;
 
-  // Toolbar button component for consistent styling
-  const ToolbarButton = ({ 
-    icon: Icon, 
-    label, 
-    onClick,
-    active = false 
-  }: { 
-    icon: React.ElementType; 
-    label: string; 
-    onClick?: () => void;
-    active?: boolean;
-  }) => (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex flex-col items-center justify-center px-2 py-1 hover:bg-primary/80 transition-colors min-w-[60px]",
-        active && "bg-primary/80"
-      )}
-    >
-      <Icon className="h-5 w-5 text-primary-foreground" />
-      <span className="text-[10px] text-primary-foreground mt-0.5">{label}</span>
-    </button>
-  );
+  // Removed unused ToolbarButton component - using inline buttons now
 
   return (
-    <div className="min-h-screen flex flex-col bg-card">
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* UWorld-style Header */}
-      <header className="bg-primary flex items-center h-12 shadow-md">
+      <header className="bg-[#005BAC] flex items-center h-14 shadow-md shrink-0">
         {/* Left section - Menu and Item info */}
-        <div className="flex items-center">
-          <button className="p-3 hover:bg-primary/80 transition-colors">
-            <Menu className="h-5 w-5 text-primary-foreground" />
+        <div className="flex items-center h-full">
+          <button className="h-full px-3 hover:bg-[#004A8C] transition-colors flex items-center justify-center">
+            <Menu className="h-5 w-5 text-white" />
           </button>
           
-          <div className="px-4 border-r border-primary-foreground/30">
-            <div className="text-primary-foreground font-semibold text-sm">
+          <div className="px-3 h-full flex flex-col justify-center border-r border-white/20">
+            <div className="text-white font-semibold text-sm leading-tight">
               Item {currentIndex + 1} of {totalQuestions}
             </div>
-            <div className="text-primary-foreground/70 text-xs">
+            <div className="text-white/70 text-xs leading-tight">
               Question Id: {questionId}
             </div>
           </div>
 
           {/* Mark checkbox */}
-          <div className="flex items-center gap-2 px-4 border-r border-primary-foreground/30">
+          <div className="flex items-center gap-2 px-3 h-full border-r border-white/20">
             <Checkbox 
               id="mark" 
               checked={isMarked}
               onCheckedChange={() => handleMarkQuestion()}
-              className="border-primary-foreground data-[state=checked]:bg-primary-foreground data-[state=checked]:text-primary"
+              className="border-white data-[state=checked]:bg-white data-[state=checked]:text-[#005BAC]"
             />
             <div className="flex items-center gap-1">
-              <Flag className="h-4 w-4 text-destructive" />
-              <label htmlFor="mark" className="text-primary-foreground text-sm cursor-pointer">
+              <Flag className="h-4 w-4 text-red-400" />
+              <label htmlFor="mark" className="text-white text-sm cursor-pointer">
                 Mark
               </label>
             </div>
@@ -377,50 +355,80 @@ const PracticeTestWithData = () => {
           <button 
             onClick={handlePrevious}
             disabled={currentIndex === 0}
-            className="flex flex-col items-center justify-center px-3 py-1 hover:bg-primary/80 transition-colors disabled:opacity-50"
+            className="h-full flex flex-col items-center justify-center px-3 hover:bg-[#004A8C] transition-colors disabled:opacity-40"
           >
-            <ChevronLeft className="h-5 w-5 text-primary-foreground" />
-            <span className="text-[10px] text-primary-foreground">Previous</span>
+            <ChevronLeft className="h-5 w-5 text-white" />
+            <span className="text-[10px] text-white leading-tight">Previous</span>
           </button>
           <button 
             onClick={handleNext}
             disabled={currentIndex === totalQuestions - 1}
-            className="flex flex-col items-center justify-center px-3 py-1 hover:bg-primary/80 transition-colors disabled:opacity-50"
+            className="h-full flex flex-col items-center justify-center px-3 hover:bg-[#004A8C] transition-colors disabled:opacity-40"
           >
-            <ChevronRight className="h-5 w-5 text-primary-foreground" />
-            <span className="text-[10px] text-primary-foreground">Next</span>
+            <ChevronRight className="h-5 w-5 text-white" />
+            <span className="text-[10px] text-white leading-tight">Next</span>
           </button>
         </div>
 
         {/* Right section - Tools */}
-        <div className="flex items-center ml-auto">
-          <ToolbarButton icon={Maximize} label="Full Screen" />
-          <ToolbarButton icon={HelpCircle} label="Tutorial" />
-          <ToolbarButton icon={FlaskConical} label="Lab Values" />
-          <ToolbarButton icon={StickyNote} label="Notes" onClick={handleOpenNotes} active={!!hasNote} />
-          <ToolbarButton icon={Calculator} label="Calculator" />
-          <ToolbarButton icon={Contrast} label="Reverse Color" />
-          <ToolbarButton icon={Type} label="Text Zoom" />
-          <ToolbarButton icon={Settings} label="Settings" />
+        <div className="flex items-center ml-auto h-full">
+          <button className="h-full flex flex-col items-center justify-center px-2 hover:bg-[#004A8C] transition-colors min-w-[56px]">
+            <Maximize className="h-5 w-5 text-white" />
+            <span className="text-[10px] text-white leading-tight">Full Screen</span>
+          </button>
+          <button className="h-full flex flex-col items-center justify-center px-2 hover:bg-[#004A8C] transition-colors min-w-[56px]">
+            <HelpCircle className="h-5 w-5 text-white" />
+            <span className="text-[10px] text-white leading-tight">Tutorial</span>
+          </button>
+          <button className="h-full flex flex-col items-center justify-center px-2 hover:bg-[#004A8C] transition-colors min-w-[56px]">
+            <FlaskConical className="h-5 w-5 text-white" />
+            <span className="text-[10px] text-white leading-tight">Lab Values</span>
+          </button>
+          <button 
+            onClick={handleOpenNotes}
+            className={cn(
+              "h-full flex flex-col items-center justify-center px-2 hover:bg-[#004A8C] transition-colors min-w-[56px]",
+              hasNote && "bg-[#004A8C]"
+            )}
+          >
+            <StickyNote className="h-5 w-5 text-white" />
+            <span className="text-[10px] text-white leading-tight">Notes</span>
+          </button>
+          <button className="h-full flex flex-col items-center justify-center px-2 hover:bg-[#004A8C] transition-colors min-w-[56px]">
+            <Calculator className="h-5 w-5 text-white" />
+            <span className="text-[10px] text-white leading-tight">Calculator</span>
+          </button>
+          <button className="h-full flex flex-col items-center justify-center px-2 hover:bg-[#004A8C] transition-colors min-w-[56px]">
+            <Contrast className="h-5 w-5 text-white" />
+            <span className="text-[10px] text-white leading-tight whitespace-nowrap">Reverse Color</span>
+          </button>
+          <button className="h-full flex flex-col items-center justify-center px-2 hover:bg-[#004A8C] transition-colors min-w-[56px]">
+            <Type className="h-5 w-5 text-white" />
+            <span className="text-[10px] text-white leading-tight">Text Zoom</span>
+          </button>
+          <button className="h-full flex flex-col items-center justify-center px-2 hover:bg-[#004A8C] transition-colors min-w-[56px]">
+            <Settings className="h-5 w-5 text-white" />
+            <span className="text-[10px] text-white leading-tight">Settings</span>
+          </button>
         </div>
       </header>
 
       {/* Main Content - Clean white background */}
-      <main className="flex-1 overflow-auto p-6 lg:p-10">
-        <div className="max-w-4xl mx-auto">
+      <main className="flex-1 overflow-auto bg-white">
+        <div className="max-w-4xl mx-auto px-6 py-8">
           {/* Question Text */}
           <div className="mb-8">
-            <p className="text-foreground text-base leading-relaxed">
+            <p className="text-gray-900 text-base leading-relaxed">
               {currentQuestion.question_text}
             </p>
           </div>
 
-          {/* Answer Options in bordered box */}
-          <div className="border border-border rounded-sm p-4 mb-6 bg-card">
+          {/* Answer Options in bordered box - EXACT UWorld style */}
+          <div className="border-2 border-[#B8D4E8] p-4 mb-6 bg-white">
             <RadioGroup
               value={selectedAnswer}
               onValueChange={setSelectedAnswer}
-              className="space-y-2"
+              className="space-y-0"
               disabled={isAnswered}
             >
               {currentQuestion.options.map((option) => {
@@ -433,31 +441,29 @@ const PracticeTestWithData = () => {
                   <div
                     key={option.id}
                     className={cn(
-                      "flex items-start gap-3 py-2 px-2 rounded transition-all",
-                      !showResult && isSelected && "bg-primary/5",
-                      showResult && isCorrectOpt && "bg-[hsl(var(--badge-success))]/10",
-                      showResult && isSelected && !isCorrectOpt && "bg-destructive/10",
+                      "flex items-center gap-3 py-3 px-3 border-b border-gray-100 last:border-b-0 transition-all",
+                      !showResult && isSelected && "bg-blue-50",
+                      showResult && isCorrectOpt && "bg-green-50",
+                      showResult && isSelected && !isCorrectOpt && "bg-red-50",
                       isStruck && "opacity-50"
                     )}
                   >
                     {/* Correct answer indicator */}
                     {showResult && isCorrectOpt && (
-                      <Check className="h-5 w-5 text-[hsl(var(--badge-success))] shrink-0 mt-0.5" />
+                      <Check className="h-5 w-5 text-green-600 shrink-0" />
                     )}
                     
-                    <div className="flex items-center gap-2">
-                      <RadioGroupItem 
-                        value={option.id} 
-                        id={option.id} 
-                        disabled={isAnswered}
-                        className="shrink-0"
-                      />
-                    </div>
+                    <RadioGroupItem 
+                      value={option.id} 
+                      id={option.id} 
+                      disabled={isAnswered}
+                      className="shrink-0 border-gray-400 data-[state=checked]:border-[#005BAC] data-[state=checked]:text-[#005BAC]"
+                    />
 
                     <Label
                       htmlFor={option.id}
                       className={cn(
-                        "flex-1 cursor-pointer text-foreground leading-relaxed",
+                        "flex-1 cursor-pointer text-gray-900 leading-relaxed",
                         isStruck && "line-through"
                       )}
                     >
@@ -467,13 +473,13 @@ const PracticeTestWithData = () => {
 
                     {!isAnswered && (
                       <button
-                        className="p-1 hover:bg-muted rounded shrink-0"
+                        className="p-1 hover:bg-gray-100 rounded shrink-0"
                         onClick={(e) => {
                           e.preventDefault();
                           toggleStrikethrough(option.id);
                         }}
                       >
-                        <Strikethrough className="h-4 w-4 text-muted-foreground" />
+                        <Strikethrough className="h-4 w-4 text-gray-500" />
                       </button>
                     )}
                   </div>
@@ -488,7 +494,7 @@ const PracticeTestWithData = () => {
               <Button
                 onClick={handleSubmitAnswer}
                 disabled={!selectedAnswer}
-                className="px-8 py-2"
+                className="px-8 py-2.5 bg-[#005BAC] hover:bg-[#004A8C] text-white font-medium"
               >
                 Proceed To Next Item
               </Button>
@@ -571,32 +577,32 @@ const PracticeTestWithData = () => {
       </main>
 
       {/* Bottom Navigation - UWorld style */}
-      <footer className="bg-primary h-10 flex items-center justify-between px-4">
-        <div className="flex items-center gap-4">
+      <footer className="bg-[#005BAC] h-12 flex items-center justify-between px-4 shrink-0">
+        <div className="flex items-center gap-6">
           <button
             onClick={handleEndTest}
-            className="text-primary-foreground text-sm hover:underline flex items-center gap-1"
+            className="text-white text-sm hover:underline flex items-center gap-1.5 font-medium"
           >
             <X className="h-4 w-4" />
             End
           </button>
-          <button className="text-primary-foreground text-sm hover:underline flex items-center gap-1">
+          <button className="text-white text-sm hover:underline flex items-center gap-1.5 font-medium">
             <Pause className="h-4 w-4" />
             Suspend
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button className="text-primary-foreground text-sm hover:underline">
+        <div className="flex items-center">
+          <button className="text-white text-sm hover:underline font-medium">
             Feedback
           </button>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-6">
           <button
             onClick={handlePrevious}
             disabled={currentIndex === 0}
-            className="text-primary-foreground text-sm hover:underline flex items-center gap-1 disabled:opacity-50"
+            className="text-white text-sm hover:underline flex items-center gap-1 font-medium disabled:opacity-40"
           >
             <ChevronLeft className="h-4 w-4" />
             Previous
@@ -604,7 +610,7 @@ const PracticeTestWithData = () => {
           <button
             onClick={handleNext}
             disabled={currentIndex === totalQuestions - 1}
-            className="text-primary-foreground text-sm hover:underline flex items-center gap-1 disabled:opacity-50"
+            className="text-white text-sm hover:underline flex items-center gap-1 font-medium disabled:opacity-40"
           >
             Next
             <ChevronRight className="h-4 w-4" />
