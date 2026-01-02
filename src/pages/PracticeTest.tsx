@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Bookmark,
   Calculator,
@@ -20,12 +21,18 @@ import {
   Check,
   X,
   Strikethrough,
-  Undo2,
   Pause,
-  Flag,
+  Menu,
+  Maximize,
+  Settings,
+  ZoomIn,
+  Palette,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { LabValuesPanel } from "@/components/practice-test/LabValuesPanel";
+import { CalculatorModal } from "@/components/practice-test/CalculatorModal";
+import { QuestionNavigationGrid } from "@/components/practice-test/QuestionNavigationGrid";
 
 interface AnswerOption {
   id: string;
@@ -63,14 +70,52 @@ const PracticeTest = () => {
   const [showExplanation, setShowExplanation] = useState(false);
   const [isMarked, setIsMarked] = useState(false);
   const [strikethroughOptions, setStrikethroughOptions] = useState<string[]>([]);
-  const [currentQuestion] = useState(28);
-  const [totalQuestions] = useState(40);
+  const [currentQuestion, setCurrentQuestion] = useState(1);
+  const [totalQuestions] = useState(10);
   const [timeRemaining] = useState("33:43");
+  
+  // Panel states
+  const [labValuesOpen, setLabValuesOpen] = useState(false);
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [navigationOpen, setNavigationOpen] = useState(false);
+
+  // Mock question statuses for navigation
+  const questionStatuses = useMemo(() => 
+    Array.from({ length: totalQuestions }, (_, i) => ({
+      questionNumber: i + 1,
+      isAnswered: i < currentQuestion - 1 || (i === currentQuestion - 1 && isAnswered),
+      isCorrect: i < currentQuestion - 1 ? Math.random() > 0.3 : undefined,
+      isMarked: i === 2 || i === 5,
+    })),
+    [totalQuestions, currentQuestion, isAnswered]
+  );
 
   const handleSubmitAnswer = () => {
     if (selectedAnswer) {
       setIsAnswered(true);
       setShowExplanation(true);
+    }
+  };
+
+  const handleNextQuestion = () => {
+    if (currentQuestion < totalQuestions) {
+      setCurrentQuestion(prev => prev + 1);
+      setSelectedAnswer("");
+      setIsAnswered(false);
+      setShowExplanation(false);
+      setIsMarked(false);
+      setStrikethroughOptions([]);
+    }
+  };
+
+  const handlePreviousQuestion = () => {
+    if (currentQuestion > 1) {
+      setCurrentQuestion(prev => prev - 1);
+      setSelectedAnswer("");
+      setIsAnswered(false);
+      setShowExplanation(false);
+      setIsMarked(false);
+      setStrikethroughOptions([]);
     }
   };
 
@@ -86,101 +131,94 @@ const PracticeTest = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Top Toolbar */}
-      <header className="h-14 border-b border-border bg-sidebar flex items-center justify-between px-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-            onClick={() => setIsMarked(!isMarked)}
-          >
-            <Bookmark className={cn("h-5 w-5", isMarked && "fill-current text-primary")} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            <Highlighter className="h-5 w-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            <Strikethrough className="h-5 w-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            <FileText className="h-5 w-5" />
-          </Button>
-        </div>
+      {/* Top Header Bar - USMLE Style */}
+      <header className="bg-[#005BAC] text-white">
+        {/* Top row with item info and toolbar */}
+        <div className="flex items-center justify-between px-2 py-2 border-b border-white/20">
+          {/* Left - Menu and Item Info */}
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/20"
+              onClick={() => setNavigationOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <div className="text-sm">
+              <span className="font-bold">Item {currentQuestion}</span>
+              <span className="opacity-80"> of {totalQuestions}</span>
+            </div>
+            <div className="text-xs opacity-70">
+              Question Id:
+            </div>
+          </div>
 
-        {/* Center - Question Counter */}
-        <div className="flex items-center gap-4">
-          <span className="text-sidebar-foreground font-medium">
-            {currentQuestion}/{totalQuestions}
-          </span>
-          <Button variant="ghost" size="sm" className="text-sidebar-foreground/80 text-xs">
-            ▼
-          </Button>
-        </div>
+          {/* Center - Mark checkbox and Navigation */}
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-white hover:bg-white/20 gap-1"
+              onClick={handlePreviousQuestion}
+              disabled={currentQuestion === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="mark"
+                checked={isMarked}
+                onCheckedChange={(checked) => setIsMarked(checked as boolean)}
+                className="border-white data-[state=checked]:bg-white data-[state=checked]:text-[#005BAC]"
+              />
+              <Label htmlFor="mark" className="text-white text-sm cursor-pointer">
+                Mark
+              </Label>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-white hover:bg-white/20 gap-1"
+              onClick={handleNextQuestion}
+              disabled={currentQuestion === totalQuestions}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
 
-        {/* Right Tools */}
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            <Calculator className="h-5 w-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            <FlaskConical className="h-5 w-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            <HelpCircle className="h-5 w-5" />
-          </Button>
-          
-          <Separator orientation="vertical" className="h-6 bg-sidebar-border" />
-          
-          <div className="flex items-center gap-2 text-sidebar-foreground">
-            <Clock className="h-4 w-4" />
-            <span className="font-mono text-lg font-medium">{timeRemaining}</span>
+          {/* Right - Toolbar Icons */}
+          <div className="flex items-center gap-1">
+            <ToolbarIcon icon={Maximize} label="Full Screen" />
+            <ToolbarIcon icon={HelpCircle} label="Tutorial" />
+            <ToolbarIcon icon={FlaskConical} label="Lab Values" onClick={() => setLabValuesOpen(true)} />
+            <ToolbarIcon icon={FileText} label="Notes" />
+            <ToolbarIcon icon={Calculator} label="Calculator" onClick={() => setCalculatorOpen(true)} />
+            <ToolbarIcon icon={Palette} label="Reverse Color" />
+            <ToolbarIcon icon={ZoomIn} label="Text Zoom" />
+            <ToolbarIcon icon={Settings} label="Settings" />
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto p-6 lg:p-8">
-        <div className="max-w-4xl mx-auto space-y-6">
+      <main className="flex-1 overflow-auto p-4 lg:p-6 bg-white">
+        <div className="max-w-4xl mx-auto space-y-4">
           {/* Question Card */}
-          <Card className="shadow-sm">
-            <CardContent className="p-6 lg:p-8">
-              {/* Question Text */}
-              <div className="prose prose-slate max-w-none mb-8">
-                <p className="text-foreground text-base leading-relaxed">
-                  {sampleQuestion.questionText}
-                </p>
-              </div>
+          <div className="space-y-4">
+            {/* Question Text */}
+            <div className="text-foreground text-base leading-relaxed">
+              {sampleQuestion.questionText}
+            </div>
 
-              {/* Answer Options */}
+            {/* Answer Options Box */}
+            <div className="border-2 border-[#B8D4E8] rounded p-4">
               <RadioGroup
                 value={selectedAnswer}
                 onValueChange={setSelectedAnswer}
-                className="space-y-3"
+                className="space-y-2"
                 disabled={isAnswered}
               >
                 {sampleQuestion.options.map((option) => {
@@ -193,24 +231,23 @@ const PracticeTest = () => {
                     <div
                       key={option.id}
                       className={cn(
-                        "relative flex items-start gap-4 p-4 rounded-lg border transition-all",
-                        !showResult && isSelected && "border-primary bg-primary/5",
-                        !showResult && !isSelected && "border-border hover:border-primary/50",
-                        showResult && isCorrectAnswer && "border-[hsl(var(--badge-success))] bg-[hsl(var(--badge-success))]/10",
-                        showResult && isSelected && !isCorrectAnswer && "border-destructive bg-destructive/10",
+                        "relative flex items-center gap-3 p-3 rounded transition-all",
+                        !showResult && isSelected && "bg-[#B8D4E8]/30",
+                        showResult && isCorrectAnswer && "bg-[hsl(var(--badge-success))]/20",
+                        showResult && isSelected && !isCorrectAnswer && "bg-destructive/20",
                         isStruck && "opacity-50"
                       )}
                     >
-                      {/* Radio Button or Result Icon */}
-                      <div className="flex items-center justify-center w-6 h-6 mt-0.5">
+                      {/* Radio or Result Icon */}
+                      <div className="flex items-center justify-center w-6 h-6">
                         {showResult ? (
                           isCorrectAnswer ? (
                             <div className="w-6 h-6 rounded-full bg-[hsl(var(--badge-success))] flex items-center justify-center">
-                              <Check className="h-4 w-4 text-primary-foreground" />
+                              <Check className="h-4 w-4 text-white" />
                             </div>
                           ) : isSelected ? (
                             <div className="w-6 h-6 rounded-full bg-destructive flex items-center justify-center">
-                              <X className="h-4 w-4 text-destructive-foreground" />
+                              <X className="h-4 w-4 text-white" />
                             </div>
                           ) : (
                             <RadioGroupItem value={option.id} id={option.id} disabled />
@@ -249,115 +286,92 @@ const PracticeTest = () => {
                   );
                 })}
               </RadioGroup>
+            </div>
 
-              {/* Submit Button */}
-              {!isAnswered && (
-                <div className="flex justify-center mt-8">
-                  <Button
-                    size="lg"
-                    className="px-12"
-                    onClick={handleSubmitAnswer}
-                    disabled={!selectedAnswer}
-                  >
-                    Submit Answer
-                  </Button>
-                </div>
+            {/* Submit / Proceed Button */}
+            <div className="flex justify-center pt-4">
+              {!isAnswered ? (
+                <Button
+                  className="bg-[#005BAC] hover:bg-[#004a8c] text-white px-8 py-2"
+                  onClick={handleSubmitAnswer}
+                  disabled={!selectedAnswer}
+                >
+                  Submit Answer
+                </Button>
+              ) : (
+                <Button
+                  className="bg-[#005BAC] hover:bg-[#004a8c] text-white px-8 py-2"
+                  onClick={handleNextQuestion}
+                  disabled={currentQuestion === totalQuestions}
+                >
+                  Proceed To Next Item
+                </Button>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          {/* Answer Feedback */}
+          {/* Answer Stats - shown after answering */}
           {isAnswered && (
-            <Card className={cn(
-              "border-l-4",
-              selectedAnswer === correctOption?.id
-                ? "border-l-[hsl(var(--badge-success))]"
-                : "border-l-destructive"
-            )}>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {selectedAnswer === correctOption?.id ? (
-                      <>
-                        <Badge className="bg-[hsl(var(--badge-success))] text-[hsl(var(--badge-success-foreground))]">
-                          Correct
-                        </Badge>
-                        <span className="text-muted-foreground text-sm">▸</span>
-                      </>
-                    ) : (
-                      <Badge variant="destructive">Incorrect</Badge>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <BarChart3 className="h-4 w-4" />
-                      <span className="font-medium">59%</span>
-                      <span>Answered correctly</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      <span className="font-medium">36 secs</span>
-                      <span>Time Spent</span>
-                    </div>
-                  </div>
+            <div className="flex items-center gap-8 py-4 border-t border-border">
+              <div>
+                <span className={cn(
+                  "font-bold text-lg",
+                  selectedAnswer === correctOption?.id ? "text-[hsl(var(--badge-success))]" : "text-destructive"
+                )}>
+                  {selectedAnswer === correctOption?.id ? "Correct" : "Incorrect"}
+                </span>
+                <div className="text-sm text-muted-foreground">
+                  Correct answer<br />
+                  <span className="font-semibold text-foreground">{correctOption?.letter}</span>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <span className="font-bold">67%</span>
+                  <div className="text-xs text-muted-foreground">Answered correctly</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <span className="font-bold">102 secs</span>
+                  <div className="text-xs text-muted-foreground">Time Spent</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <span className="font-bold">2024</span>
+                  <div className="text-xs text-muted-foreground">Version</div>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Explanation Section */}
           {showExplanation && (
-            <Card>
-              <CardContent className="p-6 lg:p-8">
-                <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary" />
-                  Explanation
-                </h3>
-                
-                <div className="prose prose-slate max-w-none">
-                  <p className="text-foreground leading-relaxed mb-6">
-                    {sampleQuestion.explanation}
-                  </p>
-                </div>
-
-                {/* Educational Images */}
-                <div className="grid gap-6 md:grid-cols-2 mt-6">
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-semibold text-foreground text-center">Normal sleep</h4>
-                    <div className="bg-muted/30 rounded-lg p-4 aspect-video flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="w-16 h-16 mx-auto mb-2 rounded-full bg-muted flex items-center justify-center">
-                          <FlaskConical className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                        <p className="text-sm text-muted-foreground">Open<br />airway</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-semibold text-foreground text-center">Obstructive sleep apnea</h4>
-                    <div className="bg-muted/30 rounded-lg p-4 aspect-video flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="w-16 h-16 mx-auto mb-2 rounded-full bg-destructive/20 flex items-center justify-center">
-                          <X className="h-8 w-8 text-destructive" />
-                        </div>
-                        <p className="text-sm text-muted-foreground">Closed<br />airway</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="pt-4 border-t border-border">
+              <h3 className="text-lg font-bold text-foreground mb-4">Explanation</h3>
+              <div className="prose prose-slate max-w-none">
+                <p className="text-foreground leading-relaxed">
+                  {sampleQuestion.explanation}
+                </p>
+              </div>
+            </div>
           )}
         </div>
       </main>
 
-      {/* Bottom Navigation */}
-      <footer className="h-14 border-t border-border bg-sidebar flex items-center justify-between px-4">
+      {/* Bottom Navigation - USMLE Style */}
+      <footer className="bg-[#005BAC] text-white flex items-center justify-between px-4 py-2">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent gap-2"
+            className="text-white hover:bg-white/20 gap-2"
             onClick={() => navigate("/qbank/history")}
           >
             <X className="h-4 w-4" />
@@ -365,7 +379,7 @@ const PracticeTest = () => {
           </Button>
           <Button
             variant="ghost"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent gap-2"
+            className="text-white hover:bg-white/20 gap-2"
           >
             <Pause className="h-4 w-4" />
             Suspend
@@ -374,7 +388,7 @@ const PracticeTest = () => {
 
         <Button
           variant="ghost"
-          className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent gap-2"
+          className="text-white hover:bg-white/20 gap-2"
         >
           <MessageSquare className="h-4 w-4" />
           Feedback
@@ -383,22 +397,63 @@ const PracticeTest = () => {
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent gap-2"
+            className="text-white hover:bg-white/20 gap-2"
+            onClick={handlePreviousQuestion}
+            disabled={currentQuestion === 1}
           >
             <ChevronLeft className="h-4 w-4" />
             Previous
           </Button>
           <Button
             variant="ghost"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent gap-2"
+            className="text-white hover:bg-white/20 gap-2"
+            onClick={handleNextQuestion}
+            disabled={currentQuestion === totalQuestions}
           >
             Next
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
       </footer>
+
+      {/* Panels and Modals */}
+      <LabValuesPanel open={labValuesOpen} onOpenChange={setLabValuesOpen} />
+      <CalculatorModal open={calculatorOpen} onOpenChange={setCalculatorOpen} />
+      <QuestionNavigationGrid
+        open={navigationOpen}
+        onOpenChange={setNavigationOpen}
+        questions={questionStatuses}
+        currentQuestion={currentQuestion}
+        onQuestionSelect={(num) => {
+          setCurrentQuestion(num);
+          setSelectedAnswer("");
+          setIsAnswered(false);
+          setShowExplanation(false);
+          setIsMarked(false);
+          setStrikethroughOptions([]);
+        }}
+      />
     </div>
   );
 };
+
+// Toolbar Icon Component
+const ToolbarIcon = ({ 
+  icon: Icon, 
+  label, 
+  onClick 
+}: { 
+  icon: React.ElementType; 
+  label: string; 
+  onClick?: () => void;
+}) => (
+  <button
+    onClick={onClick}
+    className="flex flex-col items-center gap-0.5 px-2 py-1 hover:bg-white/20 rounded transition-colors min-w-[50px]"
+  >
+    <Icon className="h-5 w-5" />
+    <span className="text-[10px] leading-tight whitespace-nowrap">{label}</span>
+  </button>
+);
 
 export default PracticeTest;
