@@ -18,6 +18,8 @@ interface PDFFile {
   status: 'pending' | 'processing' | 'complete' | 'error';
   questionsImported?: number;
   error?: string;
+  subject: string;
+  system: string;
 }
 
 interface ImportProgress {
@@ -73,8 +75,8 @@ HistoryRow.displayName = 'HistoryRow';
 
 const PDFImport = () => {
   const [availablePDFs, setAvailablePDFs] = useState<PDFFile[]>([]);
-  const [selectedSubject, setSelectedSubject] = useState<string>("");
-  const [selectedSystem, setSelectedSystem] = useState<string>("");
+  const [defaultSubject, setDefaultSubject] = useState<string>("");
+  const [defaultSystem, setDefaultSystem] = useState<string>("");
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [progress, setProgress] = useState<ImportProgress>({
     status: 'idle',
@@ -187,7 +189,9 @@ const PDFImport = () => {
           name: file.name,
           file: file,
           size: file.size,
-          status: 'pending' as const
+          status: 'pending' as const,
+          subject: defaultSubject,
+          system: defaultSystem
         }));
       
       setAvailablePDFs(prev => [...prev, ...pdfFiles]);
@@ -197,6 +201,21 @@ const PDFImport = () => {
 
   const removePDF = (index: number) => {
     setAvailablePDFs(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updatePDFSubject = (index: number, subject: string) => {
+    setAvailablePDFs(prev => prev.map((p, i) => i === index ? { ...p, subject } : p));
+  };
+
+  const updatePDFSystem = (index: number, system: string) => {
+    setAvailablePDFs(prev => prev.map((p, i) => i === index ? { ...p, system } : p));
+  };
+
+  const applyDefaultsToAll = () => {
+    setAvailablePDFs(prev => prev.map(p => 
+      p.status === 'pending' ? { ...p, subject: defaultSubject, system: defaultSystem } : p
+    ));
+    toast.success("Applied defaults to all pending PDFs");
   };
 
   const extractTextFromPDF = async (file: File): Promise<string> => {
@@ -277,12 +296,12 @@ const PDFImport = () => {
       percent: 30
     }));
 
-    // Call edge function
+    // Call edge function - use per-PDF subject/system
     const { data: aiResult, error: aiError } = await supabase.functions.invoke('parse-pdf-questions', {
       body: {
         pdfText: pdfText.substring(0, 100000),
-        subject: selectedSubject,
-        system: selectedSystem
+        subject: pdf.subject,
+        system: pdf.system
       }
     });
 
@@ -319,8 +338,8 @@ const PDFImport = () => {
           .from('questions')
           .insert({
             question_text: q.question_text,
-            subject: selectedSubject,
-            system: q.system || selectedSystem,
+            subject: pdf.subject,
+            system: q.system || pdf.system,
             difficulty: 'medium',
             explanation: q.explanation || '',
             question_hash: hash,
@@ -368,8 +387,10 @@ const PDFImport = () => {
       return;
     }
 
-    if (!selectedSubject || !selectedSystem) {
-      toast.error("Please select subject and system before importing");
+    // Check that all pending PDFs have subject and system set
+    const incomplete = pendingPDFs.filter(p => !p.subject || !p.system);
+    if (incomplete.length > 0) {
+      toast.error(`${incomplete.length} PDF(s) are missing subject or system`);
       return;
     }
 
@@ -544,56 +565,95 @@ const PDFImport = () => {
               </label>
             </div>
 
-            {/* PDF Queue */}
+            {/* PDF Queue with Per-PDF Settings */}
             {availablePDFs.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">PDF Queue ({availablePDFs.length} files)</label>
                   <Button variant="ghost" size="sm" onClick={clearQueue} disabled={isBulkProcessing}>
                     Clear All
                   </Button>
                 </div>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
+                <div className="space-y-3 max-h-[400px] overflow-y-auto">
                   {availablePDFs.map((pdf, index) => (
                     <div
                       key={index}
-                      className={`flex items-center justify-between p-3 rounded-lg border ${
+                      className={`p-3 rounded-lg border ${
                         pdf.status === 'complete' ? 'border-green-500/50 bg-green-500/5' :
                         pdf.status === 'error' ? 'border-destructive/50 bg-destructive/5' :
                         pdf.status === 'processing' ? 'border-primary bg-primary/5' :
+                        (!pdf.subject || !pdf.system) ? 'border-orange-500/50 bg-orange-500/5' :
                         'border-border'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        {pdf.status === 'complete' ? (
-                          <CheckCircle className="h-5 w-5 text-green-500" />
-                        ) : pdf.status === 'error' ? (
-                          <AlertCircle className="h-5 w-5 text-destructive" />
-                        ) : pdf.status === 'processing' ? (
-                          <Loader2 className="h-5 w-5 text-primary animate-spin" />
-                        ) : (
-                          <FileText className="h-5 w-5 text-muted-foreground" />
-                        )}
-                        <div>
-                          <p className="font-medium text-sm truncate max-w-[200px]">{pdf.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {pdf.status === 'complete' ? `${pdf.questionsImported} questions imported` :
-                             pdf.status === 'error' ? pdf.error :
-                             formatFileSize(pdf.size)}
-                          </p>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          {pdf.status === 'complete' ? (
+                            <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                          ) : pdf.status === 'error' ? (
+                            <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0" />
+                          ) : pdf.status === 'processing' ? (
+                            <Loader2 className="h-5 w-5 text-primary animate-spin flex-shrink-0" />
+                          ) : (
+                            <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                          )}
+                          <div>
+                            <p className="font-medium text-sm truncate max-w-[200px]">{pdf.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {pdf.status === 'complete' ? `${pdf.questionsImported} questions imported` :
+                               pdf.status === 'error' ? pdf.error :
+                               formatFileSize(pdf.size)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {pdf.status === 'pending' && !isBulkProcessing && (
+                            <Button variant="ghost" size="sm" onClick={() => removePDF(index)}>
+                              Remove
+                            </Button>
+                          )}
+                          {pdf.status === 'complete' && (
+                            <Badge variant="secondary" className="bg-green-500/10 text-green-600">Done</Badge>
+                          )}
                         </div>
                       </div>
-                      {pdf.status === 'pending' && !isBulkProcessing && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removePDF(index)}
-                        >
-                          Remove
-                        </Button>
-                      )}
-                      {pdf.status === 'complete' && (
-                        <Badge variant="secondary" className="bg-green-500/10 text-green-600">Done</Badge>
+                      
+                      {/* Per-PDF Subject & System */}
+                      {pdf.status === 'pending' && (
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <Select 
+                            value={pdf.subject} 
+                            onValueChange={(val) => updatePDFSubject(index, val)}
+                            disabled={isBulkProcessing}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Subject" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {subjects.map(subject => (
+                                <SelectItem key={subject} value={subject} className="text-xs">
+                                  {subject}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select 
+                            value={pdf.system} 
+                            onValueChange={(val) => updatePDFSystem(index, val)}
+                            disabled={isBulkProcessing}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="System" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {systems.map(system => (
+                                <SelectItem key={system} value={system} className="text-xs">
+                                  {system}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -601,45 +661,57 @@ const PDFImport = () => {
               </div>
             )}
 
-            {/* Subject & System Selection */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Subject (for all PDFs)</label>
-                <Select value={selectedSubject} onValueChange={setSelectedSubject} disabled={isBulkProcessing}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select subject" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjects.map(subject => (
-                      <SelectItem key={subject} value={subject}>
-                        {subject}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {/* Default Subject & System + Apply to All */}
+            <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
+              <p className="text-sm font-medium">Set defaults for new uploads</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">Default Subject</label>
+                  <Select value={defaultSubject} onValueChange={setDefaultSubject} disabled={isBulkProcessing}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select subject" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subjects.map(subject => (
+                        <SelectItem key={subject} value={subject}>
+                          {subject}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">Default System</label>
+                  <Select value={defaultSystem} onValueChange={setDefaultSystem} disabled={isBulkProcessing}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select system" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {systems.map(system => (
+                        <SelectItem key={system} value={system}>
+                          {system}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">System (for all PDFs)</label>
-                <Select value={selectedSystem} onValueChange={setSelectedSystem} disabled={isBulkProcessing}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select system" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {systems.map(system => (
-                      <SelectItem key={system} value={system}>
-                        {system}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {availablePDFs.filter(p => p.status === 'pending').length > 0 && defaultSubject && defaultSystem && (
+                <Button variant="outline" size="sm" onClick={applyDefaultsToAll} disabled={isBulkProcessing}>
+                  Apply to all pending PDFs
+                </Button>
+              )}
             </div>
 
             {/* Bulk Import Button */}
             <div className="flex gap-2">
               <Button
                 onClick={handleBulkImport}
-                disabled={availablePDFs.filter(p => p.status === 'pending').length === 0 || !selectedSubject || !selectedSystem || isBulkProcessing}
+                disabled={
+                  availablePDFs.filter(p => p.status === 'pending').length === 0 || 
+                  availablePDFs.some(p => p.status === 'pending' && (!p.subject || !p.system)) ||
+                  isBulkProcessing
+                }
                 className="flex-1"
               >
                 {isBulkProcessing ? (
