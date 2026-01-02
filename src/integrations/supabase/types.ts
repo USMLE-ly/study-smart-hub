@@ -387,7 +387,9 @@ export type Database = {
           difficulty: string | null
           explanation: string | null
           explanation_image_url: string | null
+          has_image: boolean | null
           id: string
+          image_description: string | null
           question_hash: string | null
           question_image_url: string | null
           question_text: string
@@ -402,7 +404,9 @@ export type Database = {
           difficulty?: string | null
           explanation?: string | null
           explanation_image_url?: string | null
+          has_image?: boolean | null
           id?: string
+          image_description?: string | null
           question_hash?: string | null
           question_image_url?: string | null
           question_text: string
@@ -417,7 +421,9 @@ export type Database = {
           difficulty?: string | null
           explanation?: string | null
           explanation_image_url?: string | null
+          has_image?: boolean | null
           id?: string
+          image_description?: string | null
           question_hash?: string | null
           question_image_url?: string | null
           question_text?: string
