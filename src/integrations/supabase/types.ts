@@ -306,7 +306,10 @@ export type Database = {
           explanation: string | null
           explanation_image_url: string | null
           id: string
+          question_hash: string | null
           question_text: string
+          source_page: number | null
+          source_pdf: string | null
           subject: string
           system: string
         }
@@ -316,7 +319,10 @@ export type Database = {
           explanation?: string | null
           explanation_image_url?: string | null
           id?: string
+          question_hash?: string | null
           question_text: string
+          source_page?: number | null
+          source_pdf?: string | null
           subject: string
           system: string
         }
@@ -326,7 +332,10 @@ export type Database = {
           explanation?: string | null
           explanation_image_url?: string | null
           id?: string
+          question_hash?: string | null
           question_text?: string
+          source_page?: number | null
+          source_pdf?: string | null
           subject?: string
           system?: string
         }

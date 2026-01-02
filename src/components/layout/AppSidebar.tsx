@@ -13,6 +13,7 @@ import {
   Sparkles,
   FileBarChart,
   Settings,
+  FileUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -52,6 +53,7 @@ const qbankItems = [
   { title: "Performance", href: "/qbank/performance" },
   { title: "Search", href: "/qbank/search" },
   { title: "Notes", href: "/qbank/notes" },
+  { title: "PDF Import", href: "/pdf-import" },
 ];
 
 const flashcardItems = [

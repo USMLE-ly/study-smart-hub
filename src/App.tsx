@@ -22,6 +22,7 @@ import PracticeTestWithData from "./pages/PracticeTestWithData";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
 import QuestionImport from "./pages/QuestionImport";
+import PDFImport from "./pages/PDFImport";
 import NotFound from "./pages/NotFound";
 import Analytics from "./pages/Analytics";
 import WeeklyReport from "./pages/WeeklyReport";
@@ -141,6 +142,16 @@ const App = () => (
                 <ProtectedRoute>
                   <PageTransition>
                     <QuestionImport />
+                  </PageTransition>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/pdf-import"
+              element={
+                <ProtectedRoute>
+                  <PageTransition>
+                    <PDFImport />
                   </PageTransition>
                 </ProtectedRoute>
               }
