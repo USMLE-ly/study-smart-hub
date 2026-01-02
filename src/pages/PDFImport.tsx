@@ -48,6 +48,8 @@ interface ExtractedQuestion {
   category?: string;
   subject?: string;
   system?: string;
+  has_image?: boolean;
+  image_description?: string;
 }
 
 interface HistoryItem {
@@ -343,7 +345,8 @@ const PDFImport = () => {
             difficulty: 'medium',
             explanation: q.explanation || '',
             question_hash: hash,
-            source_pdf: pdf.name
+            source_pdf: pdf.name,
+            category: q.category || pdf.system
           })
           .select()
           .single();
