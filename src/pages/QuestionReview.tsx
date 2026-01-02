@@ -38,6 +38,8 @@ interface Question {
   explanation_image_url: string | null;
   source_pdf: string | null;
   created_at: string;
+  has_image: boolean | null;
+  image_description: string | null;
   question_options: QuestionOption[];
 }
 
@@ -52,6 +54,7 @@ const QuestionReview = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSubject, setFilterSubject] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterNeedsImage, setFilterNeedsImage] = useState<boolean>(false);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [imageUploadOpen, setImageUploadOpen] = useState(false);
@@ -72,7 +75,7 @@ const QuestionReview = () => {
 
   useEffect(() => {
     filterQuestions();
-  }, [questions, searchQuery, filterSubject, filterCategory]);
+  }, [questions, searchQuery, filterSubject, filterCategory, filterNeedsImage]);
 
   const loadQuestions = async () => {
     setIsLoading(true);
@@ -119,6 +122,10 @@ const QuestionReview = () => {
     
     if (filterCategory !== "all") {
       filtered = filtered.filter(q => q.category === filterCategory);
+    }
+    
+    if (filterNeedsImage) {
+      filtered = filtered.filter(q => q.has_image && !q.question_image_url && !q.explanation_image_url);
     }
     
     setFilteredQuestions(filtered);
@@ -375,6 +382,14 @@ const QuestionReview = () => {
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                variant={filterNeedsImage ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilterNeedsImage(!filterNeedsImage)}
+              >
+                <ImageIcon className="h-4 w-4 mr-1" />
+                Needs Image
+              </Button>
               <Badge variant="secondary">
                 {filteredQuestions.length} questions
               </Badge>
@@ -522,6 +537,11 @@ const QuestionReview = () => {
                     {(isEditing ? editedQuestion?.category : currentQuestion?.category) && (
                       <Badge variant="secondary">
                         {isEditing ? editedQuestion?.category : currentQuestion?.category}
+                      </Badge>
+                    )}
+                    {currentQuestion?.has_image && !currentQuestion?.explanation_image_url && (
+                      <Badge variant="destructive" className="gap-1">
+                        <ImageIcon className="h-3 w-3" /> Needs Image
                       </Badge>
                     )}
                   </div>
@@ -674,6 +694,30 @@ const QuestionReview = () => {
                     </div>
                   )}
                 </div>
+
+                {/* AI-Detected Image Description */}
+                {currentQuestion?.has_image && currentQuestion?.image_description && (showExplanation || isEditing) && (
+                  <div className="p-4 border border-primary/30 bg-primary/5 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ImageIcon className="h-4 w-4 text-primary" />
+                      <Label className="text-sm font-medium text-primary">AI-Detected Image Description</Label>
+                      <Badge variant="outline" className="text-xs">Needs Image Upload</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground italic">
+                      {currentQuestion.image_description}
+                    </p>
+                    {isEditing && (
+                      <div className="mt-3">
+                        <Button variant="outline" size="sm" onClick={() => {
+                          setImageType("explanation");
+                          setImageUploadOpen(true);
+                        }}>
+                          <Upload className="h-4 w-4 mr-1" /> Upload This Image
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Explanation Image */}
                 {(currentQuestion?.explanation_image_url || (isEditing && editedQuestion)) && (showExplanation || isEditing) && (

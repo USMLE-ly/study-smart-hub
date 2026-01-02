@@ -361,7 +361,9 @@ const PDFImport = () => {
             explanation: q.explanation || '',
             question_hash: hash,
             source_pdf: pdf.name,
-            category: q.category || pdf.system
+            category: q.category || pdf.system,
+            has_image: q.has_image || false,
+            image_description: q.image_description || null
           })
           .select()
           .single();
