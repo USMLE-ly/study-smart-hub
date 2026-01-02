@@ -5,7 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileText, Upload, CheckCircle, AlertCircle, Loader2, Info } from "lucide-react";
+import { FileText, Upload, CheckCircle, AlertCircle, Loader2, Info, Image } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -17,6 +19,7 @@ interface PDFFile {
   size?: number;
   status: 'pending' | 'processing' | 'complete' | 'error';
   questionsImported?: number;
+  imagesFound?: number;
   error?: string;
   subject: string;
   system: string;
@@ -50,6 +53,8 @@ interface ExtractedQuestion {
   system?: string;
   has_image?: boolean;
   image_description?: string;
+  image_type?: string;
+  medical_content?: string;
 }
 
 interface HistoryItem {
@@ -79,6 +84,7 @@ const PDFImport = () => {
   const [availablePDFs, setAvailablePDFs] = useState<PDFFile[]>([]);
   const [defaultSubject, setDefaultSubject] = useState<string>("");
   const [defaultSystem, setDefaultSystem] = useState<string>("");
+  const [extractImages, setExtractImages] = useState<boolean>(true);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [progress, setProgress] = useState<ImportProgress>({
     status: 'idle',
@@ -220,14 +226,22 @@ const PDFImport = () => {
     toast.success("Applied defaults to all pending PDFs");
   };
 
-  const extractTextFromPDF = async (file: File): Promise<string> => {
-    // Use FileReader to get the file content as ArrayBuffer
+  const extractTextFromPDF = async (file: File): Promise<{ text: string; base64: string }> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = async () => {
         try {
           const arrayBuffer = reader.result as ArrayBuffer;
           const bytes = new Uint8Array(arrayBuffer);
+          
+          // Convert to base64 for image extraction
+          let base64 = '';
+          const chunkSize = 8192;
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            const chunk = bytes.subarray(i, i + chunkSize);
+            base64 += String.fromCharCode.apply(null, Array.from(chunk));
+          }
+          base64 = btoa(base64);
           
           // Extract text from PDF binary (simple extraction)
           let text = '';
@@ -238,9 +252,7 @@ const PDFImport = () => {
           const streamMatches = rawText.match(/stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g);
           if (streamMatches) {
             for (const match of streamMatches) {
-              // Try to extract readable text
               const content = match.replace(/stream[\r\n]+/, '').replace(/[\r\n]+endstream/, '');
-              // Filter for printable ASCII and common characters
               const readable = content.replace(/[^\x20-\x7E\n\r]/g, ' ').replace(/\s+/g, ' ');
               if (readable.length > 50) {
                 text += readable + '\n';
@@ -267,11 +279,10 @@ const PDFImport = () => {
             .trim();
 
           if (text.length < 100) {
-            // If simple extraction fails, we'll send raw content to AI
             text = rawText.replace(/[^\x20-\x7E\n\r]/g, ' ').replace(/\s+/g, ' ').substring(0, 50000);
           }
 
-          resolve(text);
+          resolve({ text, base64 });
         } catch (e) {
           reject(e);
         }
@@ -282,9 +293,9 @@ const PDFImport = () => {
   };
 
   // Process a single PDF and return results
-  const processOnePDF = async (pdf: PDFFile): Promise<{ imported: number; skipped: number }> => {
-    // Extract text
-    const pdfText = await extractTextFromPDF(pdf.file);
+  const processOnePDF = async (pdf: PDFFile): Promise<{ imported: number; skipped: number; imagesFound: number }> => {
+    // Extract text and base64
+    const { text: pdfText, base64: pdfBase64 } = await extractTextFromPDF(pdf.file);
     
     if (pdfText.length < 50) {
       throw new Error('Could not extract enough text from PDF. The file may be image-based.');
@@ -293,7 +304,7 @@ const PDFImport = () => {
     setProgress(prev => ({
       ...prev,
       status: 'parsing',
-      currentStep: 'AI is analyzing questions...',
+      currentStep: extractImages ? 'AI is analyzing questions and images...' : 'AI is analyzing questions...',
       message: `Extracted ${pdfText.length} characters. Sending to AI...`,
       percent: 30
     }));
@@ -302,8 +313,11 @@ const PDFImport = () => {
     const { data: aiResult, error: aiError } = await supabase.functions.invoke('parse-pdf-questions', {
       body: {
         pdfText: pdfText.substring(0, 100000),
+        pdfBase64: extractImages ? pdfBase64 : undefined,
+        pdfFileName: pdf.name,
         subject: pdf.subject,
-        system: pdf.system
+        system: pdf.system,
+        extractImages
       }
     });
 
@@ -313,13 +327,14 @@ const PDFImport = () => {
     }
 
     const questions: ExtractedQuestion[] = aiResult.questions || [];
+    const imagesFound = aiResult.imagesFound || 0;
     
     setProgress(prev => ({
       ...prev,
       status: 'importing',
       currentStep: 'Importing to database...',
       questionsFound: questions.length,
-      message: `Found ${questions.length} questions...`,
+      message: `Found ${questions.length} questions${imagesFound > 0 ? ` and ${imagesFound} images` : ''}...`,
       percent: 50
     }));
 
@@ -379,7 +394,7 @@ const PDFImport = () => {
       }));
     }
 
-    return { imported, skipped };
+    return { imported, skipped, imagesFound };
   };
 
   // Bulk import all pending PDFs sequentially
@@ -437,12 +452,12 @@ const PDFImport = () => {
       ));
 
       try {
-        const { imported, skipped } = await processOnePDF(pdf);
+        const { imported, skipped, imagesFound } = await processOnePDF(pdf);
         totalImported += imported;
         totalSkipped += skipped;
 
         setAvailablePDFs(prev => prev.map((p, idx) => 
-          idx === i ? { ...p, status: 'complete' as const, questionsImported: imported } : p
+          idx === i ? { ...p, status: 'complete' as const, questionsImported: imported, imagesFound } : p
         ));
 
         setBulkProgress(prev => ({
@@ -704,6 +719,27 @@ const PDFImport = () => {
                   Apply to all pending PDFs
                 </Button>
               )}
+            </div>
+
+            {/* Extract Images Toggle */}
+            <div className="flex items-center justify-between p-3 border border-border rounded-lg bg-muted/30">
+              <div className="flex items-center gap-3">
+                <Image className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <Label htmlFor="extract-images" className="text-sm font-medium">
+                    Extract Images from PDFs
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Use AI vision to detect and describe diagrams in explanations
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="extract-images"
+                checked={extractImages}
+                onCheckedChange={setExtractImages}
+                disabled={isBulkProcessing}
+              />
             </div>
 
             {/* Bulk Import Button */}

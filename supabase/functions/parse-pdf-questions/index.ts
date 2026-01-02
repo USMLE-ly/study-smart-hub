@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,6 +14,52 @@ interface ParsedQuestion {
   category?: string;
   has_image?: boolean;
   image_description?: string;
+  question_image_url?: string;
+  explanation_image_url?: string;
+}
+
+interface ImageData {
+  data: string; // base64
+  contentType: string;
+  pageNumber: number;
+  imageIndex: number;
+}
+
+async function uploadImageToStorage(
+  supabase: ReturnType<typeof createClient>,
+  imageData: ImageData,
+  pdfFileName: string
+): Promise<string | null> {
+  try {
+    const fileName = `${pdfFileName.replace(/\.pdf$/i, '')}_page${imageData.pageNumber}_img${imageData.imageIndex}.${imageData.contentType.split('/')[1] || 'png'}`;
+    const filePath = `extracted/${Date.now()}_${fileName}`;
+    
+    // Decode base64 to Uint8Array
+    const binaryData = Uint8Array.from(atob(imageData.data), c => c.charCodeAt(0));
+    
+    const { data, error } = await supabase.storage
+      .from('question-images')
+      .upload(filePath, binaryData, {
+        contentType: imageData.contentType,
+        upsert: false
+      });
+
+    if (error) {
+      console.error('Error uploading image:', error);
+      return null;
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('question-images')
+      .getPublicUrl(filePath);
+
+    console.log(`Uploaded image: ${filePath}`);
+    return urlData.publicUrl;
+  } catch (err) {
+    console.error('Failed to upload image:', err);
+    return null;
+  }
 }
 
 serve(async (req) => {
@@ -21,7 +68,7 @@ serve(async (req) => {
   }
 
   try {
-    const { pdfText, subject, system } = await req.json();
+    const { pdfText, pdfBase64, pdfFileName, subject, system, extractImages } = await req.json();
     
     if (!pdfText || !subject || !system) {
       return new Response(
@@ -32,11 +79,17 @@ serve(async (req) => {
 
     console.log(`Processing PDF text for subject: ${subject}, system: ${system}`);
     console.log(`PDF text length: ${pdfText.length} characters`);
+    console.log(`Extract images: ${extractImages}, Has PDF base64: ${!!pdfBase64}`);
 
     const apiKey = Deno.env.get('LOVABLE_API_KEY');
     if (!apiKey) {
       throw new Error('LOVABLE_API_KEY not configured');
     }
+
+    // Initialize Supabase client for image uploads
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Clean the text - remove CamScanner and other artifacts
     const cleanedText = pdfText
@@ -44,6 +97,76 @@ serve(async (req) => {
       .replace(/CS\s*CamScanner/gi, '')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
+
+    // If we have base64 PDF data, use vision model to extract images
+    let extractedImages: ImageData[] = [];
+    let visionAnalysis = '';
+    
+    if (extractImages && pdfBase64) {
+      console.log('Analyzing PDF with vision model for image extraction...');
+      
+      try {
+        // Use vision model to analyze and describe images in the PDF
+        const visionResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            messages: [
+              { 
+                role: 'user', 
+                content: [
+                  {
+                    type: 'text',
+                    text: `Analyze this medical education PDF and identify ALL images, diagrams, figures, charts, or visual elements. For each image found:
+
+1. Describe what the image shows in detail (medical diagrams, burns, skin conditions, anatomical structures, etc.)
+2. Note which question number the image is associated with (if any)
+3. Describe the position and context of the image
+
+Return a JSON response:
+{
+  "images_found": [
+    {
+      "description": "Detailed description of the image",
+      "associated_question": "Question number if applicable (e.g., 'Q1', 'Q5')",
+      "image_type": "Type: diagram, photo, chart, illustration",
+      "medical_content": "What medical concept the image illustrates",
+      "page_location": "Where on the page the image appears"
+    }
+  ],
+  "total_images": number,
+  "summary": "Brief summary of visual content in this PDF"
+}`
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: {
+                      url: `data:application/pdf;base64,${pdfBase64}`
+                    }
+                  }
+                ]
+              }
+            ],
+            temperature: 0.1,
+            max_tokens: 8000,
+          }),
+        });
+
+        if (visionResponse.ok) {
+          const visionResult = await visionResponse.json();
+          visionAnalysis = visionResult.choices?.[0]?.message?.content || '';
+          console.log('Vision analysis complete:', visionAnalysis.substring(0, 500));
+        } else {
+          console.log('Vision analysis not available, continuing with text extraction only');
+        }
+      } catch (visionErr) {
+        console.error('Vision analysis failed:', visionErr);
+      }
+    }
 
     const systemPrompt = `You are a medical question extraction expert specializing in USMLE, NBME, and medical board exam content. Your task is to extract ALL multiple-choice questions from the provided PDF text with DETAILED explanations.
 
@@ -74,7 +197,16 @@ CRITICAL EXTRACTION RULES:
 
 5. IMAGE HANDLING:
    - If the question or explanation mentions an image, diagram, photo, or figure, set has_image: true
-   - Provide an image_description describing what the image likely shows based on context
+   - Provide an image_description describing what the image shows based on the visual analysis provided
+   ${visionAnalysis ? `
+   
+VISUAL ANALYSIS FROM PDF:
+${visionAnalysis}
+
+Use this visual analysis to:
+- Match images to their corresponding questions
+- Include accurate image descriptions
+- Set has_image: true for questions with visual content` : ''}
 
 Return a JSON array in this EXACT format:
 {
@@ -129,7 +261,7 @@ REQUIREMENTS:
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.1,
-        max_tokens: 32000, // Increased for detailed explanations
+        max_tokens: 32000,
       }),
     });
 
@@ -188,6 +320,21 @@ REQUIREMENTS:
       throw new Error('Failed to parse AI response as valid JSON');
     }
 
+    // Parse vision analysis to get image URLs if available
+    let imageAnalysis: any[] = [];
+    if (visionAnalysis) {
+      try {
+        const visionMatch = visionAnalysis.match(/\{[\s\S]*"images_found"[\s\S]*\}/);
+        if (visionMatch) {
+          const visionParsed = JSON.parse(visionMatch[0]);
+          imageAnalysis = visionParsed.images_found || [];
+          console.log(`Found ${imageAnalysis.length} images in vision analysis`);
+        }
+      } catch (err) {
+        console.log('Could not parse vision analysis JSON');
+      }
+    }
+
     // Validate and enrich questions
     const validQuestions = questions.filter(q => {
       return q.question_text && 
@@ -195,31 +342,46 @@ REQUIREMENTS:
              Array.isArray(q.options) && 
              q.options.length >= 2 &&
              q.options.some(o => o.is_correct);
-    }).map(q => ({
-      ...q,
-      question_text: q.question_text.replace(/CamScanner/gi, '').trim(),
-      explanation: (q.explanation || '').replace(/CamScanner/gi, '').trim(),
-      subject,
-      system: q.category || system,
-      category: q.category || system,
-      has_image: q.has_image || false,
-      image_description: q.image_description || '',
-      // Enrich option explanations
-      options: q.options.map(opt => ({
-        ...opt,
-        text: opt.text.replace(/CamScanner/gi, '').trim(),
-        explanation: (opt.explanation || '').replace(/CamScanner/gi, '').trim()
-      }))
-    }));
+    }).map((q, index) => {
+      // Try to match with image analysis
+      const questionNum = index + 1;
+      const matchedImage = imageAnalysis.find(img => 
+        img.associated_question?.toLowerCase().includes(`q${questionNum}`) ||
+        img.associated_question?.toLowerCase().includes(`question ${questionNum}`)
+      );
+
+      return {
+        ...q,
+        question_text: q.question_text.replace(/CamScanner/gi, '').trim(),
+        explanation: (q.explanation || '').replace(/CamScanner/gi, '').trim(),
+        subject,
+        system: q.category || system,
+        category: q.category || system,
+        has_image: q.has_image || !!matchedImage,
+        image_description: q.image_description || matchedImage?.description || '',
+        // Add matched image info
+        image_type: matchedImage?.image_type || null,
+        medical_content: matchedImage?.medical_content || null,
+        // Enrich option explanations
+        options: q.options.map(opt => ({
+          ...opt,
+          text: opt.text.replace(/CamScanner/gi, '').trim(),
+          explanation: (opt.explanation || '').replace(/CamScanner/gi, '').trim()
+        }))
+      };
+    });
 
     console.log(`Returning ${validQuestions.length} valid questions with detailed explanations`);
+    console.log(`Questions with images: ${validQuestions.filter(q => q.has_image).length}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         questions: validQuestions,
         totalExtracted: questions.length,
-        validCount: validQuestions.length
+        validCount: validQuestions.length,
+        imagesFound: imageAnalysis.length,
+        visionAnalysisAvailable: !!visionAnalysis
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
