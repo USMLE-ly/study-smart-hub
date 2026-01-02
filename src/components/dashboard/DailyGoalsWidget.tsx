@@ -48,17 +48,67 @@ export const DailyGoalsWidget = () => {
     .filter(t => t.is_completed)
     .reduce((sum, t) => sum + (t.estimated_duration_minutes || 0), 0);
 
-  // Load goals from localStorage or use defaults
+  // Load goals from localStorage or use defaults (hardened against corrupted JSON / blocked storage)
+  const defaultGoals: DailyGoal[] = [
+    {
+      id: "tasks",
+      label: "Tasks Completed",
+      current: 0,
+      target: 5,
+      unit: "tasks",
+      icon: CheckCircle2,
+      color: "hsl(var(--badge-success))",
+    },
+    {
+      id: "study",
+      label: "Study Time",
+      current: 0,
+      target: 120,
+      unit: "min",
+      icon: Clock,
+      color: "hsl(var(--primary))",
+    },
+    {
+      id: "questions",
+      label: "Questions Practiced",
+      current: 0,
+      target: 20,
+      unit: "questions",
+      icon: Target,
+      color: "hsl(var(--badge-practice))",
+    },
+  ];
+
   const [goals, setGoals] = useState<DailyGoal[]>(() => {
-    const saved = localStorage.getItem("dailyStudyGoals");
-    if (saved) {
-      return JSON.parse(saved);
+    try {
+      const saved = localStorage.getItem("dailyStudyGoals");
+      if (!saved) return defaultGoals;
+
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return defaultGoals;
+
+      // Only trust saved targets; keep icons/labels stable from defaults
+      const targetById = new Map<string, number>();
+      for (const g of parsed) {
+        if (g && typeof g.id === "string") {
+          const t = Number((g as any).target);
+          if (Number.isFinite(t) && t > 0) targetById.set(g.id, t);
+        }
+      }
+
+      return defaultGoals.map((g) => ({
+        ...g,
+        target: targetById.get(g.id) ?? g.target,
+      }));
+    } catch (e) {
+      // If storage is blocked or JSON is corrupted, fall back safely.
+      try {
+        localStorage.removeItem("dailyStudyGoals");
+      } catch {
+        // ignore
+      }
+      return defaultGoals;
     }
-    return [
-      { id: "tasks", label: "Tasks Completed", current: 0, target: 5, unit: "tasks", icon: CheckCircle2, color: "hsl(var(--badge-success))" },
-      { id: "study", label: "Study Time", current: 0, target: 120, unit: "min", icon: Clock, color: "hsl(var(--primary))" },
-      { id: "questions", label: "Questions Practiced", current: 0, target: 20, unit: "questions", icon: Target, color: "hsl(var(--badge-practice))" },
-    ];
   });
 
   // Update goals with real data
