@@ -30,6 +30,7 @@ import NotFound from "./pages/NotFound";
 import Analytics from "./pages/Analytics";
 import WeeklyReport from "./pages/WeeklyReport";
 import Settings from "./pages/Settings";
+import QuestionReview from "./pages/QuestionReview";
 
 const queryClient = new QueryClient();
 
@@ -258,6 +259,16 @@ const App = () => (
                     <ProtectedRoute>
                       <PageTransition>
                         <Settings />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/qbank/review"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <QuestionReview />
                       </PageTransition>
                     </ProtectedRoute>
                   }

@@ -25,6 +25,11 @@ interface SystemCount {
   count: number;
 }
 
+interface CategoryCount {
+  name: string;
+  count: number;
+}
+
 const CreateTest = () => {
   const navigate = useNavigate();
   const { createTest } = useTests();
@@ -39,13 +44,16 @@ const CreateTest = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [subjects, setSubjects] = useState<SubjectCount[]>([]);
   const [systems, setSystems] = useState<SystemCount[]>([]);
+  const [categories, setCategories] = useState<CategoryCount[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [totalAvailable, setTotalAvailable] = useState(0);
 
   // Fetch counts from database - optimized with aggregate queries
   useEffect(() => {
     const fetchCounts = async () => {
-      // Use RPC or optimized queries - fetch distinct subjects and systems with counts
-      const [subjectResult, systemResult] = await Promise.all([
+      // Use RPC or optimized queries - fetch distinct subjects, systems, and categories with counts
+      const [subjectResult, systemResult, categoryResult] = await Promise.all([
         supabase
           .from("questions")
           .select("subject")
@@ -53,6 +61,11 @@ const CreateTest = () => {
         supabase
           .from("questions")
           .select("system")
+          .limit(5000),
+        supabase
+          .from("questions")
+          .select("category")
+          .not("category", "is", null)
           .limit(5000),
       ]);
 
@@ -80,6 +93,20 @@ const CreateTest = () => {
         })).sort((a, b) => a.name.localeCompare(b.name));
         setSystems(systemList);
       }
+
+      if (categoryResult.data) {
+        const categoryCounts: Record<string, number> = {};
+        categoryResult.data.forEach((q) => {
+          if (q.category) {
+            categoryCounts[q.category] = (categoryCounts[q.category] || 0) + 1;
+          }
+        });
+        const categoryList = Object.entries(categoryCounts).map(([name, count]) => ({
+          name,
+          count,
+        })).sort((a, b) => a.name.localeCompare(b.name));
+        setCategories(categoryList);
+      }
     };
 
     fetchCounts();
@@ -106,6 +133,14 @@ const CreateTest = () => {
       prev.includes(systemId)
         ? prev.filter((s) => s !== systemId)
         : [...prev, systemId]
+    );
+  };
+
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(categoryId)
+        ? prev.filter((c) => c !== categoryId)
+        : [...prev, categoryId]
     );
   };
 
@@ -396,7 +431,66 @@ const CreateTest = () => {
           </Card>
         </Collapsible>
 
-        {/* Number of Questions */}
+        {/* Categories Section */}
+        {categories.length > 0 && (
+          <Collapsible open={categoriesOpen} onOpenChange={setCategoriesOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors pb-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={selectedCategories.length === categories.length && categories.length > 0}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedCategories(categories.map((c) => c.name));
+                          } else {
+                            setSelectedCategories([]);
+                          }
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <CardTitle className="text-base font-medium">Categories / Topics</CardTitle>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{selectedCategories.length} selected</Badge>
+                      {categoriesOpen ? (
+                        <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {categories.map((category) => (
+                      <div key={category.name} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`category-${category.name}`}
+                          checked={selectedCategories.includes(category.name)}
+                          onCheckedChange={() => toggleCategory(category.name)}
+                        />
+                        <Label
+                          htmlFor={`category-${category.name}`}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          {category.name}
+                          <Badge variant="outline" className="font-normal text-xs">
+                            {category.count}
+                          </Badge>
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        )}
+
         <Card>
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">

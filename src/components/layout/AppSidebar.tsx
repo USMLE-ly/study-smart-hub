@@ -53,6 +53,7 @@ const qbankItems = [
   { title: "Performance", href: "/qbank/performance" },
   { title: "Search", href: "/qbank/search" },
   { title: "Notes", href: "/qbank/notes" },
+  { title: "Review Questions", href: "/qbank/review" },
   { title: "PDF Import", href: "/pdf-import" },
 ];
 
