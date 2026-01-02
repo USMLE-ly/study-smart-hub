@@ -8,7 +8,6 @@ import { LoadingState } from "@/components/ui/LoadingSpinner";
 import {
   Flag,
   Calculator,
-  FileText,
   Maximize,
   HelpCircle,
   ChevronLeft,
@@ -27,6 +26,7 @@ import {
   Contrast,
   BarChart3,
   Calendar,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate, useParams } from "react-router-dom";
@@ -40,7 +40,9 @@ import { LabValuesPanel } from "@/components/practice-test/LabValuesPanel";
 import { CalculatorModal } from "@/components/practice-test/CalculatorModal";
 import { QuestionNavigationGrid } from "@/components/practice-test/QuestionNavigationGrid";
 import { NotesPanel } from "@/components/practice-test/NotesPanel";
+import { FeedbackModal } from "@/components/practice-test/FeedbackModal";
 import { useTestTimer } from "@/components/practice-test/TestTimer";
+import { usePracticeTestKeyboard } from "@/hooks/usePracticeTestKeyboard";
 
 interface QuestionWithOptions extends Question {
   options: QuestionOption[];
@@ -75,6 +77,7 @@ const PracticeTestWithData = () => {
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   // Timer
   const { timeRemaining, elapsedTime, isPaused, isExpired, toggle: togglePause, pause, resume } = 
@@ -335,6 +338,27 @@ const PracticeTestWithData = () => {
   const hasNote = currentQuestion && questionNotes.has(currentQuestion.id);
   const questionId = currentQuestion?.id?.slice(0, 8) || "------";
   const timeSpentOnQuestion = Math.round((Date.now() - questionStartTime) / 1000);
+
+  // Handle keyboard option selection
+  const handleKeyboardSelectOption = useCallback((index: number) => {
+    if (!currentQuestion || isAnswered) return;
+    const option = currentQuestion.options[index];
+    if (option) {
+      handleSelectAnswer(option.id);
+    }
+  }, [currentQuestion, isAnswered]);
+
+  // Keyboard shortcuts
+  usePracticeTestKeyboard({
+    onPrevious: handlePrevious,
+    onNext: handleNext,
+    onSelectOption: handleKeyboardSelectOption,
+    onSubmit: handleSubmitAnswer,
+    optionsCount: currentQuestion?.options.length || 0,
+    canSubmit: !!selectedAnswer,
+    isAnswered,
+    enabled: !loading && !!currentQuestion,
+  });
 
   if (loading) {
     return (
@@ -657,7 +681,11 @@ const PracticeTestWithData = () => {
         </div>
 
         <div className="flex items-center">
-          <button className="text-white text-sm hover:underline font-medium">
+          <button 
+            onClick={() => setFeedbackOpen(true)}
+            className="text-white text-sm hover:underline font-medium flex items-center gap-1.5"
+          >
+            <MessageSquare className="h-4 w-4" />
             Feedback
           </button>
         </div>
@@ -699,6 +727,12 @@ const PracticeTestWithData = () => {
         currentQuestionText={currentQuestion.question_text}
         testId={testId}
         onNoteSaved={handleNoteSaved}
+      />
+      <FeedbackModal
+        open={feedbackOpen}
+        onOpenChange={setFeedbackOpen}
+        questionId={currentQuestion.id}
+        questionText={currentQuestion.question_text}
       />
     </div>
   );
