@@ -7,12 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   ChevronLeft, ChevronRight, Edit, Save, Trash2, Image as ImageIcon, 
-  Upload, Check, X, Filter, Search, Eye, EyeOff 
+  Upload, Check, X, Filter, Search, Eye, EyeOff, CheckSquare, Settings2
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -55,6 +56,15 @@ const QuestionReview = () => {
   const [categories, setCategories] = useState<string[]>([]);
   const [imageUploadOpen, setImageUploadOpen] = useState(false);
   const [imageType, setImageType] = useState<"question" | "explanation">("question");
+  
+  // Bulk edit state
+  const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [bulkSubject, setBulkSubject] = useState("");
+  const [bulkCategory, setBulkCategory] = useState("");
+  const [bulkSystem, setBulkSystem] = useState("");
+  const [bulkDifficulty, setBulkDifficulty] = useState("");
+  const [selectionMode, setSelectionMode] = useState(false);
 
   useEffect(() => {
     loadQuestions();
@@ -255,6 +265,66 @@ const QuestionReview = () => {
     setEditedQuestion({ ...editedQuestion, question_options: updatedOptions });
   };
 
+  // Bulk edit functions
+  const toggleQuestionSelection = (questionId: string) => {
+    const newSelection = new Set(selectedQuestions);
+    if (newSelection.has(questionId)) {
+      newSelection.delete(questionId);
+    } else {
+      newSelection.add(questionId);
+    }
+    setSelectedQuestions(newSelection);
+  };
+
+  const selectAllVisible = () => {
+    const allIds = new Set(filteredQuestions.map(q => q.id));
+    setSelectedQuestions(allIds);
+  };
+
+  const clearSelection = () => {
+    setSelectedQuestions(new Set());
+  };
+
+  const applyBulkEdit = async () => {
+    if (selectedQuestions.size === 0) {
+      toast.error("No questions selected");
+      return;
+    }
+
+    const updates: Record<string, string> = {};
+    if (bulkSubject) updates.subject = bulkSubject;
+    if (bulkCategory) updates.category = bulkCategory;
+    if (bulkSystem) updates.system = bulkSystem;
+    if (bulkDifficulty) updates.difficulty = bulkDifficulty;
+
+    if (Object.keys(updates).length === 0) {
+      toast.error("No changes specified");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("questions")
+        .update(updates)
+        .in("id", Array.from(selectedQuestions));
+
+      if (error) throw error;
+
+      toast.success(`Updated ${selectedQuestions.size} questions`);
+      setBulkEditOpen(false);
+      setBulkSubject("");
+      setBulkCategory("");
+      setBulkSystem("");
+      setBulkDifficulty("");
+      setSelectedQuestions(new Set());
+      setSelectionMode(false);
+      loadQuestions();
+    } catch (error) {
+      console.error("Error applying bulk edit:", error);
+      toast.error("Failed to apply bulk edit");
+    }
+  };
+
   if (isLoading) {
     return (
       <AppLayout title="Question Review">
@@ -312,6 +382,109 @@ const QuestionReview = () => {
           </CardContent>
         </Card>
 
+        {/* Bulk Edit Controls */}
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex flex-wrap gap-3 items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Button
+                  variant={selectionMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setSelectionMode(!selectionMode);
+                    if (selectionMode) clearSelection();
+                  }}
+                >
+                  <CheckSquare className="h-4 w-4 mr-1" />
+                  {selectionMode ? "Exit Selection" : "Select Multiple"}
+                </Button>
+                
+                {selectionMode && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={selectAllVisible}>
+                      Select All ({filteredQuestions.length})
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={clearSelection}>
+                      Clear
+                    </Button>
+                    <Badge variant="default">
+                      {selectedQuestions.size} selected
+                    </Badge>
+                  </>
+                )}
+              </div>
+              
+              {selectionMode && selectedQuestions.size > 0 && (
+                <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm">
+                      <Settings2 className="h-4 w-4 mr-1" />
+                      Bulk Edit Selected
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Bulk Edit {selectedQuestions.size} Questions</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <p className="text-sm text-muted-foreground">
+                        Leave fields empty to keep existing values unchanged.
+                      </p>
+                      <div className="space-y-3">
+                        <div>
+                          <Label>Subject</Label>
+                          <Input
+                            value={bulkSubject}
+                            onChange={(e) => setBulkSubject(e.target.value)}
+                            placeholder="Enter new subject..."
+                          />
+                        </div>
+                        <div>
+                          <Label>System</Label>
+                          <Input
+                            value={bulkSystem}
+                            onChange={(e) => setBulkSystem(e.target.value)}
+                            placeholder="Enter new system..."
+                          />
+                        </div>
+                        <div>
+                          <Label>Category</Label>
+                          <Input
+                            value={bulkCategory}
+                            onChange={(e) => setBulkCategory(e.target.value)}
+                            placeholder="Enter new category..."
+                          />
+                        </div>
+                        <div>
+                          <Label>Difficulty</Label>
+                          <Select value={bulkDifficulty} onValueChange={setBulkDifficulty}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select difficulty..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="easy">Easy</SelectItem>
+                              <SelectItem value="medium">Medium</SelectItem>
+                              <SelectItem value="hard">Hard</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setBulkEditOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={applyBulkEdit}>
+                        Apply Changes
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {filteredQuestions.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center text-muted-foreground">
@@ -338,6 +511,12 @@ const QuestionReview = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
+                    {selectionMode && (
+                      <Checkbox
+                        checked={selectedQuestions.has(currentQuestion?.id)}
+                        onCheckedChange={() => toggleQuestionSelection(currentQuestion?.id)}
+                      />
+                    )}
                     <Badge>{isEditing ? editedQuestion?.subject : currentQuestion?.subject}</Badge>
                     <Badge variant="outline">{isEditing ? editedQuestion?.system : currentQuestion?.system}</Badge>
                     {(isEditing ? editedQuestion?.category : currentQuestion?.category) && (
@@ -584,6 +763,42 @@ const QuestionReview = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* Quick Selection List in Selection Mode */}
+            {selectionMode && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Quick Selection</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-48">
+                    <div className="space-y-2">
+                      {filteredQuestions.map((q, idx) => (
+                        <div
+                          key={q.id}
+                          className={`flex items-center gap-2 p-2 rounded cursor-pointer hover:bg-muted ${
+                            idx === currentIndex ? "bg-muted" : ""
+                          }`}
+                          onClick={() => setCurrentIndex(idx)}
+                        >
+                          <Checkbox
+                            checked={selectedQuestions.has(q.id)}
+                            onCheckedChange={() => toggleQuestionSelection(q.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <span className="text-sm truncate flex-1">
+                            {idx + 1}. {q.question_text.substring(0, 80)}...
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            {q.category || q.subject}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            )}
           </>
         )}
       </div>
