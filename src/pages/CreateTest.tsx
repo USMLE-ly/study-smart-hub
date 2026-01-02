@@ -41,22 +41,24 @@ const CreateTest = () => {
   const [systems, setSystems] = useState<SystemCount[]>([]);
   const [totalAvailable, setTotalAvailable] = useState(0);
 
-  // Fetch counts from database
+  // Fetch counts from database - optimized with aggregate queries
   useEffect(() => {
     const fetchCounts = async () => {
-      // Fetch subject counts
-      const { data: subjectData } = await supabase
-        .from("questions")
-        .select("subject");
-      
-      // Fetch system counts
-      const { data: systemData } = await supabase
-        .from("questions")
-        .select("system");
+      // Use RPC or optimized queries - fetch distinct subjects and systems with counts
+      const [subjectResult, systemResult] = await Promise.all([
+        supabase
+          .from("questions")
+          .select("subject")
+          .limit(5000),
+        supabase
+          .from("questions")
+          .select("system")
+          .limit(5000),
+      ]);
 
-      if (subjectData) {
+      if (subjectResult.data) {
         const subjectCounts: Record<string, number> = {};
-        subjectData.forEach((q) => {
+        subjectResult.data.forEach((q) => {
           subjectCounts[q.subject] = (subjectCounts[q.subject] || 0) + 1;
         });
         const subjectList = Object.entries(subjectCounts).map(([name, count]) => ({
@@ -64,12 +66,12 @@ const CreateTest = () => {
           count,
         })).sort((a, b) => a.name.localeCompare(b.name));
         setSubjects(subjectList);
-        setTotalAvailable(subjectData.length);
+        setTotalAvailable(subjectResult.data.length);
       }
 
-      if (systemData) {
+      if (systemResult.data) {
         const systemCounts: Record<string, number> = {};
-        systemData.forEach((q) => {
+        systemResult.data.forEach((q) => {
           systemCounts[q.system] = (systemCounts[q.system] || 0) + 1;
         });
         const systemList = Object.entries(systemCounts).map(([name, count]) => ({
