@@ -50,6 +50,42 @@ export type Database = {
         }
         Relationships: []
       }
+      client_error_reports: {
+        Row: {
+          component_stack: string | null
+          created_at: string
+          id: string
+          message: string
+          metadata: Json
+          route: string | null
+          stack: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          component_stack?: string | null
+          created_at?: string
+          id?: string
+          message: string
+          metadata?: Json
+          route?: string | null
+          stack?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          component_stack?: string | null
+          created_at?: string
+          id?: string
+          message?: string
+          metadata?: Json
+          route?: string | null
+          stack?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       flashcard_decks: {
         Row: {
           color: string | null
