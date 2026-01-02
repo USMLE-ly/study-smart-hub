@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { LoadingState } from "@/components/ui/LoadingSpinner";
 import {
@@ -16,17 +15,14 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import {
-  Bookmark,
+  Flag,
   Calculator,
   FileText,
-  Highlighter,
-  FlaskConical,
-  MessageSquare,
+  Maximize,
   HelpCircle,
   ChevronLeft,
   ChevronRight,
   Clock,
-  BarChart3,
   Check,
   X,
   Strikethrough,
@@ -34,6 +30,13 @@ import {
   StickyNote,
   Save,
   Download,
+  Menu,
+  FlaskConical,
+  Type,
+  Settings,
+  Contrast,
+  BarChart3,
+  Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate, useParams } from "react-router-dom";
@@ -77,7 +80,6 @@ const PracticeTestWithData = () => {
 
   const loadTestData = useCallback(async () => {
     if (!testId) {
-      // Load random questions if no test ID
       const { data: questionsData } = await supabase
         .from("questions")
         .select("*")
@@ -126,7 +128,6 @@ const PracticeTestWithData = () => {
           })
         );
         
-        // Sort by question order
         const orderedQuestions = answers
           .sort((a, b) => a.question_order - b.question_order)
           .map((a) => questionsWithOptions.find((q) => q.id === a.question_id))
@@ -182,7 +183,6 @@ const PracticeTestWithData = () => {
       });
     }
 
-    // Save wrong answers as flashcards automatically
     if (!isCorrect) {
       const correctOption = currentQuestion.options.find((o) => o.is_correct);
       if (correctOption) {
@@ -194,7 +194,6 @@ const PracticeTestWithData = () => {
         toast.info("Question saved to your Wrong Answers deck", { duration: 2000 });
       }
     } else {
-      // Celebrate correct answers!
       triggerStars();
       toast.success("Correct! 🎉", { duration: 1500 });
     }
@@ -289,6 +288,8 @@ const PracticeTestWithData = () => {
   };
 
   const hasNote = currentQuestion && questionNotes[currentQuestion.id];
+  const questionId = currentQuestion?.id?.slice(0, 8) || "------";
+  const timeSpentOnQuestion = Math.round((Date.now() - startTime) / 1000);
 
   if (loading) {
     return (
@@ -301,296 +302,313 @@ const PracticeTestWithData = () => {
   if (!currentQuestion) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Card className="p-8 text-center">
+        <div className="bg-card p-8 text-center rounded-lg shadow-md">
           <p className="text-muted-foreground mb-4">No questions available</p>
           <Button onClick={() => navigate("/qbank/create")}>Create a Test</Button>
-        </Card>
+        </div>
       </div>
     );
   }
 
   const correctOption = currentQuestion.options.find((opt) => opt.is_correct);
+  const selectedOption = currentQuestion.options.find((o) => o.id === selectedAnswer);
+  const isCorrectAnswer = selectedOption?.is_correct || false;
+
+  // Toolbar button component for consistent styling
+  const ToolbarButton = ({ 
+    icon: Icon, 
+    label, 
+    onClick,
+    active = false 
+  }: { 
+    icon: React.ElementType; 
+    label: string; 
+    onClick?: () => void;
+    active?: boolean;
+  }) => (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex flex-col items-center justify-center px-2 py-1 hover:bg-primary/80 transition-colors min-w-[60px]",
+        active && "bg-primary/80"
+      )}
+    >
+      <Icon className="h-5 w-5 text-primary-foreground" />
+      <span className="text-[10px] text-primary-foreground mt-0.5">{label}</span>
+    </button>
+  );
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      {/* Top Toolbar */}
-      <header className="h-14 border-b border-border bg-sidebar flex items-center justify-between px-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-            onClick={handleMarkQuestion}
-          >
-            <Bookmark className={cn("h-5 w-5", isMarked && "fill-current text-primary")} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            <Highlighter className="h-5 w-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-            onClick={handleOpenNotes}
-          >
-            <StickyNote className={cn("h-5 w-5", hasNote && "fill-primary text-primary")} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-            onClick={handleExportNotes}
-            title="Export Notes"
-          >
-            <Download className="h-5 w-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            <FileText className="h-5 w-5" />
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <span className="text-sidebar-foreground font-medium">
-            {currentIndex + 1}/{totalQuestions}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            <Calculator className="h-5 w-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            <FlaskConical className="h-5 w-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-          >
-            <HelpCircle className="h-5 w-5" />
-          </Button>
-
-          <Separator orientation="vertical" className="h-6 bg-sidebar-border" />
-
-          <div className="flex items-center gap-2 text-sidebar-foreground">
-            <Clock className="h-4 w-4" />
-            <span className="font-mono text-lg font-medium">
-              {testMode === "timed" ? formatTime(timeRemaining) : "--:--"}
-            </span>
+    <div className="min-h-screen flex flex-col bg-card">
+      {/* UWorld-style Header */}
+      <header className="bg-primary flex items-center h-12 shadow-md">
+        {/* Left section - Menu and Item info */}
+        <div className="flex items-center">
+          <button className="p-3 hover:bg-primary/80 transition-colors">
+            <Menu className="h-5 w-5 text-primary-foreground" />
+          </button>
+          
+          <div className="px-4 border-r border-primary-foreground/30">
+            <div className="text-primary-foreground font-semibold text-sm">
+              Item {currentIndex + 1} of {totalQuestions}
+            </div>
+            <div className="text-primary-foreground/70 text-xs">
+              Question Id: {questionId}
+            </div>
           </div>
+
+          {/* Mark checkbox */}
+          <div className="flex items-center gap-2 px-4 border-r border-primary-foreground/30">
+            <Checkbox 
+              id="mark" 
+              checked={isMarked}
+              onCheckedChange={() => handleMarkQuestion()}
+              className="border-primary-foreground data-[state=checked]:bg-primary-foreground data-[state=checked]:text-primary"
+            />
+            <div className="flex items-center gap-1">
+              <Flag className="h-4 w-4 text-destructive" />
+              <label htmlFor="mark" className="text-primary-foreground text-sm cursor-pointer">
+                Mark
+              </label>
+            </div>
+          </div>
+
+          {/* Navigation arrows */}
+          <button 
+            onClick={handlePrevious}
+            disabled={currentIndex === 0}
+            className="flex flex-col items-center justify-center px-3 py-1 hover:bg-primary/80 transition-colors disabled:opacity-50"
+          >
+            <ChevronLeft className="h-5 w-5 text-primary-foreground" />
+            <span className="text-[10px] text-primary-foreground">Previous</span>
+          </button>
+          <button 
+            onClick={handleNext}
+            disabled={currentIndex === totalQuestions - 1}
+            className="flex flex-col items-center justify-center px-3 py-1 hover:bg-primary/80 transition-colors disabled:opacity-50"
+          >
+            <ChevronRight className="h-5 w-5 text-primary-foreground" />
+            <span className="text-[10px] text-primary-foreground">Next</span>
+          </button>
+        </div>
+
+        {/* Right section - Tools */}
+        <div className="flex items-center ml-auto">
+          <ToolbarButton icon={Maximize} label="Full Screen" />
+          <ToolbarButton icon={HelpCircle} label="Tutorial" />
+          <ToolbarButton icon={FlaskConical} label="Lab Values" />
+          <ToolbarButton icon={StickyNote} label="Notes" onClick={handleOpenNotes} active={!!hasNote} />
+          <ToolbarButton icon={Calculator} label="Calculator" />
+          <ToolbarButton icon={Contrast} label="Reverse Color" />
+          <ToolbarButton icon={Type} label="Text Zoom" />
+          <ToolbarButton icon={Settings} label="Settings" />
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto p-6 lg:p-8">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <Card className="shadow-sm animate-fade-in">
-            <CardContent className="p-6 lg:p-8">
-              <div className="prose prose-slate max-w-none mb-8">
-                <p className="text-foreground text-base leading-relaxed">
-                  {currentQuestion.question_text}
-                </p>
-              </div>
+      {/* Main Content - Clean white background */}
+      <main className="flex-1 overflow-auto p-6 lg:p-10">
+        <div className="max-w-4xl mx-auto">
+          {/* Question Text */}
+          <div className="mb-8">
+            <p className="text-foreground text-base leading-relaxed">
+              {currentQuestion.question_text}
+            </p>
+          </div>
 
-              <RadioGroup
-                value={selectedAnswer}
-                onValueChange={setSelectedAnswer}
-                className="space-y-3"
-                disabled={isAnswered}
-              >
-                {currentQuestion.options.map((option) => {
-                  const isSelected = selectedAnswer === option.id;
-                  const isCorrectAnswer = option.is_correct;
-                  const showResult = isAnswered;
-                  const isStruck = strikethroughOptions.includes(option.id);
+          {/* Answer Options in bordered box */}
+          <div className="border border-border rounded-sm p-4 mb-6 bg-card">
+            <RadioGroup
+              value={selectedAnswer}
+              onValueChange={setSelectedAnswer}
+              className="space-y-2"
+              disabled={isAnswered}
+            >
+              {currentQuestion.options.map((option) => {
+                const isSelected = selectedAnswer === option.id;
+                const isCorrectOpt = option.is_correct;
+                const showResult = isAnswered;
+                const isStruck = strikethroughOptions.includes(option.id);
 
-                  return (
-                    <div
-                      key={option.id}
+                return (
+                  <div
+                    key={option.id}
+                    className={cn(
+                      "flex items-start gap-3 py-2 px-2 rounded transition-all",
+                      !showResult && isSelected && "bg-primary/5",
+                      showResult && isCorrectOpt && "bg-[hsl(var(--badge-success))]/10",
+                      showResult && isSelected && !isCorrectOpt && "bg-destructive/10",
+                      isStruck && "opacity-50"
+                    )}
+                  >
+                    {/* Correct answer indicator */}
+                    {showResult && isCorrectOpt && (
+                      <Check className="h-5 w-5 text-[hsl(var(--badge-success))] shrink-0 mt-0.5" />
+                    )}
+                    
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem 
+                        value={option.id} 
+                        id={option.id} 
+                        disabled={isAnswered}
+                        className="shrink-0"
+                      />
+                    </div>
+
+                    <Label
+                      htmlFor={option.id}
                       className={cn(
-                        "relative flex items-start gap-4 p-4 rounded-lg border transition-all",
-                        !showResult && isSelected && "border-primary bg-primary/5",
-                        !showResult && !isSelected && "border-border hover:border-primary/50",
-                        showResult && isCorrectAnswer && "border-[hsl(var(--badge-success))] bg-[hsl(var(--badge-success))]/10",
-                        showResult && isSelected && !isCorrectAnswer && "border-destructive bg-destructive/10",
-                        isStruck && "opacity-50"
+                        "flex-1 cursor-pointer text-foreground leading-relaxed",
+                        isStruck && "line-through"
                       )}
                     >
-                      <div className="flex items-center justify-center w-6 h-6 mt-0.5">
-                        {showResult ? (
-                          isCorrectAnswer ? (
-                            <div className="w-6 h-6 rounded-full bg-[hsl(var(--badge-success))] flex items-center justify-center">
-                              <Check className="h-4 w-4 text-primary-foreground" />
-                            </div>
-                          ) : isSelected ? (
-                            <div className="w-6 h-6 rounded-full bg-destructive flex items-center justify-center">
-                              <X className="h-4 w-4 text-destructive-foreground" />
-                            </div>
-                          ) : (
-                            <RadioGroupItem value={option.id} id={option.id} disabled />
-                          )
-                        ) : (
-                          <RadioGroupItem value={option.id} id={option.id} />
-                        )}
-                      </div>
+                      <span className="font-medium mr-2">{option.option_letter}.</span>
+                      {option.option_text}
+                    </Label>
 
-                      <Label
-                        htmlFor={option.id}
-                        className={cn(
-                          "flex-1 cursor-pointer text-foreground",
-                          isStruck && "line-through"
-                        )}
+                    {!isAnswered && (
+                      <button
+                        className="p-1 hover:bg-muted rounded shrink-0"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          toggleStrikethrough(option.id);
+                        }}
                       >
-                        <span className="font-semibold mr-2">{option.option_letter}.</span>
-                        {option.option_text}
-                      </Label>
-
-                      {!isAnswered && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 shrink-0"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            toggleStrikethrough(option.id);
-                          }}
-                        >
-                          <Strikethrough className="h-4 w-4 text-muted-foreground" />
-                        </Button>
-                      )}
-                    </div>
-                  );
-                })}
-              </RadioGroup>
-
-              {!isAnswered && (
-                <div className="flex justify-center mt-8">
-                  <Button
-                    size="lg"
-                    className="px-12"
-                    onClick={handleSubmitAnswer}
-                    disabled={!selectedAnswer}
-                  >
-                    Submit Answer
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {isAnswered && (
-            <Card
-              className={cn(
-                "border-l-4 animate-fade-in",
-                selectedAnswer === correctOption?.id
-                  ? "border-l-[hsl(var(--badge-success))]"
-                  : "border-l-destructive"
-              )}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {selectedAnswer === correctOption?.id ? (
-                      <Badge className="bg-[hsl(var(--badge-success))] text-[hsl(var(--badge-success-foreground))]">
-                        Correct
-                      </Badge>
-                    ) : (
-                      <Badge variant="destructive">Incorrect</Badge>
+                        <Strikethrough className="h-4 w-4 text-muted-foreground" />
+                      </button>
                     )}
                   </div>
+                );
+              })}
+            </RadioGroup>
+          </div>
 
-                  <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      <span className="font-medium">
-                        {Math.round((Date.now() - startTime) / 1000)}s
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          {/* Submit / Proceed Button */}
+          {!isAnswered && (
+            <div className="flex justify-center">
+              <Button
+                onClick={handleSubmitAnswer}
+                disabled={!selectedAnswer}
+                className="px-8 py-2"
+              >
+                Proceed To Next Item
+              </Button>
+            </div>
           )}
 
-          {showExplanation && currentQuestion.explanation && (
-            <Card className="animate-fade-in">
-              <CardContent className="p-6 lg:p-8">
-                <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-primary" />
-                  Explanation
-                </h3>
-                <div className="prose prose-slate max-w-none">
-                  <p className="text-foreground leading-relaxed">{currentQuestion.explanation}</p>
+          {/* Results Section - UWorld style */}
+          {isAnswered && (
+            <div className="border border-border rounded-sm bg-muted/30 p-4 mb-6">
+              <div className="flex flex-wrap items-center gap-6">
+                {/* Status */}
+                <div>
+                  <div className={cn(
+                    "text-sm font-medium",
+                    isCorrectAnswer ? "text-[hsl(var(--badge-success))]" : "text-destructive"
+                  )}>
+                    {isCorrectAnswer ? "Correct" : "Omitted"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Correct answer</div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {correctOption?.option_letter}
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
+
+                <Separator orientation="vertical" className="h-12 hidden sm:block" />
+
+                {/* Stats */}
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">67%</div>
+                    <div className="text-xs text-muted-foreground">Answered correctly</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">
+                      {timeSpentOnQuestion < 10 ? `0${timeSpentOnQuestion}` : timeSpentOnQuestion} secs
+                    </div>
+                    <div className="text-xs text-muted-foreground">Time Spent</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">2024</div>
+                    <div className="text-xs text-muted-foreground">Version</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Explanation Section - UWorld style */}
+          {showExplanation && currentQuestion.explanation && (
+            <div className="border-t border-border pt-6">
+              <h3 className="text-lg font-semibold text-foreground mb-4">Explanation</h3>
+              <div className="prose prose-slate max-w-none">
+                <p className="text-foreground leading-relaxed">{currentQuestion.explanation}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Proceed button after answer */}
+          {isAnswered && (
+            <div className="flex justify-center mt-8">
+              <Button
+                onClick={handleNext}
+                disabled={currentIndex === totalQuestions - 1}
+                className="px-8 py-2"
+              >
+                Proceed To Next Item
+              </Button>
+            </div>
           )}
         </div>
       </main>
 
-      {/* Bottom Navigation */}
-      <footer className="h-14 border-t border-border bg-sidebar flex items-center justify-between px-4">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent gap-2"
+      {/* Bottom Navigation - UWorld style */}
+      <footer className="bg-primary h-10 flex items-center justify-between px-4">
+        <div className="flex items-center gap-4">
+          <button
             onClick={handleEndTest}
+            className="text-primary-foreground text-sm hover:underline flex items-center gap-1"
           >
             <X className="h-4 w-4" />
             End
-          </Button>
-          <Button
-            variant="ghost"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent gap-2"
-          >
+          </button>
+          <button className="text-primary-foreground text-sm hover:underline flex items-center gap-1">
             <Pause className="h-4 w-4" />
             Suspend
-          </Button>
+          </button>
         </div>
 
-        <Button
-          variant="ghost"
-          className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent gap-2"
-        >
-          <MessageSquare className="h-4 w-4" />
-          Feedback
-        </Button>
-
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent gap-2"
+          <button className="text-primary-foreground text-sm hover:underline">
+            Feedback
+          </button>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <button
             onClick={handlePrevious}
             disabled={currentIndex === 0}
+            className="text-primary-foreground text-sm hover:underline flex items-center gap-1 disabled:opacity-50"
           >
             <ChevronLeft className="h-4 w-4" />
             Previous
-          </Button>
-          <Button
-            variant="ghost"
-            className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent gap-2"
+          </button>
+          <button
             onClick={handleNext}
             disabled={currentIndex === totalQuestions - 1}
+            className="text-primary-foreground text-sm hover:underline flex items-center gap-1 disabled:opacity-50"
           >
             Next
             <ChevronRight className="h-4 w-4" />
-          </Button>
+          </button>
         </div>
       </footer>
 
