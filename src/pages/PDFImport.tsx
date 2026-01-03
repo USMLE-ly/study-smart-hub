@@ -55,6 +55,8 @@ interface ExtractedQuestion {
   image_description?: string;
   image_type?: string;
   medical_content?: string;
+  question_image_url?: string;
+  explanation_image_url?: string;
 }
 
 interface HistoryItem {
@@ -363,7 +365,9 @@ const PDFImport = () => {
             source_pdf: pdf.name,
             category: q.category || pdf.system,
             has_image: q.has_image || false,
-            image_description: q.image_description || null
+            image_description: q.image_description || null,
+            question_image_url: q.question_image_url || null,
+            explanation_image_url: q.explanation_image_url || null
           })
           .select()
           .single();
