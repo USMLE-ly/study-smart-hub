@@ -210,6 +210,45 @@ export type Database = {
           },
         ]
       }
+      pdfs: {
+        Row: {
+          created_at: string
+          filename: string
+          id: string
+          order_index: number
+          processed_questions: number | null
+          status: string
+          total_questions: number | null
+          updated_at: string
+          upload_batch_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          filename: string
+          id?: string
+          order_index: number
+          processed_questions?: number | null
+          status?: string
+          total_questions?: number | null
+          updated_at?: string
+          upload_batch_id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          filename?: string
+          id?: string
+          order_index?: number
+          processed_questions?: number | null
+          status?: string
+          total_questions?: number | null
+          updated_at?: string
+          upload_batch_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       performance_analytics: {
         Row: {
           created_at: string
@@ -299,6 +338,47 @@ export type Database = {
           year_of_study?: string | null
         }
         Relationships: []
+      }
+      question_images: {
+        Row: {
+          created_at: string
+          file_path: string
+          id: string
+          image_order: number
+          position: string
+          question_id: string
+          source_type: string
+          storage_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          file_path: string
+          id?: string
+          image_order?: number
+          position: string
+          question_id: string
+          source_type: string
+          storage_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          file_path?: string
+          id?: string
+          image_order?: number
+          position?: string
+          question_id?: string
+          source_type?: string
+          storage_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "question_images_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       question_notes: {
         Row: {
@@ -390,6 +470,7 @@ export type Database = {
           has_image: boolean | null
           id: string
           image_description: string | null
+          pdf_id: string | null
           question_hash: string | null
           question_image_url: string | null
           question_text: string
@@ -407,6 +488,7 @@ export type Database = {
           has_image?: boolean | null
           id?: string
           image_description?: string | null
+          pdf_id?: string | null
           question_hash?: string | null
           question_image_url?: string | null
           question_text: string
@@ -424,6 +506,7 @@ export type Database = {
           has_image?: boolean | null
           id?: string
           image_description?: string | null
+          pdf_id?: string | null
           question_hash?: string | null
           question_image_url?: string | null
           question_text?: string
@@ -432,7 +515,15 @@ export type Database = {
           subject?: string
           system?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "questions_pdf_id_fkey"
+            columns: ["pdf_id"]
+            isOneToOne: false
+            referencedRelation: "pdfs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       study_schedules: {
         Row: {
@@ -698,6 +789,39 @@ export type Database = {
           updated_at?: string
           user_id?: string
           xp_points?: number
+        }
+        Relationships: []
+      }
+      validation_logs: {
+        Row: {
+          entity_id: string
+          entity_type: string
+          error_message: string | null
+          id: string
+          status: string
+          user_id: string
+          validated_at: string
+          validation_type: string
+        }
+        Insert: {
+          entity_id: string
+          entity_type: string
+          error_message?: string | null
+          id?: string
+          status: string
+          user_id: string
+          validated_at?: string
+          validation_type: string
+        }
+        Update: {
+          entity_id?: string
+          entity_type?: string
+          error_message?: string | null
+          id?: string
+          status?: string
+          user_id?: string
+          validated_at?: string
+          validation_type?: string
         }
         Relationships: []
       }

@@ -31,6 +31,10 @@ import Analytics from "./pages/Analytics";
 import WeeklyReport from "./pages/WeeklyReport";
 import Settings from "./pages/Settings";
 import QuestionReview from "./pages/QuestionReview";
+import PDFUpload from "./pages/admin/PDFUpload";
+import PDFList from "./pages/admin/PDFList";
+import PDFProcess from "./pages/admin/PDFProcess";
+import QuestionReviewAdmin from "./pages/admin/QuestionReviewAdmin";
 
 const queryClient = new QueryClient();
 
@@ -269,6 +273,47 @@ const App = () => (
                     <ProtectedRoute>
                       <PageTransition>
                         <QuestionReview />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                {/* Admin PDF Management Routes */}
+                <Route
+                  path="/admin/pdfs"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <PDFList />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/pdfs/upload"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <PDFUpload />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/pdfs/:pdfId/process"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <PDFProcess />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/pdfs/:pdfId/questions"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <QuestionReviewAdmin />
                       </PageTransition>
                     </ProtectedRoute>
                   }
