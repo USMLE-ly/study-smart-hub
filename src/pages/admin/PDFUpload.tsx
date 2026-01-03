@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, FileText, ArrowRight, Lock, CheckCircle, AlertCircle, Loader2, RotateCcw } from 'lucide-react';
+import { Upload, FileText, ArrowRight, Lock, CheckCircle, AlertCircle, Loader2, RotateCcw, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -490,9 +490,9 @@ const PDFUpload = () => {
           
           <div className="flex gap-4">
             {hasPendingProcessing && !isProcessing && (
-              <Button size="lg" onClick={startProcessing}>
-                Start Processing
-                <ArrowRight className="w-4 h-4 ml-2" />
+              <Button size="lg" onClick={startProcessing} className="gap-2">
+                <Play className="w-4 h-4" />
+                Process All ({pdfFiles.filter(p => p.uploadStatus === 'uploaded' && p.processingStatus === 'pending').length})
               </Button>
             )}
             {(allCompleted || hasFailed) && (
