@@ -17,13 +17,47 @@ interface PDFFile {
 
 const PDFUpload = () => {
   const [pdfFiles, setPdfFiles] = useState<PDFFile[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [batchId] = useState(() => crypto.randomUUID());
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const uploadPDF = async (pdf: PDFFile) => {
+    if (!user) return;
+    
+    setPdfFiles(prev => prev.map(p => 
+      p.id === pdf.id ? { ...p, status: 'uploading' } : p
+    ));
+
+    try {
+      const { error } = await supabase.from('pdfs').insert({
+        id: pdf.id,
+        upload_batch_id: batchId,
+        filename: pdf.file.name,
+        order_index: pdf.orderIndex,
+        status: 'pending',
+        user_id: user.id
+      });
+
+      if (error) throw error;
+
+      setPdfFiles(prev => prev.map(p => 
+        p.id === pdf.id ? { ...p, status: 'uploaded' } : p
+      ));
+    } catch (error) {
+      console.error('Upload error:', error);
+      setPdfFiles(prev => prev.map(p => 
+        p.id === pdf.id ? { ...p, status: 'error' } : p
+      ));
+      toast({
+        title: "Upload failed",
+        description: pdf.file.name,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     const pdfFilesOnly = files.filter(f => f.type === 'application/pdf');
     
@@ -35,30 +69,42 @@ const PDFUpload = () => {
       });
     }
 
+    const currentLength = pdfFiles.length;
     const newPdfFiles: PDFFile[] = pdfFilesOnly.map((file, index) => ({
       file,
       id: crypto.randomUUID(),
-      orderIndex: pdfFiles.length + index + 1,
-      status: 'pending'
+      orderIndex: currentLength + index + 1,
+      status: 'uploading' as const
     }));
 
     setPdfFiles(prev => [...prev, ...newPdfFiles]);
-  }, [pdfFiles.length, toast]);
+    
+    // Start uploading immediately
+    for (const pdf of newPdfFiles) {
+      await uploadPDF(pdf);
+    }
+  }, [pdfFiles.length, toast, user, batchId]);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     const files = Array.from(e.dataTransfer.files);
     const pdfFilesOnly = files.filter(f => f.type === 'application/pdf');
     
+    const currentLength = pdfFiles.length;
     const newPdfFiles: PDFFile[] = pdfFilesOnly.map((file, index) => ({
       file,
       id: crypto.randomUUID(),
-      orderIndex: pdfFiles.length + index + 1,
-      status: 'pending'
+      orderIndex: currentLength + index + 1,
+      status: 'uploading' as const
     }));
 
     setPdfFiles(prev => [...prev, ...newPdfFiles]);
-  }, [pdfFiles.length]);
+    
+    // Start uploading immediately
+    for (const pdf of newPdfFiles) {
+      await uploadPDF(pdf);
+    }
+  }, [pdfFiles.length, user, batchId]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -71,54 +117,19 @@ const PDFUpload = () => {
     });
   };
 
-  const startBatchUpload = async () => {
-    if (!user) {
-      toast({ title: "Not authenticated", variant: "destructive" });
-      return;
-    }
+  const allUploaded = pdfFiles.length > 0 && pdfFiles.every(p => p.status === 'uploaded');
+  const hasErrors = pdfFiles.some(p => p.status === 'error');
+  const isUploading = pdfFiles.some(p => p.status === 'uploading');
 
-    setIsProcessing(true);
-
-    try {
-      // Create PDF records in database with locked order
-      for (const pdf of pdfFiles) {
-        setPdfFiles(prev => prev.map(p => 
-          p.id === pdf.id ? { ...p, status: 'uploading' } : p
-        ));
-
-        const { error } = await supabase.from('pdfs').insert({
-          id: pdf.id,
-          upload_batch_id: batchId,
-          filename: pdf.file.name,
-          order_index: pdf.orderIndex,
-          status: 'pending',
-          user_id: user.id
-        });
-
-        if (error) throw error;
-
-        setPdfFiles(prev => prev.map(p => 
-          p.id === pdf.id ? { ...p, status: 'uploaded' } : p
-        ));
-      }
-
-      toast({
-        title: "PDFs registered",
-        description: `${pdfFiles.length} PDFs added to processing queue with locked order`
-      });
-
-      // Navigate to first PDF for processing
-      navigate(`/admin/pdfs/${pdfFiles[0].id}/process`);
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast({
-        title: "Upload failed",
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive"
-      });
-    } finally {
-      setIsProcessing(false);
-    }
+  const startProcessing = () => {
+    if (pdfFiles.length === 0) return;
+    
+    toast({
+      title: "Ready to process",
+      description: `${pdfFiles.length} PDFs queued for processing`
+    });
+    
+    navigate(`/admin/pdfs/${pdfFiles[0].id}/process`);
   };
 
   return (
@@ -209,13 +220,23 @@ const PDFUpload = () => {
 
       {/* Action Button */}
       {pdfFiles.length > 0 && (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-4">
+          {isUploading && (
+            <Badge variant="secondary" className="self-center">
+              Uploading...
+            </Badge>
+          )}
+          {hasErrors && (
+            <Badge variant="destructive" className="self-center">
+              Some uploads failed
+            </Badge>
+          )}
           <Button
             size="lg"
-            onClick={startBatchUpload}
-            disabled={isProcessing || pdfFiles.some(p => p.status !== 'pending')}
+            onClick={startProcessing}
+            disabled={!allUploaded || isUploading}
           >
-            {isProcessing ? 'Processing...' : 'Lock Order & Start Processing'}
+            Start Processing
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
