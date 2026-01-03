@@ -147,17 +147,36 @@ const CreateTest = () => {
   const handleGenerateTest = async () => {
     setIsGenerating(true);
     try {
-      // Fetch random questions from the database
-      const { data: questions, error: questionsError } = await supabase
-        .from("questions")
-        .select("id")
-        .limit(Math.min(questionCount, 10));
+      // Build query with filters for subjects and systems
+      let query = supabase.from("questions").select("id");
+      
+      // Apply subject filter if any selected
+      if (selectedSubjects.length > 0) {
+        query = query.in("subject", selectedSubjects);
+      }
+      
+      // Apply system filter if any selected
+      if (selectedSystems.length > 0) {
+        query = query.in("system", selectedSystems);
+      }
+      
+      // Apply category filter if any selected
+      if (selectedCategories.length > 0) {
+        query = query.in("category", selectedCategories);
+      }
+      
+      // Fetch questions with limit
+      const { data: allMatchingQuestions, error: questionsError } = await query.limit(500);
 
-      if (questionsError || !questions || questions.length === 0) {
-        toast.error("No questions available. Import some questions first.");
+      if (questionsError || !allMatchingQuestions || allMatchingQuestions.length === 0) {
+        toast.error("No questions available for selected filters. Try different subjects/systems.");
         setIsGenerating(false);
         return;
       }
+      
+      // Randomly select the requested number of questions
+      const shuffled = allMatchingQuestions.sort(() => Math.random() - 0.5);
+      const questions = shuffled.slice(0, Math.min(questionCount, shuffled.length));
 
       // Create the test
       const testName = `Test ${new Date().toLocaleDateString()} - ${testMode === "tutor" ? "Tutor" : "Timed"}`;
