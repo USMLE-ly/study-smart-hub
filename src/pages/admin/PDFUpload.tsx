@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, FileText, ArrowRight, Lock, CheckCircle, AlertCircle, Loader2, Zap } from 'lucide-react';
+import { Upload, FileText, ArrowRight, Lock, CheckCircle, AlertCircle, Loader2, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,10 +13,12 @@ interface PDFFile {
   file: File;
   id: string;
   orderIndex: number;
-  status: 'uploading' | 'uploaded' | 'processing' | 'completed' | 'error';
+  uploadStatus: 'pending' | 'uploading' | 'uploaded' | 'error';
+  processingStatus: 'pending' | 'processing' | 'completed' | 'failed';
   progress: number;
   questionsExtracted?: number;
   error?: string;
+  retryable?: boolean;
 }
 
 const PDFUpload = () => {
@@ -26,14 +28,12 @@ const PDFUpload = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // Convert file to base64
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
         const result = reader.result as string;
-        // Remove the data:application/pdf;base64, prefix
         const base64 = result.split(',')[1];
         resolve(base64);
       };
@@ -41,30 +41,16 @@ const PDFUpload = () => {
     });
   };
 
-  // Extract text from PDF using browser APIs
-  const extractTextFromPDF = async (file: File): Promise<string> => {
-    // For now, we'll pass the base64 to the server for processing
-    // The server-side function will handle text extraction
-    return '';
-  };
-
-  const uploadAndProcessPDF = async (pdf: PDFFile, index: number) => {
-    if (!user) return;
+  // STEP 1: Upload only - always succeeds if file is valid
+  const uploadPDF = async (pdf: PDFFile): Promise<boolean> => {
+    if (!user) return false;
     
-    // Update status to uploading
     setPdfFiles(prev => prev.map(p => 
-      p.id === pdf.id ? { ...p, status: 'uploading', progress: 10 } : p
+      p.id === pdf.id ? { ...p, uploadStatus: 'uploading', progress: 20 } : p
     ));
 
     try {
-      // Step 1: Convert file to base64
-      const pdfBase64 = await fileToBase64(pdf.file);
-      
-      setPdfFiles(prev => prev.map(p => 
-        p.id === pdf.id ? { ...p, progress: 30 } : p
-      ));
-
-      // Step 2: Upload to Supabase storage
+      // Store file in Supabase storage
       const storagePath = `pdfs/${batchId}/${pdf.id}_${pdf.file.name}`;
       const { error: storageError } = await supabase.storage
         .from('question-images')
@@ -74,52 +60,98 @@ const PDFUpload = () => {
         });
 
       if (storageError) {
-        console.error('Storage upload error:', storageError);
-        // Continue anyway - we have the base64
+        console.error('Storage error:', storageError);
+        // Continue - we'll use base64 fallback
       }
 
       setPdfFiles(prev => prev.map(p => 
-        p.id === pdf.id ? { ...p, status: 'uploaded', progress: 50 } : p
+        p.id === pdf.id ? { ...p, progress: 40 } : p
       ));
 
-      // Step 3: Insert PDF record
+      // Create database record - status is 'uploaded', processingStatus 'pending'
       const { error: dbError } = await supabase.from('pdfs').insert({
         id: pdf.id,
         upload_batch_id: batchId,
         filename: pdf.file.name,
         order_index: pdf.orderIndex,
-        status: 'processing',
+        status: 'uploaded',
         user_id: user.id
       });
 
       if (dbError) throw dbError;
 
       setPdfFiles(prev => prev.map(p => 
-        p.id === pdf.id ? { ...p, status: 'processing', progress: 60 } : p
+        p.id === pdf.id ? { 
+          ...p, 
+          uploadStatus: 'uploaded', 
+          processingStatus: 'pending',
+          progress: 50 
+        } : p
       ));
 
-      // Step 4: Call server-side extraction (automated - no manual text paste)
+      toast({
+        title: "Upload complete",
+        description: `${pdf.file.name} uploaded successfully`
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Upload error:', error);
+      
+      setPdfFiles(prev => prev.map(p => 
+        p.id === pdf.id ? { 
+          ...p, 
+          uploadStatus: 'error', 
+          progress: 0,
+          error: error instanceof Error ? error.message : 'Upload failed'
+        } : p
+      ));
+
+      return false;
+    }
+  };
+
+  // STEP 2: Process PDF - isolated from upload
+  const processPDF = async (pdf: PDFFile) => {
+    if (!user) return;
+    
+    setPdfFiles(prev => prev.map(p => 
+      p.id === pdf.id ? { 
+        ...p, 
+        processingStatus: 'processing', 
+        progress: 60,
+        error: undefined 
+      } : p
+    ));
+
+    try {
+      // Convert to base64 for processing
+      const pdfBase64 = await fileToBase64(pdf.file);
+      
+      setPdfFiles(prev => prev.map(p => 
+        p.id === pdf.id ? { ...p, progress: 70 } : p
+      ));
+
+      // Call processing function
       const { data, error } = await supabase.functions.invoke('parse-pdf-questions', {
         body: { 
           pdfBase64,
           pdfFileName: pdf.file.name,
+          pdfId: pdf.id,
           subject: 'General',
-          system: 'General',
-          extractImages: true,
-          pdfText: '' // Empty - server will extract
+          system: 'General'
         }
       });
 
       if (error) throw error;
 
       setPdfFiles(prev => prev.map(p => 
-        p.id === pdf.id ? { ...p, progress: 80 } : p
+        p.id === pdf.id ? { ...p, progress: 85 } : p
       ));
 
-      // Step 5: If we got questions, save them
+      // Save extracted questions
       if (data?.questions && data.questions.length > 0) {
         for (const question of data.questions) {
-          // Insert question
           const { data: questionData, error: questionError } = await supabase
             .from('questions')
             .insert({
@@ -142,7 +174,6 @@ const PDFUpload = () => {
             continue;
           }
 
-          // Insert answer options
           if (question.options && Array.isArray(question.options)) {
             for (const option of question.options) {
               await supabase.from('question_options').insert({
@@ -166,24 +197,25 @@ const PDFUpload = () => {
         setPdfFiles(prev => prev.map(p => 
           p.id === pdf.id ? { 
             ...p, 
-            status: 'completed', 
+            processingStatus: 'completed', 
             progress: 100,
-            questionsExtracted: data.questions.length
+            questionsExtracted: data.questions.length,
+            retryable: false
           } : p
         ));
 
         toast({
-          title: "PDF processed",
+          title: "Processing complete",
           description: `${data.questions.length} questions extracted from ${pdf.file.name}`
         });
       } else {
-        throw new Error('No questions extracted from PDF');
+        throw new Error('No questions could be extracted from this PDF');
       }
 
     } catch (error) {
       console.error('Processing error:', error);
       
-      // Update PDF status to error
+      // Update PDF status to error - but upload is still valid
       await supabase.from('pdfs').update({
         status: 'error'
       }).eq('id', pdf.id);
@@ -191,20 +223,30 @@ const PDFUpload = () => {
       setPdfFiles(prev => prev.map(p => 
         p.id === pdf.id ? { 
           ...p, 
-          status: 'error', 
-          progress: 0,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          processingStatus: 'failed', 
+          progress: 50, // Keep at 50 to show upload succeeded
+          error: error instanceof Error ? error.message : 'Processing failed',
+          retryable: true
         } : p
       ));
 
       toast({
         title: "Processing failed",
-        description: `${pdf.file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        description: `${pdf.file.name}: ${error instanceof Error ? error.message : 'Unknown error'}. You can retry.`,
         variant: "destructive"
       });
     }
   };
 
+  // Retry failed processing
+  const retryProcessing = async (pdfId: string) => {
+    const pdf = pdfFiles.find(p => p.id === pdfId);
+    if (pdf && pdf.retryable) {
+      await processPDF(pdf);
+    }
+  };
+
+  // Handle file selection - upload then process sequentially
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     const pdfFilesOnly = files.filter(f => f.type === 'application/pdf');
@@ -224,15 +266,19 @@ const PDFUpload = () => {
       file,
       id: crypto.randomUUID(),
       orderIndex: currentLength + index + 1,
-      status: 'uploading' as const,
+      uploadStatus: 'pending' as const,
+      processingStatus: 'pending' as const,
       progress: 0
     }));
 
     setPdfFiles(prev => [...prev, ...newPdfFiles]);
     
-    // Start processing each PDF sequentially (as per requirements)
-    for (let i = 0; i < newPdfFiles.length; i++) {
-      await uploadAndProcessPDF(newPdfFiles[i], i);
+    // Process each PDF: upload first, then process
+    for (const pdf of newPdfFiles) {
+      const uploaded = await uploadPDF(pdf);
+      if (uploaded) {
+        await processPDF(pdf);
+      }
     }
   }, [pdfFiles.length, toast, user, batchId]);
 
@@ -248,15 +294,18 @@ const PDFUpload = () => {
       file,
       id: crypto.randomUUID(),
       orderIndex: currentLength + index + 1,
-      status: 'uploading' as const,
+      uploadStatus: 'pending' as const,
+      processingStatus: 'pending' as const,
       progress: 0
     }));
 
     setPdfFiles(prev => [...prev, ...newPdfFiles]);
     
-    // Start processing each PDF sequentially
-    for (let i = 0; i < newPdfFiles.length; i++) {
-      await uploadAndProcessPDF(newPdfFiles[i], i);
+    for (const pdf of newPdfFiles) {
+      const uploaded = await uploadPDF(pdf);
+      if (uploaded) {
+        await processPDF(pdf);
+      }
     }
   }, [pdfFiles.length, user, batchId]);
 
@@ -264,42 +313,33 @@ const PDFUpload = () => {
     e.preventDefault();
   };
 
-  const allCompleted = pdfFiles.length > 0 && pdfFiles.every(p => p.status === 'completed');
-  const hasErrors = pdfFiles.some(p => p.status === 'error');
-  const isProcessing = pdfFiles.some(p => p.status === 'uploading' || p.status === 'processing');
+  const allCompleted = pdfFiles.length > 0 && pdfFiles.every(p => p.processingStatus === 'completed');
+  const hasFailed = pdfFiles.some(p => p.processingStatus === 'failed');
+  const isProcessing = pdfFiles.some(p => 
+    p.uploadStatus === 'uploading' || p.processingStatus === 'processing'
+  );
   const totalQuestions = pdfFiles.reduce((sum, p) => sum + (p.questionsExtracted || 0), 0);
 
-  const viewResults = () => {
-    navigate('/admin/pdfs');
-  };
-
-  const getStatusIcon = (status: PDFFile['status']) => {
-    switch (status) {
-      case 'uploading':
-      case 'processing':
-        return <Loader2 className="w-4 h-4 animate-spin" />;
-      case 'uploaded':
-        return <Zap className="w-4 h-4" />;
-      case 'completed':
-        return <CheckCircle className="w-4 h-4" />;
-      case 'error':
-        return <AlertCircle className="w-4 h-4" />;
+  const getStatusBadge = (pdf: PDFFile) => {
+    if (pdf.uploadStatus === 'uploading') {
+      return <Badge variant="outline"><Loader2 className="w-3 h-3 animate-spin mr-1" />Uploading</Badge>;
     }
-  };
-
-  const getStatusLabel = (status: PDFFile['status']) => {
-    switch (status) {
-      case 'uploading':
-        return 'Uploading...';
-      case 'uploaded':
-        return 'Uploaded';
-      case 'processing':
-        return 'Extracting...';
-      case 'completed':
-        return 'Completed';
-      case 'error':
-        return 'Failed';
+    if (pdf.uploadStatus === 'error') {
+      return <Badge variant="destructive"><AlertCircle className="w-3 h-3 mr-1" />Upload Failed</Badge>;
     }
+    if (pdf.processingStatus === 'processing') {
+      return <Badge variant="secondary"><Loader2 className="w-3 h-3 animate-spin mr-1" />Processing</Badge>;
+    }
+    if (pdf.processingStatus === 'completed') {
+      return <Badge variant="default"><CheckCircle className="w-3 h-3 mr-1" />Completed</Badge>;
+    }
+    if (pdf.processingStatus === 'failed') {
+      return <Badge variant="destructive"><AlertCircle className="w-3 h-3 mr-1" />Failed</Badge>;
+    }
+    if (pdf.uploadStatus === 'uploaded') {
+      return <Badge variant="outline"><CheckCircle className="w-3 h-3 mr-1" />Uploaded</Badge>;
+    }
+    return <Badge variant="outline">Pending</Badge>;
   };
 
   return (
@@ -308,12 +348,9 @@ const PDFUpload = () => {
         <h1 className="text-3xl font-bold text-foreground">Automated PDF Processing</h1>
         <p className="text-muted-foreground mt-2">
           Upload PDFs. The system automatically extracts all questions, answers, explanations, and images.
-          <br />
-          <strong>No manual text extraction required.</strong>
         </p>
       </div>
 
-      {/* System Info */}
       <Card className="mb-6 border-primary/20 bg-primary/5">
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
@@ -321,17 +358,16 @@ const PDFUpload = () => {
             <div className="text-sm">
               <p className="font-medium text-foreground">Fully Automated Pipeline</p>
               <ul className="text-muted-foreground mt-1 space-y-1">
-                <li>• PDF text and images extracted server-side</li>
-                <li>• AI parses questions verbatim (no modification)</li>
-                <li>• All images preserved and attached</li>
-                <li>• Validation enforced before completion</li>
+                <li>• Upload always succeeds (processing is separate)</li>
+                <li>• AI extracts questions verbatim</li>
+                <li>• Failed processing can be retried</li>
+                <li>• No manual text extraction required</li>
               </ul>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Upload Zone */}
       <Card className="mb-6">
         <CardContent className="p-8">
           <div
@@ -362,7 +398,6 @@ const PDFUpload = () => {
         </CardContent>
       </Card>
 
-      {/* Processing Queue */}
       {pdfFiles.length > 0 && (
         <Card className="mb-6">
           <CardHeader>
@@ -371,45 +406,42 @@ const PDFUpload = () => {
               Processing Queue
             </CardTitle>
             <CardDescription>
-              PDFs are processed in order. Each PDF must complete before the next begins.
+              PDFs are processed in order. Upload and processing are separate operations.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {pdfFiles.map((pdf) => (
-                <div
-                  key={pdf.id}
-                  className="p-4 bg-muted/50 rounded-lg"
-                >
+                <div key={pdf.id} className="p-4 bg-muted/50 rounded-lg">
                   <div className="flex items-center gap-4 mb-2">
                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground font-bold text-sm">
                       {pdf.orderIndex}
                     </div>
                     <FileText className="w-5 h-5 text-muted-foreground" />
                     <span className="flex-1 font-medium truncate">{pdf.file.name}</span>
-                    <Badge variant={
-                      pdf.status === 'completed' ? 'default' :
-                      pdf.status === 'processing' ? 'secondary' :
-                      pdf.status === 'uploading' ? 'outline' :
-                      pdf.status === 'error' ? 'destructive' : 'outline'
-                    }>
-                      {getStatusIcon(pdf.status)}
-                      <span className="ml-1">{getStatusLabel(pdf.status)}</span>
-                    </Badge>
+                    {getStatusBadge(pdf)}
                     {pdf.questionsExtracted !== undefined && (
                       <Badge variant="outline" className="text-primary">
                         {pdf.questionsExtracted} questions
                       </Badge>
                     )}
+                    {pdf.retryable && (
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => retryProcessing(pdf.id)}
+                      >
+                        <RotateCcw className="w-3 h-3 mr-1" />
+                        Retry
+                      </Button>
+                    )}
                   </div>
                   
-                  {/* Progress bar */}
-                  {(pdf.status === 'uploading' || pdf.status === 'processing') && (
+                  {(pdf.uploadStatus === 'uploading' || pdf.processingStatus === 'processing') && (
                     <Progress value={pdf.progress} className="h-2" />
                   )}
                   
-                  {/* Error message */}
-                  {pdf.status === 'error' && pdf.error && (
+                  {pdf.error && (
                     <p className="text-sm text-destructive mt-2">{pdf.error}</p>
                   )}
                 </div>
@@ -419,29 +451,28 @@ const PDFUpload = () => {
         </Card>
       )}
 
-      {/* Summary & Actions */}
       {pdfFiles.length > 0 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             {isProcessing ? (
               <span className="flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Processing PDFs... Do not close this page.
+                Processing PDFs...
               </span>
             ) : allCompleted ? (
               <span className="text-primary font-medium">
                 ✓ All PDFs processed: {totalQuestions} questions extracted
               </span>
-            ) : hasErrors ? (
+            ) : hasFailed ? (
               <span className="text-destructive">
-                Some PDFs failed to process
+                Some PDFs failed to process. Click Retry to try again.
               </span>
             ) : null}
           </div>
           
           <div className="flex gap-4">
-            {allCompleted && (
-              <Button size="lg" onClick={viewResults}>
+            {(allCompleted || hasFailed) && (
+              <Button size="lg" onClick={() => navigate('/admin/pdfs')}>
                 View Results
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>

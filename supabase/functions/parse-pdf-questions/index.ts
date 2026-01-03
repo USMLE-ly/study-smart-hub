@@ -1,6 +1,5 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,14 +15,8 @@ interface ParsedQuestion {
   image_description?: string;
   question_image_url?: string;
   explanation_image_url?: string;
-}
-
-interface ImageAnalysis {
-  description: string;
-  associated_question: string;
-  image_type: string;
-  medical_content: string;
-  page_location: string;
+  subject?: string;
+  system?: string;
 }
 
 serve(async (req) => {
@@ -32,17 +25,16 @@ serve(async (req) => {
   }
 
   try {
-    const { pdfText, pdfBase64, pdfFileName, subject, system, extractImages } = await req.json();
+    const { pdfBase64, pdfFileName, pdfId, subject, system } = await req.json();
     
-    // For automated processing, pdfBase64 is required
     if (!pdfBase64) {
       return new Response(
-        JSON.stringify({ error: 'pdfBase64 is required for automated processing' }),
+        JSON.stringify({ error: 'pdfBase64 is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[AUTOMATED] Processing PDF: ${pdfFileName || 'unknown'}`);
+    console.log(`[START] Processing PDF: ${pdfFileName || 'unknown'}, ID: ${pdfId || 'none'}`);
     console.log(`PDF base64 length: ${pdfBase64.length} characters`);
 
     const apiKey = Deno.env.get('LOVABLE_API_KEY');
@@ -50,13 +42,9 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // STEP 1: Extract text and analyze images using vision model
-    console.log('[STEP 1] Analyzing PDF with vision model...');
+    // Use Gemini 2.5 Pro for better PDF understanding
+    // Send as data URL with PDF mime type for vision processing
+    console.log('[STEP 1] Sending PDF to vision model for extraction...');
     
     const visionResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -65,59 +53,55 @@ serve(async (req) => {
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
           { 
             role: 'user', 
             content: [
               {
                 type: 'text',
-                text: `You are a medical education PDF processor. Your task is to extract ALL content from this PDF with ABSOLUTE PRECISION.
+                text: `You are a USMLE question extraction system. Extract ALL questions from this PDF with ABSOLUTE PRECISION.
 
-CRITICAL RULES (MANDATORY - NO EXCEPTIONS):
-1. Extract EVERY question exactly as written - no skipping
-2. Extract EVERY answer option exactly as written
-3. Extract EVERY explanation VERBATIM - do not summarize
-4. For EVERY image/diagram/figure: describe it in detail
-5. Associate each image with its correct question
-6. Preserve original numbering and order
-7. Do NOT infer, guess, or fill in missing content
-8. Do NOT answer questions yourself
-9. If content is unclear, mark it as [UNCLEAR] but still include it
+## CRITICAL EXTRACTION RULES (MANDATORY):
 
-EXTRACTION FORMAT - Return JSON:
+1. **EXTRACT EVERY QUESTION** - Do not skip any question
+2. **VERBATIM TEXT** - Copy text exactly as written, no paraphrasing
+3. **ALL OPTIONS** - Include every answer choice (A, B, C, D, E, etc.)
+4. **FULL EXPLANATIONS** - Include complete explanation text, never truncate
+5. **IDENTIFY CORRECT ANSWER** - Mark which option is correct
+6. **IMAGE DETECTION** - If question has images/diagrams, set has_image: true and describe what the image shows
+
+## OUTPUT FORMAT (JSON ONLY):
+
 {
   "questions": [
     {
       "question_number": 1,
-      "question_text": "Full question text including clinical vignette",
+      "question_text": "Complete question text including clinical vignette exactly as written",
       "options": [
-        {"letter": "A", "text": "Option text exactly as written", "is_correct": false},
-        {"letter": "B", "text": "Option text exactly as written", "is_correct": true}
+        {"letter": "A", "text": "Option A text exactly as written", "is_correct": false},
+        {"letter": "B", "text": "Option B text exactly as written", "is_correct": true},
+        {"letter": "C", "text": "Option C text exactly as written", "is_correct": false},
+        {"letter": "D", "text": "Option D text exactly as written", "is_correct": false},
+        {"letter": "E", "text": "Option E text exactly as written", "is_correct": false}
       ],
-      "correct_answer": "B",
-      "explanation": "FULL explanation text - do NOT truncate or summarize",
-      "has_image": true,
-      "image_description": "Detailed description of the image/diagram",
-      "image_location": "before_question | within_question | after_explanation",
-      "category": "Specific medical topic"
+      "explanation": "COMPLETE explanation text - copy everything",
+      "has_image": false,
+      "image_description": "Description of any image/diagram if present",
+      "category": "Medical topic/system"
     }
   ],
-  "metadata": {
-    "total_questions": number,
-    "total_images": number,
-    "extraction_complete": boolean
-  }
+  "total_questions": 5,
+  "extraction_notes": "Any issues encountered"
 }
 
-VALIDATION BEFORE RESPONSE:
-- Every question has text
+## VALIDATION BEFORE RESPONDING:
+- Every question has complete text
 - Every question has at least 2 options
-- Every question has exactly one correct answer
-- Every explanation is present and complete
-- Every image is described and linked to its question
+- Exactly ONE option is marked is_correct: true per question
+- Explanations are included (if present in PDF)
 
-Return ONLY valid JSON. No markdown. No extra text.`
+Return ONLY valid JSON. No markdown code blocks. No extra text.`
               },
               {
                 type: 'image_url',
@@ -128,29 +112,23 @@ Return ONLY valid JSON. No markdown. No extra text.`
             ]
           }
         ],
-        temperature: 0.05, // Very low for precision
-        max_tokens: 64000, // Maximum for full content
+        temperature: 0.1,
+        max_tokens: 100000,
       }),
     });
 
     if (!visionResponse.ok) {
       const errorText = await visionResponse.text();
-      console.error('Vision API error:', errorText);
+      console.error('Vision API error:', visionResponse.status, errorText);
       
       if (visionResponse.status === 429) {
-        return new Response(
-          JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        throw new Error('Rate limit exceeded. Please wait a moment and try again.');
       }
       if (visionResponse.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'API credits exhausted. Please add credits to continue.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        throw new Error('API credits exhausted.');
       }
       
-      throw new Error(`Vision API error: ${visionResponse.status}`);
+      throw new Error(`Vision API error: ${visionResponse.status} - ${errorText.substring(0, 200)}`);
     }
 
     const visionResult = await visionResponse.json();
@@ -159,15 +137,13 @@ Return ONLY valid JSON. No markdown. No extra text.`
     console.log('[STEP 2] Parsing extraction results...');
     console.log('Raw response length:', content.length);
 
-    // Parse the JSON response
+    // Parse JSON response
     let questions: ParsedQuestion[] = [];
-    let metadata: any = {};
     
     try {
-      // Clean the response - remove markdown code blocks if present
       let jsonStr = content;
       
-      // Try to extract JSON from markdown code blocks
+      // Remove markdown code blocks if present
       const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonMatch) {
         jsonStr = jsonMatch[1];
@@ -181,7 +157,6 @@ Return ONLY valid JSON. No markdown. No extra text.`
       
       const parsed = JSON.parse(jsonStr);
       questions = parsed.questions || [];
-      metadata = parsed.metadata || {};
       
       console.log(`Parsed ${questions.length} questions from response`);
       
@@ -191,52 +166,52 @@ Return ONLY valid JSON. No markdown. No extra text.`
 
     } catch (parseError) {
       console.error('JSON parse error:', parseError);
-      console.error('Content preview:', content.substring(0, 2000));
-      throw new Error('Failed to parse AI response as valid JSON. PDF may be unreadable or corrupted.');
+      console.error('Content preview:', content.substring(0, 1000));
+      throw new Error('Failed to parse AI response. The PDF may be unreadable or in an unsupported format.');
     }
 
-    // STEP 3: Validate extracted questions
+    // Validate and clean questions
     console.log('[STEP 3] Validating extracted questions...');
     
-    const validationErrors: string[] = [];
+    const validQuestions: ParsedQuestion[] = [];
+    const errors: string[] = [];
     
-    const validQuestions = questions.filter((q, index) => {
-      const questionNum = index + 1;
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      const qNum = i + 1;
       
       // Validate question text
       if (!q.question_text || q.question_text.length < 10) {
-        validationErrors.push(`Q${questionNum}: Missing or too short question text`);
-        return false;
+        errors.push(`Q${qNum}: Missing or too short question text`);
+        continue;
       }
       
       // Validate options
       if (!Array.isArray(q.options) || q.options.length < 2) {
-        validationErrors.push(`Q${questionNum}: Missing or insufficient options`);
-        return false;
+        errors.push(`Q${qNum}: Missing or insufficient options`);
+        continue;
       }
       
-      // Validate correct answer
-      const hasCorrectAnswer = q.options.some(o => o.is_correct);
-      if (!hasCorrectAnswer) {
-        // Try to infer from correct_answer field if present
-        const correctLetter = (q as any).correct_answer;
-        if (correctLetter) {
-          const option = q.options.find(o => o.letter === correctLetter);
+      // Ensure correct answer is marked
+      let hasCorrect = q.options.some(o => o.is_correct);
+      if (!hasCorrect) {
+        const correctAnswer = (q as any).correct_answer;
+        if (correctAnswer) {
+          const option = q.options.find(o => o.letter === correctAnswer);
           if (option) {
             option.is_correct = true;
+            hasCorrect = true;
           }
-        }
-        
-        if (!q.options.some(o => o.is_correct)) {
-          validationErrors.push(`Q${questionNum}: No correct answer marked`);
-          return false;
         }
       }
       
-      return true;
-    }).map((q, index) => {
-      // Clean and enrich each question
-      return {
+      if (!hasCorrect) {
+        errors.push(`Q${qNum}: No correct answer identified`);
+        continue;
+      }
+      
+      // Clean and add question
+      validQuestions.push({
         question_text: cleanText(q.question_text),
         options: q.options.map(opt => ({
           letter: opt.letter,
@@ -245,35 +220,36 @@ Return ONLY valid JSON. No markdown. No extra text.`
           explanation: opt.explanation ? cleanText(opt.explanation) : undefined
         })),
         explanation: cleanText(q.explanation || ''),
-        category: q.category || subject || 'General',
+        category: q.category || 'General',
         has_image: q.has_image || false,
         image_description: q.image_description || '',
         question_image_url: q.question_image_url,
         explanation_image_url: q.explanation_image_url,
         subject: subject || 'General',
         system: system || 'General'
-      };
-    });
-
-    // Log validation results
-    if (validationErrors.length > 0) {
-      console.warn('Validation warnings:', validationErrors);
+      });
     }
 
-    console.log(`[STEP 4] Extraction complete: ${validQuestions.length} valid questions`);
-    console.log(`Questions with images: ${validQuestions.filter(q => q.has_image).length}`);
+    if (errors.length > 0) {
+      console.warn('Validation errors:', errors);
+    }
 
-    // Return results
+    console.log(`[COMPLETE] ${validQuestions.length} valid questions extracted`);
+
+    if (validQuestions.length === 0) {
+      throw new Error('No valid questions could be extracted from this PDF. Please check the PDF format.');
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         questions: validQuestions,
         totalExtracted: questions.length,
         validCount: validQuestions.length,
-        validationErrors: validationErrors.length > 0 ? validationErrors : undefined,
+        validationErrors: errors.length > 0 ? errors : undefined,
         metadata: {
-          ...metadata,
           pdfFileName,
+          pdfId,
           processedAt: new Date().toISOString()
         }
       }),
@@ -290,7 +266,6 @@ Return ONLY valid JSON. No markdown. No extra text.`
   }
 });
 
-// Helper function to clean extracted text
 function cleanText(text: string): string {
   if (!text) return '';
   return text
