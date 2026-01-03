@@ -18,48 +18,12 @@ interface ParsedQuestion {
   explanation_image_url?: string;
 }
 
-interface ImageData {
-  data: string; // base64
-  contentType: string;
-  pageNumber: number;
-  imageIndex: number;
-}
-
-async function uploadImageToStorage(
-  supabase: ReturnType<typeof createClient>,
-  imageData: ImageData,
-  pdfFileName: string
-): Promise<string | null> {
-  try {
-    const fileName = `${pdfFileName.replace(/\.pdf$/i, '')}_page${imageData.pageNumber}_img${imageData.imageIndex}.${imageData.contentType.split('/')[1] || 'png'}`;
-    const filePath = `extracted/${Date.now()}_${fileName}`;
-    
-    // Decode base64 to Uint8Array
-    const binaryData = Uint8Array.from(atob(imageData.data), c => c.charCodeAt(0));
-    
-    const { data, error } = await supabase.storage
-      .from('question-images')
-      .upload(filePath, binaryData, {
-        contentType: imageData.contentType,
-        upsert: false
-      });
-
-    if (error) {
-      console.error('Error uploading image:', error);
-      return null;
-    }
-
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from('question-images')
-      .getPublicUrl(filePath);
-
-    console.log(`Uploaded image: ${filePath}`);
-    return urlData.publicUrl;
-  } catch (err) {
-    console.error('Failed to upload image:', err);
-    return null;
-  }
+interface ImageAnalysis {
+  description: string;
+  associated_question: string;
+  image_type: string;
+  medical_content: string;
+  page_location: string;
 }
 
 serve(async (req) => {
@@ -70,185 +34,31 @@ serve(async (req) => {
   try {
     const { pdfText, pdfBase64, pdfFileName, subject, system, extractImages } = await req.json();
     
-    if (!pdfText || !subject || !system) {
+    // For automated processing, pdfBase64 is required
+    if (!pdfBase64) {
       return new Response(
-        JSON.stringify({ error: 'pdfText, subject, and system are required' }),
+        JSON.stringify({ error: 'pdfBase64 is required for automated processing' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Processing PDF text for subject: ${subject}, system: ${system}`);
-    console.log(`PDF text length: ${pdfText.length} characters`);
-    console.log(`Extract images: ${extractImages}, Has PDF base64: ${!!pdfBase64}`);
+    console.log(`[AUTOMATED] Processing PDF: ${pdfFileName || 'unknown'}`);
+    console.log(`PDF base64 length: ${pdfBase64.length} characters`);
 
     const apiKey = Deno.env.get('LOVABLE_API_KEY');
     if (!apiKey) {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    // Initialize Supabase client for image uploads
+    // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Clean the text - remove CamScanner and other artifacts
-    const cleanedText = pdfText
-      .replace(/CamScanner/gi, '')
-      .replace(/CS\s*CamScanner/gi, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-
-    // If we have base64 PDF data, use vision model to extract images
-    let extractedImages: ImageData[] = [];
-    let visionAnalysis = '';
+    // STEP 1: Extract text and analyze images using vision model
+    console.log('[STEP 1] Analyzing PDF with vision model...');
     
-    if (extractImages && pdfBase64) {
-      console.log('Analyzing PDF with vision model for image extraction...');
-      
-      try {
-        // Use vision model to analyze and describe images in the PDF
-        const visionResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
-            messages: [
-              { 
-                role: 'user', 
-                content: [
-                  {
-                    type: 'text',
-                    text: `Analyze this medical education PDF and identify ALL images, diagrams, figures, charts, or visual elements. For each image found:
-
-1. Describe what the image shows in detail (medical diagrams, burns, skin conditions, anatomical structures, etc.)
-2. Note which question number the image is associated with (if any)
-3. Describe the position and context of the image
-
-Return a JSON response:
-{
-  "images_found": [
-    {
-      "description": "Detailed description of the image",
-      "associated_question": "Question number if applicable (e.g., 'Q1', 'Q5')",
-      "image_type": "Type: diagram, photo, chart, illustration",
-      "medical_content": "What medical concept the image illustrates",
-      "page_location": "Where on the page the image appears"
-    }
-  ],
-  "total_images": number,
-  "summary": "Brief summary of visual content in this PDF"
-}`
-                  },
-                  {
-                    type: 'image_url',
-                    image_url: {
-                      url: `data:application/pdf;base64,${pdfBase64}`
-                    }
-                  }
-                ]
-              }
-            ],
-            temperature: 0.1,
-            max_tokens: 8000,
-          }),
-        });
-
-        if (visionResponse.ok) {
-          const visionResult = await visionResponse.json();
-          visionAnalysis = visionResult.choices?.[0]?.message?.content || '';
-          console.log('Vision analysis complete:', visionAnalysis.substring(0, 500));
-        } else {
-          console.log('Vision analysis not available, continuing with text extraction only');
-        }
-      } catch (visionErr) {
-        console.error('Vision analysis failed:', visionErr);
-      }
-    }
-
-    const systemPrompt = `You are a medical question extraction expert specializing in USMLE, NBME, and medical board exam content. Your task is to extract ALL multiple-choice questions from the provided PDF text with DETAILED explanations.
-
-CRITICAL EXTRACTION RULES:
-
-1. QUESTION TEXT:
-   - Extract the EXACT question text as written in the PDF
-   - Include any clinical vignette, patient history, or case details that precede the actual question
-   - Preserve medical terminology exactly as written
-   - Note if the question mentions an image, diagram, or figure (set has_image: true)
-
-2. ANSWER OPTIONS:
-   - Extract ALL answer options (A, B, C, D, E) exactly as written
-   - Identify the correct answer from explicit markers like "Answer:", "Correct:", "Ans:", checkmarks, or highlighted text
-   - If no correct answer is marked, analyze the content to determine the most likely correct answer
-
-3. DETAILED EXPLANATIONS (CRITICAL):
-   - Extract the FULL explanation from the PDF - do not summarize or shorten
-   - Include all medical reasoning, pathophysiology, and clinical correlations
-   - Preserve step-by-step explanations that show why the correct answer is right
-   - Include explanations for why incorrect options are wrong (if provided)
-   - Include any mnemonics, clinical pearls, or high-yield facts mentioned
-   - If the explanation references specific diseases, mechanisms, or pathways, include all details
-
-4. CATEGORIZATION:
-   - Assign a specific topic/category based on the question content (e.g., "Burn Classification", "Immunodeficiency Disorders", "Cardiac Arrhythmias")
-   - Be specific with categories - not just "${subject}" but the specific topic within it
-
-5. IMAGE HANDLING:
-   - If the question or explanation mentions an image, diagram, photo, or figure, set has_image: true
-   - Provide an image_description describing what the image shows based on the visual analysis provided
-   ${visionAnalysis ? `
-   
-VISUAL ANALYSIS FROM PDF:
-${visionAnalysis}
-
-Use this visual analysis to:
-- Match images to their corresponding questions
-- Include accurate image descriptions
-- Set has_image: true for questions with visual content` : ''}
-
-Return a JSON array in this EXACT format:
-{
-  "questions": [
-    {
-      "question_text": "Full clinical vignette and question text",
-      "options": [
-        {"letter": "A", "text": "Option text", "is_correct": false, "explanation": "Why this is incorrect"},
-        {"letter": "B", "text": "Option text", "is_correct": true, "explanation": "Why this is correct"},
-        {"letter": "C", "text": "Option text", "is_correct": false, "explanation": "Why this is incorrect"},
-        {"letter": "D", "text": "Option text", "is_correct": false, "explanation": "Why this is incorrect"}
-      ],
-      "explanation": "FULL detailed explanation from PDF including pathophysiology, clinical reasoning, and all educational content. Do not truncate.",
-      "category": "Specific topic category",
-      "has_image": false,
-      "image_description": ""
-    }
-  ]
-}
-
-IMPORTANT: 
-- Return ONLY valid JSON, no markdown formatting or extra text
-- Extract every question you find - do not skip any
-- Preserve the full length of explanations - they are critical for learning
-- Include clinical pearls, mnemonics, and high-yield points in explanations`;
-
-    const userPrompt = `Extract ALL questions from this ${subject} / ${system} medical education PDF:
-
-${cleanedText}
-
-REQUIREMENTS:
-1. Extract EVERY question with its complete clinical vignette
-2. Include ALL answer options with correct marking
-3. Extract the FULL explanation - do not summarize (this is critical for student learning)
-4. Assign specific topic categories (e.g., "Rule of 9s for Burns", not just "Burns")
-5. Note any references to images or diagrams
-6. Include option-specific explanations when provided
-7. Return ONLY valid JSON`;
-
-    console.log('Calling AI to extract questions with detailed explanations...');
-
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const visionResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -257,141 +67,236 @@ REQUIREMENTS:
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          { 
+            role: 'user', 
+            content: [
+              {
+                type: 'text',
+                text: `You are a medical education PDF processor. Your task is to extract ALL content from this PDF with ABSOLUTE PRECISION.
+
+CRITICAL RULES (MANDATORY - NO EXCEPTIONS):
+1. Extract EVERY question exactly as written - no skipping
+2. Extract EVERY answer option exactly as written
+3. Extract EVERY explanation VERBATIM - do not summarize
+4. For EVERY image/diagram/figure: describe it in detail
+5. Associate each image with its correct question
+6. Preserve original numbering and order
+7. Do NOT infer, guess, or fill in missing content
+8. Do NOT answer questions yourself
+9. If content is unclear, mark it as [UNCLEAR] but still include it
+
+EXTRACTION FORMAT - Return JSON:
+{
+  "questions": [
+    {
+      "question_number": 1,
+      "question_text": "Full question text including clinical vignette",
+      "options": [
+        {"letter": "A", "text": "Option text exactly as written", "is_correct": false},
+        {"letter": "B", "text": "Option text exactly as written", "is_correct": true}
+      ],
+      "correct_answer": "B",
+      "explanation": "FULL explanation text - do NOT truncate or summarize",
+      "has_image": true,
+      "image_description": "Detailed description of the image/diagram",
+      "image_location": "before_question | within_question | after_explanation",
+      "category": "Specific medical topic"
+    }
+  ],
+  "metadata": {
+    "total_questions": number,
+    "total_images": number,
+    "extraction_complete": boolean
+  }
+}
+
+VALIDATION BEFORE RESPONSE:
+- Every question has text
+- Every question has at least 2 options
+- Every question has exactly one correct answer
+- Every explanation is present and complete
+- Every image is described and linked to its question
+
+Return ONLY valid JSON. No markdown. No extra text.`
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:application/pdf;base64,${pdfBase64}`
+                }
+              }
+            ]
+          }
         ],
-        temperature: 0.1,
-        max_tokens: 32000,
+        temperature: 0.05, // Very low for precision
+        max_tokens: 64000, // Maximum for full content
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('AI API error:', errorText);
+    if (!visionResponse.ok) {
+      const errorText = await visionResponse.text();
+      console.error('Vision API error:', errorText);
       
-      if (response.status === 429) {
+      if (visionResponse.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      if (response.status === 402) {
+      if (visionResponse.status === 402) {
         return new Response(
           JSON.stringify({ error: 'API credits exhausted. Please add credits to continue.' }),
           { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
-      throw new Error(`AI API error: ${response.status}`);
+      throw new Error(`Vision API error: ${visionResponse.status}`);
     }
 
-    const aiResult = await response.json();
-    const content = aiResult.choices?.[0]?.message?.content || '';
+    const visionResult = await visionResponse.json();
+    const content = visionResult.choices?.[0]?.message?.content || '';
 
-    console.log('AI response received, parsing JSON...');
+    console.log('[STEP 2] Parsing extraction results...');
+    console.log('Raw response length:', content.length);
 
     // Parse the JSON response
     let questions: ParsedQuestion[] = [];
+    let metadata: any = {};
+    
     try {
-      // Try to extract JSON from the response (handle markdown code blocks)
+      // Clean the response - remove markdown code blocks if present
       let jsonStr = content;
+      
+      // Try to extract JSON from markdown code blocks
       const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonMatch) {
         jsonStr = jsonMatch[1];
       }
       
-      // Also try to find JSON object directly
-      const directJsonMatch = jsonStr.match(/\{[\s\S]*"questions"[\s\S]*\}/);
+      // Find JSON object
+      const directJsonMatch = jsonStr.match(/\{[\s\S]*\}/);
       if (directJsonMatch) {
         jsonStr = directJsonMatch[0];
       }
       
       const parsed = JSON.parse(jsonStr);
-      questions = parsed.questions || parsed;
+      questions = parsed.questions || [];
+      metadata = parsed.metadata || {};
+      
+      console.log(`Parsed ${questions.length} questions from response`);
       
       if (!Array.isArray(questions)) {
         questions = [questions];
       }
 
-      console.log(`Successfully extracted ${questions.length} questions`);
     } catch (parseError) {
-      console.error('Failed to parse AI response as JSON:', parseError);
-      console.error('Raw content:', content.substring(0, 1000));
-      throw new Error('Failed to parse AI response as valid JSON');
+      console.error('JSON parse error:', parseError);
+      console.error('Content preview:', content.substring(0, 2000));
+      throw new Error('Failed to parse AI response as valid JSON. PDF may be unreadable or corrupted.');
     }
 
-    // Parse vision analysis to get image URLs if available
-    let imageAnalysis: any[] = [];
-    if (visionAnalysis) {
-      try {
-        const visionMatch = visionAnalysis.match(/\{[\s\S]*"images_found"[\s\S]*\}/);
-        if (visionMatch) {
-          const visionParsed = JSON.parse(visionMatch[0]);
-          imageAnalysis = visionParsed.images_found || [];
-          console.log(`Found ${imageAnalysis.length} images in vision analysis`);
-        }
-      } catch (err) {
-        console.log('Could not parse vision analysis JSON');
-      }
-    }
-
-    // Validate and enrich questions
-    const validQuestions = questions.filter(q => {
-      return q.question_text && 
-             q.question_text.length > 10 &&
-             Array.isArray(q.options) && 
-             q.options.length >= 2 &&
-             q.options.some(o => o.is_correct);
-    }).map((q, index) => {
-      // Try to match with image analysis
+    // STEP 3: Validate extracted questions
+    console.log('[STEP 3] Validating extracted questions...');
+    
+    const validationErrors: string[] = [];
+    
+    const validQuestions = questions.filter((q, index) => {
       const questionNum = index + 1;
-      const matchedImage = imageAnalysis.find(img => 
-        img.associated_question?.toLowerCase().includes(`q${questionNum}`) ||
-        img.associated_question?.toLowerCase().includes(`question ${questionNum}`)
-      );
-
+      
+      // Validate question text
+      if (!q.question_text || q.question_text.length < 10) {
+        validationErrors.push(`Q${questionNum}: Missing or too short question text`);
+        return false;
+      }
+      
+      // Validate options
+      if (!Array.isArray(q.options) || q.options.length < 2) {
+        validationErrors.push(`Q${questionNum}: Missing or insufficient options`);
+        return false;
+      }
+      
+      // Validate correct answer
+      const hasCorrectAnswer = q.options.some(o => o.is_correct);
+      if (!hasCorrectAnswer) {
+        // Try to infer from correct_answer field if present
+        const correctLetter = (q as any).correct_answer;
+        if (correctLetter) {
+          const option = q.options.find(o => o.letter === correctLetter);
+          if (option) {
+            option.is_correct = true;
+          }
+        }
+        
+        if (!q.options.some(o => o.is_correct)) {
+          validationErrors.push(`Q${questionNum}: No correct answer marked`);
+          return false;
+        }
+      }
+      
+      return true;
+    }).map((q, index) => {
+      // Clean and enrich each question
       return {
-        ...q,
-        question_text: q.question_text.replace(/CamScanner/gi, '').trim(),
-        explanation: (q.explanation || '').replace(/CamScanner/gi, '').trim(),
-        subject,
-        system: q.category || system,
-        category: q.category || system,
-        has_image: q.has_image || !!matchedImage,
-        image_description: q.image_description || matchedImage?.description || '',
-        // Add matched image info
-        image_type: matchedImage?.image_type || null,
-        medical_content: matchedImage?.medical_content || null,
-        // Enrich option explanations
+        question_text: cleanText(q.question_text),
         options: q.options.map(opt => ({
-          ...opt,
-          text: opt.text.replace(/CamScanner/gi, '').trim(),
-          explanation: (opt.explanation || '').replace(/CamScanner/gi, '').trim()
-        }))
+          letter: opt.letter,
+          text: cleanText(opt.text),
+          is_correct: opt.is_correct,
+          explanation: opt.explanation ? cleanText(opt.explanation) : undefined
+        })),
+        explanation: cleanText(q.explanation || ''),
+        category: q.category || subject || 'General',
+        has_image: q.has_image || false,
+        image_description: q.image_description || '',
+        question_image_url: q.question_image_url,
+        explanation_image_url: q.explanation_image_url,
+        subject: subject || 'General',
+        system: system || 'General'
       };
     });
 
-    console.log(`Returning ${validQuestions.length} valid questions with detailed explanations`);
+    // Log validation results
+    if (validationErrors.length > 0) {
+      console.warn('Validation warnings:', validationErrors);
+    }
+
+    console.log(`[STEP 4] Extraction complete: ${validQuestions.length} valid questions`);
     console.log(`Questions with images: ${validQuestions.filter(q => q.has_image).length}`);
 
+    // Return results
     return new Response(
       JSON.stringify({ 
         success: true, 
         questions: validQuestions,
         totalExtracted: questions.length,
         validCount: validQuestions.length,
-        imagesFound: imageAnalysis.length,
-        visionAnalysisAvailable: !!visionAnalysis
+        validationErrors: validationErrors.length > 0 ? validationErrors : undefined,
+        metadata: {
+          ...metadata,
+          pdfFileName,
+          processedAt: new Date().toISOString()
+        }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Failed to parse PDF questions';
-    console.error('Error in parse-pdf-questions:', errorMessage);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to process PDF';
+    console.error('[ERROR] PDF processing failed:', errorMessage);
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
+
+// Helper function to clean extracted text
+function cleanText(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/CamScanner/gi, '')
+    .replace(/CS\s*CamScanner/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/\s{3,}/g, ' ')
+    .trim();
+}
