@@ -43,32 +43,27 @@ const PDFUpload = () => {
 
   // STEP 1: Upload only - always succeeds if file is valid
   const uploadPDF = async (pdf: PDFFile): Promise<boolean> => {
-    if (!user) return false;
+    if (!user) {
+      console.error('Upload failed: No authenticated user');
+      setPdfFiles(prev => prev.map(p => 
+        p.id === pdf.id ? { 
+          ...p, 
+          uploadStatus: 'error', 
+          error: 'Please log in to upload PDFs'
+        } : p
+      ));
+      return false;
+    }
+    
+    console.log('Starting upload for:', pdf.file.name, 'User:', user.id);
     
     setPdfFiles(prev => prev.map(p => 
       p.id === pdf.id ? { ...p, uploadStatus: 'uploading', progress: 20 } : p
     ));
 
     try {
-      // Store file in Supabase storage
-      const storagePath = `pdfs/${batchId}/${pdf.id}_${pdf.file.name}`;
-      const { error: storageError } = await supabase.storage
-        .from('question-images')
-        .upload(storagePath, pdf.file, {
-          contentType: 'application/pdf',
-          upsert: false
-        });
-
-      if (storageError) {
-        console.error('Storage error:', storageError);
-        // Continue - we'll use base64 fallback
-      }
-
-      setPdfFiles(prev => prev.map(p => 
-        p.id === pdf.id ? { ...p, progress: 40 } : p
-      ));
-
-      // Create database record - status is 'uploaded', processingStatus 'pending'
+      // Create database record FIRST - this is pure I/O
+      console.log('Creating database record...');
       const { error: dbError } = await supabase.from('pdfs').insert({
         id: pdf.id,
         upload_batch_id: batchId,
@@ -78,7 +73,33 @@ const PDFUpload = () => {
         user_id: user.id
       });
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        console.error('Database insert error:', dbError);
+        throw new Error(`Database error: ${dbError.message}`);
+      }
+
+      console.log('Database record created successfully');
+      
+      setPdfFiles(prev => prev.map(p => 
+        p.id === pdf.id ? { ...p, progress: 40 } : p
+      ));
+
+      // Store file in Supabase storage (optional - we have base64 fallback)
+      console.log('Uploading to storage...');
+      const storagePath = `pdfs/${batchId}/${pdf.id}_${pdf.file.name}`;
+      const { error: storageError } = await supabase.storage
+        .from('question-images')
+        .upload(storagePath, pdf.file, {
+          contentType: 'application/pdf',
+          upsert: true // Allow overwrite to prevent duplicate errors
+        });
+
+      if (storageError) {
+        console.warn('Storage upload warning (non-fatal):', storageError);
+        // Non-fatal - we can still process using base64
+      } else {
+        console.log('Storage upload successful');
+      }
 
       setPdfFiles(prev => prev.map(p => 
         p.id === pdf.id ? { 
@@ -106,6 +127,12 @@ const PDFUpload = () => {
           error: error instanceof Error ? error.message : 'Upload failed'
         } : p
       ));
+
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive"
+      });
 
       return false;
     }
