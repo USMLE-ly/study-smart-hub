@@ -510,6 +510,17 @@ const PracticeTestWithData = () => {
             <p className="text-gray-900 text-base leading-relaxed">
               {currentQuestion.question_text}
             </p>
+            
+            {/* Question Image */}
+            {currentQuestion.question_image_url && (
+              <div className="mt-4">
+                <img 
+                  src={currentQuestion.question_image_url} 
+                  alt="Question diagram" 
+                  className="max-w-full h-auto rounded-lg border border-border shadow-sm"
+                />
+              </div>
+            )}
           </div>
 
           {/* Answer Options */}
@@ -638,9 +649,21 @@ const PracticeTestWithData = () => {
           )}
 
           {/* Explanation Section - Always show after answering */}
-          {isAnswered && currentQuestion.explanation && (
+          {isAnswered && (currentQuestion.explanation || currentQuestion.explanation_image_url) && (
             <div className="border-t border-border pt-6">
               <h3 className="text-lg font-semibold text-foreground mb-4">Explanation</h3>
+              
+              {/* Explanation Image */}
+              {currentQuestion.explanation_image_url && (
+                <div className="mb-4">
+                  <img 
+                    src={currentQuestion.explanation_image_url} 
+                    alt="Explanation diagram" 
+                    className="max-w-full h-auto rounded-lg border border-border shadow-sm"
+                  />
+                </div>
+              )}
+              
               <div className="prose prose-slate max-w-none">
                 <p className="text-foreground leading-relaxed whitespace-pre-line">{currentQuestion.explanation}</p>
               </div>

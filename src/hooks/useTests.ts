@@ -39,6 +39,7 @@ export interface Question {
   id: string;
   question_text: string;
   explanation: string | null;
+  question_image_url: string | null;
   explanation_image_url: string | null;
   subject: string;
   system: string;
