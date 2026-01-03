@@ -1,27 +1,29 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FileText, Image, AlertTriangle, CheckCircle, ArrowRight, Upload } from 'lucide-react';
+import { FileText, Image, AlertTriangle, CheckCircle, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 
-interface ExtractedQuestion {
-  question_order: number;
+interface QuestionData {
+  id: string;
   question_text: string;
-  answer_choices: { choice_id: string; choice_text: string; is_correct: boolean }[];
-  correct_answer_id: string;
-  explanation_text: string;
-  images: { source: string; position: string }[];
-  validation: {
-    text_complete: boolean;
-    explanation_complete: boolean;
-    images_attached: boolean;
-  };
+  explanation: string | null;
+  category: string | null;
+  has_image: boolean | null;
+  image_description: string | null;
+  question_image_url: string | null;
+  explanation_image_url: string | null;
+  options: {
+    id: string;
+    option_letter: string;
+    option_text: string;
+    is_correct: boolean;
+    explanation: string | null;
+  }[];
 }
 
 interface PDFData {
@@ -29,197 +31,97 @@ interface PDFData {
   filename: string;
   order_index: number;
   status: string;
-  total_questions: number;
-  processed_questions: number;
+  total_questions: number | null;
+  processed_questions: number | null;
 }
 
 const PDFProcess = () => {
   const { pdfId } = useParams<{ pdfId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
   
   const [pdf, setPdf] = useState<PDFData | null>(null);
-  const [pdfText, setPdfText] = useState('');
-  const [extractedQuestions, setExtractedQuestions] = useState<ExtractedQuestion[]>([]);
-  const [isExtracting, setIsExtracting] = useState(false);
-  const [currentStep, setCurrentStep] = useState<'input' | 'review' | 'validate'>('input');
+  const [questions, setQuestions] = useState<QuestionData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (pdfId) {
-      loadPDF();
+      loadPDFAndQuestions();
     }
   }, [pdfId]);
 
-  const loadPDF = async () => {
-    const { data, error } = await supabase
-      .from('pdfs')
-      .select('*')
-      .eq('id', pdfId)
-      .single();
-
-    if (error) {
-      toast({ title: "Failed to load PDF", variant: "destructive" });
-      return;
-    }
-
-    setPdf(data);
-    if (data.status !== 'pending') {
-      setCurrentStep('review');
-    }
-  };
-
-  const extractQuestions = async () => {
-    if (!pdfText.trim()) {
-      toast({ title: "Please paste PDF text content", variant: "destructive" });
-      return;
-    }
-
-    setIsExtracting(true);
-
+  const loadPDFAndQuestions = async () => {
+    setIsLoading(true);
+    
     try {
-      // Update PDF status
-      await supabase.from('pdfs').update({ status: 'in_progress' }).eq('id', pdfId);
+      // Load PDF
+      const { data: pdfData, error: pdfError } = await supabase
+        .from('pdfs')
+        .select('*')
+        .eq('id', pdfId)
+        .single();
 
-      const { data, error } = await supabase.functions.invoke('extract-questions-strict', {
-        body: { pdfText, pdfId, subject: 'ENT', system: 'ENT' }
-      });
+      if (pdfError) throw pdfError;
+      setPdf(pdfData);
 
-      if (error) throw error;
+      // Load questions with options
+      const { data: questionsData, error: questionsError } = await supabase
+        .from('questions')
+        .select(`
+          id,
+          question_text,
+          explanation,
+          category,
+          has_image,
+          image_description,
+          question_image_url,
+          explanation_image_url
+        `)
+        .eq('pdf_id', pdfId)
+        .order('created_at', { ascending: true });
 
-      setExtractedQuestions(data.questions || []);
-      setCurrentStep('review');
-      
-      toast({
-        title: "Extraction complete",
-        description: `${data.questions?.length || 0} questions extracted`
-      });
+      if (questionsError) throw questionsError;
+
+      // Load options for each question
+      const questionsWithOptions: QuestionData[] = [];
+      for (const q of questionsData || []) {
+        const { data: optionsData } = await supabase
+          .from('question_options')
+          .select('*')
+          .eq('question_id', q.id)
+          .order('option_letter', { ascending: true });
+
+        questionsWithOptions.push({
+          ...q,
+          options: optionsData || []
+        });
+      }
+
+      setQuestions(questionsWithOptions);
     } catch (error) {
-      console.error('Extraction error:', error);
-      toast({
-        title: "Extraction failed",
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive"
-      });
+      console.error('Load error:', error);
+      toast({ title: "Failed to load data", variant: "destructive" });
     } finally {
-      setIsExtracting(false);
+      setIsLoading(false);
     }
   };
 
-  const handleImageUpload = async (questionIndex: number, position: string) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
+  const markAsVerified = async () => {
+    if (!pdf) return;
 
-      const filePath = `question-images/${pdfId}/${questionIndex}_${position}_${Date.now()}.${file.name.split('.').pop()}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('question-images')
-        .upload(filePath, file);
-
-      if (uploadError) {
-        toast({ title: "Upload failed", variant: "destructive" });
-        return;
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('question-images')
-        .getPublicUrl(filePath);
-
-      // Update extracted question with image
-      setExtractedQuestions(prev => prev.map((q, i) => {
-        if (i === questionIndex) {
-          return {
-            ...q,
-            images: [...q.images, { source: 'screenshot', position }],
-            validation: { ...q.validation, images_attached: true }
-          };
-        }
-        return q;
-      }));
-
-      toast({ title: "Image uploaded" });
-    };
-    input.click();
-  };
-
-  const saveQuestions = async () => {
-    if (!user || !pdf) return;
-
-    try {
-      for (const question of extractedQuestions) {
-        // Insert question
-        const { data: questionData, error: questionError } = await supabase
-          .from('questions')
-          .insert({
-            question_text: question.question_text,
-            explanation: question.explanation_text,
-            subject: 'ENT',
-            system: 'ENT',
-            pdf_id: pdfId,
-            has_image: question.images.length > 0
-          })
-          .select()
-          .single();
-
-        if (questionError) throw questionError;
-
-        // Insert answer options
-        for (const choice of question.answer_choices) {
-          await supabase.from('question_options').insert({
-            question_id: questionData.id,
-            option_letter: choice.choice_id,
-            option_text: choice.choice_text,
-            is_correct: choice.is_correct
-          });
-        }
-      }
-
-      // Update PDF status
-      await supabase.from('pdfs').update({
-        status: 'completed',
-        total_questions: extractedQuestions.length,
-        processed_questions: extractedQuestions.length
-      }).eq('id', pdfId);
-
-      setCurrentStep('validate');
-      toast({ title: "Questions saved successfully" });
-    } catch (error) {
-      toast({
-        title: "Save failed",
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const validateAndProceed = async () => {
-    const allValid = extractedQuestions.every(q => 
-      q.validation.text_complete && 
-      q.validation.explanation_complete
-    );
-
-    if (!allValid) {
-      toast({
-        title: "Validation failed",
-        description: "Some questions are incomplete",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Mark PDF as verified
     await supabase.from('pdfs').update({ status: 'verified' }).eq('id', pdfId);
+    
+    toast({ title: "PDF marked as verified" });
+    navigate('/admin/pdfs');
+  };
 
-    // Check for next PDF
+  const goToNextPdf = async () => {
+    if (!pdf) return;
+
     const { data: nextPdf } = await supabase
       .from('pdfs')
       .select('id')
-      .gt('order_index', pdf?.order_index || 0)
-      .eq('status', 'pending')
+      .gt('order_index', pdf.order_index)
       .order('order_index', { ascending: true })
       .limit(1)
       .single();
@@ -227,209 +129,210 @@ const PDFProcess = () => {
     if (nextPdf) {
       navigate(`/admin/pdfs/${nextPdf.id}/process`);
     } else {
-      toast({ title: "All PDFs processed!" });
-      navigate('/admin/pdfs');
+      toast({ title: "This is the last PDF" });
     }
   };
 
-  const progress = pdf ? (pdf.processed_questions / Math.max(pdf.total_questions, 1)) * 100 : 0;
+  const progress = pdf && pdf.total_questions 
+    ? ((pdf.processed_questions || 0) / pdf.total_questions) * 100 
+    : questions.length > 0 ? 100 : 0;
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Loading PDF data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
       {/* Header */}
       <div className="mb-8">
+        <div className="flex items-center gap-4 mb-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/admin/pdfs')}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to List
+          </Button>
+        </div>
+        
         <div className="flex items-center gap-4 mb-2">
           <FileText className="w-8 h-8 text-primary" />
           <div>
-            <h1 className="text-2xl font-bold">{pdf?.filename || 'Loading...'}</h1>
-            <p className="text-muted-foreground">PDF #{pdf?.order_index}</p>
+            <h1 className="text-2xl font-bold">{pdf?.filename || 'Unknown PDF'}</h1>
+            <p className="text-muted-foreground">PDF #{pdf?.order_index} • {questions.length} questions extracted</p>
           </div>
           <Badge variant={
             pdf?.status === 'verified' ? 'default' :
             pdf?.status === 'completed' ? 'secondary' :
-            pdf?.status === 'in_progress' ? 'outline' : 'destructive'
+            pdf?.status === 'processing' ? 'outline' : 'destructive'
           }>
             {pdf?.status}
           </Badge>
         </div>
-        {pdf && <Progress value={progress} className="h-2" />}
+        
+        <Progress value={progress} className="h-2" />
       </div>
 
-      {/* Step: Input */}
-      {currentStep === 'input' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Step 1: Paste PDF Content</CardTitle>
-            <CardDescription>
-              Paste the raw text content from the PDF. The system will extract questions verbatim.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Textarea
-              placeholder="Paste PDF text content here..."
-              value={pdfText}
-              onChange={(e) => setPdfText(e.target.value)}
-              className="min-h-[400px] font-mono text-sm"
-            />
-            <div className="flex justify-end mt-4">
-              <Button onClick={extractQuestions} disabled={isExtracting}>
-                {isExtracting ? 'Extracting...' : 'Extract Questions'}
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+      {/* Status Card */}
+      <Card className="mb-6 border-primary/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-primary" />
+            Extraction Summary (Read-Only Review)
+          </CardTitle>
+          <CardDescription>
+            Questions were extracted automatically. Review below for accuracy.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-4 gap-4 text-center">
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <p className="text-2xl font-bold">{questions.length}</p>
+              <p className="text-sm text-muted-foreground">Questions</p>
             </div>
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <p className="text-2xl font-bold">{questions.filter(q => q.explanation).length}</p>
+              <p className="text-sm text-muted-foreground">With Explanations</p>
+            </div>
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <p className="text-2xl font-bold">{questions.filter(q => q.has_image).length}</p>
+              <p className="text-sm text-muted-foreground">With Images</p>
+            </div>
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <p className="text-2xl font-bold">{questions.filter(q => q.options.length >= 4).length}</p>
+              <p className="text-sm text-muted-foreground">Complete Options</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Questions List (Read-Only) */}
+      {questions.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-lg font-medium">No questions extracted</p>
+            <p className="text-muted-foreground">
+              This PDF may not contain extractable questions, or processing failed.
+            </p>
           </CardContent>
         </Card>
-      )}
-
-      {/* Step: Review */}
-      {currentStep === 'review' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Step 2: Review Extracted Questions</CardTitle>
-              <CardDescription>
-                Verify each question has text, explanation, and images attached.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-
-          {extractedQuestions.map((question, index) => (
-            <Card key={index} className={
-              question.validation.text_complete && question.validation.explanation_complete
-                ? 'border-green-500/50'
-                : 'border-yellow-500/50'
+      ) : (
+        <div className="space-y-4">
+          {questions.map((question, index) => (
+            <Card key={question.id} className={
+              question.explanation && question.options.length >= 2
+                ? 'border-green-500/30'
+                : 'border-yellow-500/30'
             }>
-              <CardHeader>
+              <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">Question {index + 1}</CardTitle>
                   <div className="flex gap-2">
-                    {question.validation.text_complete && (
-                      <Badge variant="outline" className="text-green-600">
-                        <CheckCircle className="w-3 h-3 mr-1" /> Text
-                      </Badge>
-                    )}
-                    {question.validation.explanation_complete && (
+                    {question.explanation && (
                       <Badge variant="outline" className="text-green-600">
                         <CheckCircle className="w-3 h-3 mr-1" /> Explanation
                       </Badge>
                     )}
-                    {question.validation.images_attached ? (
+                    {question.has_image ? (
                       <Badge variant="outline" className="text-green-600">
-                        <Image className="w-3 h-3 mr-1" /> Images
+                        <Image className="w-3 h-3 mr-1" /> Has Image
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="text-yellow-600">
-                        <AlertTriangle className="w-3 h-3 mr-1" /> No Images
+                      <Badge variant="outline" className="text-muted-foreground">
+                        No Image
                       </Badge>
+                    )}
+                    {question.category && (
+                      <Badge variant="secondary">{question.category}</Badge>
                     )}
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="grid grid-cols-3 gap-4">
-                {/* Question Text */}
-                <div className="bg-muted/50 p-4 rounded-lg">
-                  <h4 className="font-semibold mb-2 text-sm text-muted-foreground">Question</h4>
-                  <p className="text-sm whitespace-pre-wrap">{question.question_text}</p>
-                  <div className="mt-4 space-y-1">
-                    {question.answer_choices.map(choice => (
-                      <div key={choice.choice_id} className={`text-sm p-2 rounded ${
-                        choice.is_correct ? 'bg-green-100 dark:bg-green-900/30' : ''
-                      }`}>
-                        <strong>{choice.choice_id}.</strong> {choice.choice_text}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Images */}
-                <div className="bg-muted/50 p-4 rounded-lg">
-                  <h4 className="font-semibold mb-2 text-sm text-muted-foreground">Images</h4>
-                  {question.images.length > 0 ? (
+              <CardContent>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Question Text & Options */}
+                  <div className="bg-muted/30 p-4 rounded-lg">
+                    <h4 className="font-semibold mb-2 text-sm text-muted-foreground">Question</h4>
+                    <p className="text-sm whitespace-pre-wrap mb-4">{question.question_text}</p>
+                    
+                    <h4 className="font-semibold mb-2 text-sm text-muted-foreground">Options</h4>
                     <div className="space-y-2">
-                      {question.images.map((img, imgIndex) => (
-                        <Badge key={imgIndex} variant="secondary">
-                          {img.position} ({img.source})
-                        </Badge>
+                      {question.options.map(option => (
+                        <div 
+                          key={option.id} 
+                          className={`text-sm p-2 rounded border ${
+                            option.is_correct 
+                              ? 'bg-green-100 dark:bg-green-900/30 border-green-500/50' 
+                              : 'border-transparent'
+                          }`}
+                        >
+                          <strong>{option.option_letter}.</strong> {option.option_text}
+                          {option.is_correct && (
+                            <Badge variant="default" className="ml-2 text-xs">Correct</Badge>
+                          )}
+                        </div>
                       ))}
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">No images attached</p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleImageUpload(index, 'explanation')}
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        Upload Screenshot
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                  </div>
 
-                {/* Explanation */}
-                <div className="bg-muted/50 p-4 rounded-lg">
-                  <h4 className="font-semibold mb-2 text-sm text-muted-foreground">Explanation</h4>
-                  <p className="text-sm whitespace-pre-wrap line-clamp-10">
-                    {question.explanation_text || 'No explanation'}
-                  </p>
+                  {/* Explanation & Image Info */}
+                  <div className="space-y-4">
+                    <div className="bg-muted/30 p-4 rounded-lg">
+                      <h4 className="font-semibold mb-2 text-sm text-muted-foreground">Explanation</h4>
+                      {question.explanation ? (
+                        <p className="text-sm whitespace-pre-wrap">{question.explanation}</p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">No explanation extracted</p>
+                      )}
+                    </div>
+
+                    {question.has_image && (
+                      <div className="bg-muted/30 p-4 rounded-lg">
+                        <h4 className="font-semibold mb-2 text-sm text-muted-foreground">Image Info</h4>
+                        {question.image_description && (
+                          <p className="text-sm mb-2">{question.image_description}</p>
+                        )}
+                        {question.question_image_url && (
+                          <img 
+                            src={question.question_image_url} 
+                            alt="Question image" 
+                            className="max-w-full h-auto rounded border"
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
           ))}
-
-          <div className="flex justify-end gap-4">
-            <Button variant="outline" onClick={() => setCurrentStep('input')}>
-              Back to Input
-            </Button>
-            <Button onClick={saveQuestions}>
-              Save & Continue
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          </div>
         </div>
       )}
 
-      {/* Step: Validate */}
-      {currentStep === 'validate' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-              Step 3: Validation Gate
-            </CardTitle>
-            <CardDescription>
-              Confirm all questions are complete before unlocking next PDF.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                <span>All {extractedQuestions.length} questions present</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                <span>All explanations attached</span>
-              </div>
-              <div className="flex items-center gap-2">
-                {extractedQuestions.every(q => q.validation.images_attached) ? (
-                  <CheckCircle className="w-5 h-5 text-green-600" />
-                ) : (
-                  <AlertTriangle className="w-5 h-5 text-yellow-600" />
-                )}
-                <span>Images attached where required</span>
-              </div>
-            </div>
-            <div className="flex justify-end mt-6">
-              <Button onClick={validateAndProceed}>
-                Unlock Next PDF
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Actions */}
+      <div className="flex justify-between items-center mt-8 pt-6 border-t">
+        <Button variant="outline" onClick={() => navigate('/admin/pdfs')}>
+          Back to PDF List
+        </Button>
+        
+        <div className="flex gap-4">
+          {pdf?.status !== 'verified' && questions.length > 0 && (
+            <Button onClick={markAsVerified}>
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Mark as Verified
+            </Button>
+          )}
+          <Button variant="outline" onClick={goToNextPdf}>
+            Next PDF
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };
