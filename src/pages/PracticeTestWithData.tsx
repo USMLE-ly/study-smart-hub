@@ -4,6 +4,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { LoadingState } from "@/components/ui/LoadingSpinner";
 import {
   Flag,
@@ -636,13 +637,55 @@ const PracticeTestWithData = () => {
             </div>
           )}
 
-          {/* Explanation Section */}
-          {isAnswered && testMode === "tutor" && currentQuestion.explanation && (
+          {/* Explanation Section - Always show after answering */}
+          {isAnswered && currentQuestion.explanation && (
             <div className="border-t border-border pt-6">
               <h3 className="text-lg font-semibold text-foreground mb-4">Explanation</h3>
               <div className="prose prose-slate max-w-none">
-                <p className="text-foreground leading-relaxed">{currentQuestion.explanation}</p>
+                <p className="text-foreground leading-relaxed whitespace-pre-line">{currentQuestion.explanation}</p>
               </div>
+              
+              {/* Show all option explanations */}
+              {currentQuestion.options.some(opt => opt.explanation) && (
+                <div className="mt-6 space-y-4">
+                  <h4 className="text-md font-semibold text-foreground">Answer Choices Explained</h4>
+                  {currentQuestion.options.map((option) => (
+                    <div 
+                      key={option.id} 
+                      className={cn(
+                        "p-3 rounded-lg border",
+                        option.is_correct 
+                          ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800" 
+                          : option.id === selectedAnswer 
+                            ? "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800"
+                            : "bg-muted/30 border-border"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={cn(
+                          "font-semibold",
+                          option.is_correct ? "text-green-700 dark:text-green-400" : "text-foreground"
+                        )}>
+                          {option.option_letter}. {option.option_text}
+                        </span>
+                        {option.is_correct && (
+                          <Badge variant="outline" className="text-green-700 border-green-300 dark:text-green-400">
+                            Correct
+                          </Badge>
+                        )}
+                        {option.id === selectedAnswer && !option.is_correct && (
+                          <Badge variant="outline" className="text-red-700 border-red-300 dark:text-red-400">
+                            Your Answer
+                          </Badge>
+                        )}
+                      </div>
+                      {option.explanation && (
+                        <p className="text-sm text-muted-foreground mt-1">{option.explanation}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
