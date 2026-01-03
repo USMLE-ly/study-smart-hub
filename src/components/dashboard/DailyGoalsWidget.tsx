@@ -282,9 +282,7 @@ export const DailyGoalsWidget = () => {
             ))}
           </div>
           <DialogFooter>
-            <DialogClose asChild>
-              <Button>Save Goals</Button>
-            </DialogClose>
+            <Button onClick={() => setEditOpen(false)}>Save Goals</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
