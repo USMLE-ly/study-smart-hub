@@ -246,7 +246,18 @@ const PDFUpload = () => {
     }
   };
 
-  // Handle file selection - upload then process sequentially
+  // Start processing for all uploaded PDFs that are pending
+  const startProcessing = async () => {
+    const pendingPdfs = pdfFiles.filter(p => 
+      p.uploadStatus === 'uploaded' && p.processingStatus === 'pending'
+    );
+    
+    for (const pdf of pendingPdfs) {
+      await processPDF(pdf);
+    }
+  };
+
+  // Handle file selection - ONLY upload, no processing
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     const pdfFilesOnly = files.filter(f => f.type === 'application/pdf');
@@ -273,12 +284,9 @@ const PDFUpload = () => {
 
     setPdfFiles(prev => [...prev, ...newPdfFiles]);
     
-    // Process each PDF: upload first, then process
+    // ONLY upload - processing is triggered separately
     for (const pdf of newPdfFiles) {
-      const uploaded = await uploadPDF(pdf);
-      if (uploaded) {
-        await processPDF(pdf);
-      }
+      await uploadPDF(pdf);
     }
   }, [pdfFiles.length, toast, user, batchId]);
 
@@ -301,11 +309,9 @@ const PDFUpload = () => {
 
     setPdfFiles(prev => [...prev, ...newPdfFiles]);
     
+    // ONLY upload - processing is triggered separately
     for (const pdf of newPdfFiles) {
-      const uploaded = await uploadPDF(pdf);
-      if (uploaded) {
-        await processPDF(pdf);
-      }
+      await uploadPDF(pdf);
     }
   }, [pdfFiles.length, user, batchId]);
 
@@ -315,8 +321,11 @@ const PDFUpload = () => {
 
   const allCompleted = pdfFiles.length > 0 && pdfFiles.every(p => p.processingStatus === 'completed');
   const hasFailed = pdfFiles.some(p => p.processingStatus === 'failed');
-  const isProcessing = pdfFiles.some(p => 
-    p.uploadStatus === 'uploading' || p.processingStatus === 'processing'
+  const isUploading = pdfFiles.some(p => p.uploadStatus === 'uploading');
+  const isProcessing = pdfFiles.some(p => p.processingStatus === 'processing');
+  const hasUploaded = pdfFiles.some(p => p.uploadStatus === 'uploaded');
+  const hasPendingProcessing = pdfFiles.some(p => 
+    p.uploadStatus === 'uploaded' && p.processingStatus === 'pending'
   );
   const totalQuestions = pdfFiles.reduce((sum, p) => sum + (p.questionsExtracted || 0), 0);
 
@@ -387,11 +396,11 @@ const PDFUpload = () => {
               onChange={handleFileSelect}
               className="hidden"
               id="pdf-upload"
-              disabled={isProcessing}
+              disabled={isUploading}
             />
-            <Button asChild variant="outline" disabled={isProcessing}>
+            <Button asChild variant="outline" disabled={isUploading}>
               <label htmlFor="pdf-upload" className="cursor-pointer">
-                {isProcessing ? 'Processing...' : 'Select PDFs'}
+                {isUploading ? 'Uploading...' : 'Select PDFs'}
               </label>
             </Button>
           </div>
@@ -454,7 +463,12 @@ const PDFUpload = () => {
       {pdfFiles.length > 0 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            {isProcessing ? (
+            {isUploading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Uploading PDFs...
+              </span>
+            ) : isProcessing ? (
               <span className="flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Processing PDFs...
@@ -462,6 +476,10 @@ const PDFUpload = () => {
             ) : allCompleted ? (
               <span className="text-primary font-medium">
                 ✓ All PDFs processed: {totalQuestions} questions extracted
+              </span>
+            ) : hasPendingProcessing ? (
+              <span className="text-muted-foreground">
+                {pdfFiles.filter(p => p.uploadStatus === 'uploaded').length} PDF(s) uploaded. Ready to process.
               </span>
             ) : hasFailed ? (
               <span className="text-destructive">
@@ -471,6 +489,12 @@ const PDFUpload = () => {
           </div>
           
           <div className="flex gap-4">
+            {hasPendingProcessing && !isProcessing && (
+              <Button size="lg" onClick={startProcessing}>
+                Start Processing
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            )}
             {(allCompleted || hasFailed) && (
               <Button size="lg" onClick={() => navigate('/admin/pdfs')}>
                 View Results
