@@ -650,60 +650,72 @@ const PracticeTestWithData = () => {
 
           {/* Explanation Section - Always show after answering */}
           {isAnswered && (currentQuestion.explanation || currentQuestion.explanation_image_url) && (
-            <div className="border-t border-border pt-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4">Explanation</h3>
+            <div className="border-t border-border pt-6 mt-6">
+              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-primary"></span>
+                Explanation
+              </h3>
               
-              {/* Explanation Image */}
-              {currentQuestion.explanation_image_url && (
-                <div className="mb-4">
-                  <img 
-                    src={currentQuestion.explanation_image_url} 
-                    alt="Explanation diagram" 
-                    className="max-w-full h-auto rounded-lg border border-border shadow-sm"
-                  />
+              {/* Explanation Card with better contrast */}
+              <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+                {/* Explanation Image */}
+                {currentQuestion.explanation_image_url && (
+                  <div className="mb-5">
+                    <img 
+                      src={currentQuestion.explanation_image_url} 
+                      alt="Explanation diagram" 
+                      className="max-w-full h-auto rounded-lg border border-border shadow-md"
+                    />
+                  </div>
+                )}
+                
+                <div className="prose prose-slate dark:prose-invert max-w-none">
+                  <p className="text-foreground leading-relaxed whitespace-pre-line text-base">{currentQuestion.explanation}</p>
                 </div>
-              )}
-              
-              <div className="prose prose-slate max-w-none">
-                <p className="text-foreground leading-relaxed whitespace-pre-line">{currentQuestion.explanation}</p>
               </div>
               
               {/* Show all option explanations */}
               {currentQuestion.options.some(opt => opt.explanation) && (
-                <div className="mt-6 space-y-4">
-                  <h4 className="text-md font-semibold text-foreground">Answer Choices Explained</h4>
+                <div className="mt-6 space-y-3">
+                  <h4 className="text-md font-semibold text-foreground flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground"></span>
+                    Answer Choices Explained
+                  </h4>
                   {currentQuestion.options.map((option) => (
                     <div 
                       key={option.id} 
                       className={cn(
-                        "p-3 rounded-lg border",
+                        "p-4 rounded-lg border shadow-sm",
                         option.is_correct 
-                          ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800" 
+                          ? "bg-green-50 border-green-300 dark:bg-green-950/40 dark:border-green-700" 
                           : option.id === selectedAnswer 
-                            ? "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800"
-                            : "bg-muted/30 border-border"
+                            ? "bg-red-50 border-red-300 dark:bg-red-950/40 dark:border-red-700"
+                            : "bg-card border-border"
                       )}
                     >
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-2">
                         <span className={cn(
-                          "font-semibold",
-                          option.is_correct ? "text-green-700 dark:text-green-400" : "text-foreground"
+                          "font-semibold text-sm",
+                          option.is_correct ? "text-green-700 dark:text-green-300" : "text-foreground"
                         )}>
                           {option.option_letter}. {option.option_text}
                         </span>
                         {option.is_correct && (
-                          <Badge variant="outline" className="text-green-700 border-green-300 dark:text-green-400">
+                          <Badge variant="outline" className="text-green-700 border-green-400 bg-green-100 dark:text-green-300 dark:bg-green-900/50 dark:border-green-600">
                             Correct
                           </Badge>
                         )}
                         {option.id === selectedAnswer && !option.is_correct && (
-                          <Badge variant="outline" className="text-red-700 border-red-300 dark:text-red-400">
+                          <Badge variant="outline" className="text-red-700 border-red-400 bg-red-100 dark:text-red-300 dark:bg-red-900/50 dark:border-red-600">
                             Your Answer
                           </Badge>
                         )}
                       </div>
                       {option.explanation && (
-                        <p className="text-sm text-muted-foreground mt-1">{option.explanation}</p>
+                        <p className={cn(
+                          "text-sm leading-relaxed mt-2",
+                          option.is_correct ? "text-green-800 dark:text-green-200" : "text-muted-foreground"
+                        )}>{option.explanation}</p>
                       )}
                     </div>
                   ))}
