@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, CheckCircle, Clock, AlertCircle, Lock } from 'lucide-react';
+import { FileText, Plus, CheckCircle, Clock, AlertCircle, Lock, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -21,8 +22,13 @@ interface PDF {
 const PDFList = () => {
   const [pdfs, setPdfs] = useState<PDF[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  const filteredPdfs = statusFilter === 'all' 
+    ? pdfs 
+    : pdfs.filter(pdf => pdf.status === statusFilter);
 
   useEffect(() => {
     if (user) {
@@ -81,10 +87,27 @@ const PDFList = () => {
             Process PDFs in strict order. Each must be verified before the next unlocks.
           </p>
         </div>
-        <Button onClick={() => navigate('/admin/pdfs/upload')}>
-          <Plus className="w-4 h-4 mr-2" />
-          Upload PDFs
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-muted-foreground" />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Filter status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="verified">Verified</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={() => navigate('/admin/pdfs/upload')}>
+            <Plus className="w-4 h-4 mr-2" />
+            Upload PDFs
+          </Button>
+        </div>
       </div>
 
       {pdfs.length === 0 ? (
@@ -99,13 +122,25 @@ const PDFList = () => {
             </Button>
           </CardContent>
         </Card>
+      ) : filteredPdfs.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <FileText className="w-12 h-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No PDFs match filter</h3>
+            <p className="text-muted-foreground mb-4">Try selecting a different status filter</p>
+            <Button variant="outline" onClick={() => setStatusFilter('all')}>
+              Show All PDFs
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-4">
-          {pdfs.map((pdf, index) => {
+          {filteredPdfs.map((pdf) => {
+            const originalIndex = pdfs.findIndex(p => p.id === pdf.id);
             const progress = pdf.total_questions > 0 
               ? (pdf.processed_questions / pdf.total_questions) * 100 
               : 0;
-            const processable = canProcess(pdf, index);
+            const processable = canProcess(pdf, originalIndex);
             const isLocked = !processable && pdf.status === 'pending';
 
             return (
