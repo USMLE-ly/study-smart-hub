@@ -69,7 +69,7 @@ const PDFUpload = () => {
         upload_batch_id: batchId,
         filename: pdf.file.name,
         order_index: pdf.orderIndex,
-        status: 'uploaded',
+        status: 'pending', // Must match check constraint: pending, in_progress, completed, verified
         user_id: user.id
       });
 
