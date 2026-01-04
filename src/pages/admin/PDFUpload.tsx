@@ -197,8 +197,9 @@ const PDFUpload = () => {
   };
 
   // STEP 2: Process PDF - isolated from upload
-  const processPDF = async (pdf: PDFFile) => {
-    if (!user) return;
+  // Returns true if processing completed successfully, false otherwise
+  const processPDF = async (pdf: PDFFile): Promise<boolean> => {
+    if (!user) return false;
     
     setPdfFiles(prev => prev.map(p => 
       p.id === pdf.id ? { 
@@ -254,12 +255,13 @@ const PDFUpload = () => {
         p.id === pdf.id ? { ...p, progress: 70 } : p
       ));
 
-      // Call processing function
+      // Call processing function with order index for sequential tracking
       const { data, error } = await supabase.functions.invoke('parse-pdf-questions', {
         body: { 
           pdfBase64,
           pdfFileName: fileName,
           pdfId: pdf.id,
+          pdfOrderIndex: pdf.orderIndex,
           subject: 'General',
           system: 'General'
         }
@@ -335,11 +337,20 @@ const PDFUpload = () => {
 
         toast({
           title: "Processing complete",
-          description: `${data.questions.length} questions extracted from ${pdf.file.name}`
+          description: `${data.questions.length} questions extracted from ${pdf.file?.name || pdf.filename}`
         });
+        
+        // Check if ready for next PDF
+        if (data.metadata?.ready_for_next_pdf === false) {
+          console.log('PDF processed but has validation warnings');
+        }
+        
+        return true; // Success
       } else {
         throw new Error('No questions could be extracted from this PDF');
       }
+      
+      return false;
 
     } catch (error) {
       console.error('Processing error:', error);
@@ -365,6 +376,8 @@ const PDFUpload = () => {
         description: `${filename}: ${error instanceof Error ? error.message : 'Unknown error'}. You can retry.`,
         variant: "destructive"
       });
+      
+      return false; // Failed
     }
   };
 
@@ -429,14 +442,35 @@ const PDFUpload = () => {
     }
   };
 
-  // Start processing for all uploaded PDFs that are pending
+  // Start SEQUENTIAL processing for all uploaded PDFs that are pending
+  // CRITICAL: Process one PDF at a time, verify completion before proceeding
   const startProcessing = async () => {
-    const pendingPdfs = pdfFiles.filter(p => 
-      p.uploadStatus === 'uploaded' && p.processingStatus === 'pending'
-    );
+    const pendingPdfs = pdfFiles
+      .filter(p => p.uploadStatus === 'uploaded' && p.processingStatus === 'pending')
+      .sort((a, b) => a.orderIndex - b.orderIndex); // Process in order
     
     for (const pdf of pendingPdfs) {
-      await processPDF(pdf);
+      // VALIDATION GATE: Check if previous PDF completed before proceeding
+      const previousPdf = pdfFiles.find(p => p.orderIndex === pdf.orderIndex - 1);
+      if (previousPdf && previousPdf.processingStatus !== 'completed') {
+        toast({
+          title: "Sequential Processing",
+          description: `Waiting for PDF ${previousPdf.orderIndex} to complete before processing PDF ${pdf.orderIndex}`,
+        });
+        break; // Stop here until previous is complete
+      }
+      
+      const success = await processPDF(pdf);
+      
+      // COMPLETION GATE: If this PDF failed, stop processing queue
+      if (!success) {
+        toast({
+          title: "Processing Stopped",
+          description: `PDF ${pdf.orderIndex} failed validation. Fix issues before continuing.`,
+          variant: "destructive"
+        });
+        break;
+      }
     }
   };
 
