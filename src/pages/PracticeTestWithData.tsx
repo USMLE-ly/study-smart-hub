@@ -567,15 +567,22 @@ const PracticeTestWithData = () => {
                 return (
                   <div
                     key={option.id}
-                    onClick={() => !isAnswered && !currentStrikethroughs.includes(option.id) && handleSelectAnswer(option.id)}
                     className={cn(
-                      "flex items-center gap-3 py-3 px-3 border-b border-gray-100 last:border-b-0 transition-all cursor-pointer",
+                      "flex items-center gap-3 py-3 px-3 border-b border-gray-100 last:border-b-0 transition-all",
                       !showResult && isSelected && "bg-blue-50",
                       showResult && isCorrectOpt && "bg-green-50",
                       showResult && isSelected && !isCorrectOpt && "bg-red-50",
                       isStruck && "opacity-50",
+                      !isAnswered && !isStruck ? "cursor-pointer hover:bg-gray-50" : "",
                       isAnswered && "cursor-default"
                     )}
+                    onClick={(e) => {
+                      // Don't handle click if answered or struck
+                      if (isAnswered || isStruck) return;
+                      // Don't handle if clicking on strikethrough button
+                      if ((e.target as HTMLElement).closest('button')) return;
+                      handleSelectAnswer(option.id);
+                    }}
                   >
                     {showResult && isCorrectOpt && (
                       <Check className="h-5 w-5 text-green-600 shrink-0" />
@@ -584,15 +591,17 @@ const PracticeTestWithData = () => {
                     <RadioGroupItem 
                       value={option.id} 
                       id={option.id} 
-                      disabled={isAnswered}
-                      className="shrink-0 border-gray-400 data-[state=checked]:border-[#005BAC] data-[state=checked]:text-[#005BAC]"
+                      disabled={isAnswered || isStruck}
+                      className="shrink-0 border-gray-400 data-[state=checked]:border-[#005BAC] data-[state=checked]:bg-[#005BAC] data-[state=checked]:text-white"
+                      onClick={(e) => e.stopPropagation()}
                     />
 
                     <Label
                       htmlFor={option.id}
                       className={cn(
-                        "flex-1 cursor-pointer text-gray-900 leading-relaxed",
-                        isStruck && "line-through"
+                        "flex-1 text-gray-900 leading-relaxed",
+                        isStruck && "line-through",
+                        !isAnswered && !isStruck ? "cursor-pointer" : "cursor-default"
                       )}
                     >
                       <span className="font-medium mr-2">{option.option_letter}.</span>
@@ -601,9 +610,10 @@ const PracticeTestWithData = () => {
 
                     {!isAnswered && (
                       <button
+                        type="button"
                         className="p-1 hover:bg-gray-100 rounded shrink-0"
                         onClick={(e) => {
-                          e.preventDefault();
+                          e.stopPropagation();
                           toggleStrikethrough(option.id);
                         }}
                       >
