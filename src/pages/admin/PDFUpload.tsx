@@ -387,6 +387,24 @@ const PDFUpload = () => {
     }
   };
 
+  const MAX_FILE_SIZE_MB = 10;
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+  const validateFileSize = (files: File[]): { valid: File[]; oversized: File[] } => {
+    const valid: File[] = [];
+    const oversized: File[] = [];
+    
+    for (const file of files) {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        oversized.push(file);
+      } else {
+        valid.push(file);
+      }
+    }
+    
+    return { valid, oversized };
+  };
+
   // Handle file selection - ONLY upload, no processing
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -402,8 +420,22 @@ const PDFUpload = () => {
 
     if (pdfFilesOnly.length === 0) return;
 
+    // Validate file sizes
+    const { valid, oversized } = validateFileSize(pdfFilesOnly);
+    
+    if (oversized.length > 0) {
+      const names = oversized.map(f => f.name).join(', ');
+      toast({
+        title: "Files too large",
+        description: `${oversized.length} file(s) exceed ${MAX_FILE_SIZE_MB}MB limit: ${names}`,
+        variant: "destructive"
+      });
+    }
+
+    if (valid.length === 0) return;
+
     const currentLength = pdfFiles.length;
-    const newPdfFiles: PDFFile[] = pdfFilesOnly.map((file, index) => ({
+    const newPdfFiles: PDFFile[] = valid.map((file, index) => ({
       file,
       id: crypto.randomUUID(),
       orderIndex: currentLength + index + 1,
@@ -427,8 +459,22 @@ const PDFUpload = () => {
     
     if (pdfFilesOnly.length === 0) return;
 
+    // Validate file sizes
+    const { valid, oversized } = validateFileSize(pdfFilesOnly);
+    
+    if (oversized.length > 0) {
+      const names = oversized.map(f => f.name).join(', ');
+      toast({
+        title: "Files too large",
+        description: `${oversized.length} file(s) exceed ${MAX_FILE_SIZE_MB}MB limit: ${names}`,
+        variant: "destructive"
+      });
+    }
+
+    if (valid.length === 0) return;
+
     const currentLength = pdfFiles.length;
-    const newPdfFiles: PDFFile[] = pdfFilesOnly.map((file, index) => ({
+    const newPdfFiles: PDFFile[] = valid.map((file, index) => ({
       file,
       id: crypto.randomUUID(),
       orderIndex: currentLength + index + 1,
@@ -443,7 +489,7 @@ const PDFUpload = () => {
     for (const pdf of newPdfFiles) {
       await uploadPDF(pdf);
     }
-  }, [pdfFiles.length, user, batchId]);
+  }, [pdfFiles.length, user, batchId, toast]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -511,7 +557,7 @@ const PDFUpload = () => {
                 <li>• Upload always succeeds (processing is separate)</li>
                 <li>• AI extracts questions verbatim</li>
                 <li>• Failed processing can be retried</li>
-                <li>• No manual text extraction required</li>
+                <li>• Maximum file size: {MAX_FILE_SIZE_MB}MB per PDF</li>
               </ul>
             </div>
           </div>
@@ -528,7 +574,7 @@ const PDFUpload = () => {
             <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
             <p className="text-lg mb-2">Drag & drop PDFs here</p>
             <p className="text-sm text-muted-foreground mb-4">
-              Files will be processed automatically after upload
+              Max {MAX_FILE_SIZE_MB}MB per file • Files will be processed after upload
             </p>
             <input
               type="file"
