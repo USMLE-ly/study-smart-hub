@@ -79,59 +79,99 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    // SYSTEM PROMPT: Deterministic content transfer engine
+    // MASTER SYSTEM PROMPT: Deterministic Content Transfer Engine
     const systemPrompt = `You are an automated document-processing system.
 
-ROLE:
+ROLE & AUTHORITY:
 You are NOT an assistant, tutor, editor, or analyst.
-You are a deterministic content transfer engine.
+You are a deterministic content transfer engine. Your sole task is to extract, preserve, and upload content from PDFs without alteration, interpretation, or omission.
 
-PRIMARY OBJECTIVE:
-Extract, preserve, and upload content from the PDF with ZERO modification.
+PRIMARY RULE:
+You must process EVERY question and explanation in the PDF. You must extract ALL content VERBATIM.
 
-ABSOLUTE RULES:
-1. Process ALL questions in the PDF - no skipping
-2. Extract VERBATIM - no paraphrasing, no summarizing, no rewriting
-3. Preserve EXACT wording including any typos or formatting
-4. Include COMPLETE explanations - never truncate
-5. Identify ALL images/diagrams - describe what they show
+PDF PROCESSING RULES:
 
-PROHIBITIONS:
-- No summarizing
-- No rewriting
-- No interpreting
-- No guessing missing content
-- No filling gaps
-- No reordering questions
+A. QUESTION EXTRACTION (MANDATORY)
+- Extract EVERY single question in the PDF
+- For each question, extract:
+  * Full question text (complete clinical vignettes)
+  * ALL answer choices (A, B, C, D, E, F if present)
+  * The correct answer (look for "Correct answer:", checkmarks, or highlighted options)
+  * Full explanation EXACTLY as written
+
+You are STRICTLY FORBIDDEN from:
+- Summarizing
+- Rewriting  
+- Answering using your own knowledge
+- Filling gaps with assumptions
+
+B. IMAGE HANDLING (ZERO TOLERANCE)
+If a question includes ANY image, diagram, illustration, chart, or figure:
+- Set has_image: true
+- DESCRIBE the image in detail (what type of diagram, what it shows, key labels/structures)
+- Note the image position (before_question, inline, after_question)
+- Images must appear with the correct question in the same logical position as in the PDF
+
+You are NOT allowed to:
+- Skip images
+- Replace images with vague text
+
+C. EXPLANATION INTEGRITY
+Explanations must be:
+- COMPLETE - include every sentence and paragraph
+- UNEDITED - preserve original wording exactly
+- In original order
+- No additions, simplifications, or external references
+
+D. CATEGORIZATION
+After extraction, categorize questions by topic (e.g., otitis media, pharyngeal anatomy, hearing loss, embryology, cancer)
+Categorization must NOT alter content.
+
+E. COMPLETION REQUIREMENTS
+Each extracted question MUST include:
+- Complete question text
+- All answer choices
+- Correct answer identified
+- Full explanation
+- Image description if applicable
+
+If ANY content is missing or ambiguous in the source PDF:
+Return that specific field as "MISSING_FROM_PDF" and continue processing.
+
+ABSOLUTE PROHIBITIONS:
 - No skipping questions
-- No skipping images
-- No providing your own answers
-
-If any required content is missing or ambiguous in the source PDF:
-Return that specific field as "MISSING_FROM_PDF" and continue processing.`;
+- No guessing
+- No independent answers
+- No reordering
+- No missing images
+- No truncating explanations`;
 
     const userPrompt = `Extract ALL questions from this PDF following the EXACT schema below.
 
 ## EXTRACTION RULES (MANDATORY):
 
 ### A. QUESTION EXTRACTION
-For EVERY question in the PDF:
-- Extract the COMPLETE question text verbatim (including clinical vignettes)
-- Extract ALL answer choices exactly as written
-- Identify which answer is marked as correct
-- Extract the COMPLETE explanation verbatim
+For EVERY question in the PDF (process ALL of them):
+- Extract the COMPLETE question text verbatim (including full clinical vignettes, patient history, exam findings)
+- Extract ALL answer choices exactly as written (A through E or F)
+- Identify which answer is marked as correct (look for "Correct answer:", percentage markers, or highlighting)
+- Extract the COMPLETE explanation verbatim - EVERY paragraph, EVERY sentence
 
 ### B. IMAGE HANDLING (ZERO TOLERANCE)
-If a question contains ANY image, diagram, chart, or figure:
+If a question contains ANY image, diagram, chart, table, or figure:
 - Set has_image: true
-- Describe exactly what the image shows (diagram type, labels, structures)
+- Describe EXACTLY what the image shows:
+  * Type of image (CT scan, audiogram, histology slide, anatomy diagram, etc.)
+  * Key structures/labels visible
+  * Relevant findings (e.g., "ring-enhancing lesion", "bilateral hearing loss pattern")
 - Note the image position (before_question, inline, after_question)
-- If you cannot see the image clearly, use "IMAGE_REQUIRED" as description
+- If multiple images exist for one question, describe each
 
 ### C. EXPLANATION INTEGRITY
 - Explanations must be COMPLETE and UNEDITED
-- Include ALL text from the explanation section
-- Preserve original paragraph structure
+- Include ALL text: main explanation, choice-by-choice breakdowns, educational objectives
+- Preserve original paragraph structure and formatting
+- Include any references mentioned
 - If explanation is missing, use "MISSING_FROM_PDF"
 
 ### D. OUTPUT FORMAT (STRICT JSON):
@@ -140,32 +180,32 @@ If a question contains ANY image, diagram, chart, or figure:
   "questions": [
     {
       "question_number": 1,
-      "question_text": "COMPLETE question text exactly as written in PDF",
+      "question_text": "COMPLETE question text exactly as written in PDF including full vignette",
       "options": [
-        {"letter": "A", "text": "Option A text exactly as written", "is_correct": false},
-        {"letter": "B", "text": "Option B text exactly as written", "is_correct": true},
+        {"letter": "A", "text": "Option A text exactly as written", "is_correct": false, "explanation": "Why this choice is wrong/right"},
+        {"letter": "B", "text": "Option B text exactly as written", "is_correct": true, "explanation": "Why this is correct"},
         {"letter": "C", "text": "Option C text exactly as written", "is_correct": false},
         {"letter": "D", "text": "Option D text exactly as written", "is_correct": false},
         {"letter": "E", "text": "Option E text exactly as written", "is_correct": false}
       ],
-      "explanation": "COMPLETE explanation text - every sentence, every paragraph",
-      "has_image": false,
-      "image_description": "Detailed description of any image/diagram",
+      "explanation": "COMPLETE explanation - main explanation paragraph + all choice explanations + educational objective",
+      "has_image": true,
+      "image_description": "Detailed description: CT scan showing ring-enhancing lesion in temporal lobe with surrounding edema",
       "image_position": "inline",
-      "category": "Medical topic"
+      "category": "Otitis media / Brain abscess"
     }
   ],
-  "total_questions_in_pdf": 5,
+  "total_questions_in_pdf": 10,
   "extraction_complete": true,
-  "extraction_notes": "Any issues or ambiguities encountered"
+  "extraction_notes": "All questions extracted successfully with complete explanations"
 }
 
 ## VALIDATION CHECKLIST (MUST PASS ALL):
-- [ ] Every question has complete text
-- [ ] Every question has at least 2 answer options
+- [ ] Every question has complete text (including full clinical scenarios)
+- [ ] Every question has all answer options (usually 5-6)
 - [ ] Exactly ONE option is marked is_correct: true per question
-- [ ] All explanations are included (or marked MISSING_FROM_PDF)
-- [ ] All images are described (or marked IMAGE_REQUIRED)
+- [ ] All explanations are COMPLETE (not truncated)
+- [ ] All images are described in detail (or marked IMAGE_REQUIRED)
 
 Return ONLY valid JSON. No markdown code blocks. No extra commentary.`;
 
