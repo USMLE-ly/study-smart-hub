@@ -50,6 +50,7 @@ interface QuestionImage {
   file_path: string;
   position: string;
   image_order: number;
+  storage_url?: string | null;
 }
 
 interface QuestionWithOptions extends Question {
@@ -528,6 +529,7 @@ const PracticeTestWithData = () => {
                   src={currentQuestion.question_image_url} 
                   alt="Question diagram" 
                   className="max-w-full h-auto rounded-lg border border-border shadow-sm"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />
               </div>
             )}
@@ -540,9 +542,10 @@ const PracticeTestWithData = () => {
                   .map((img, idx) => (
                     <img 
                       key={img.id}
-                      src={`https://vamhucbxdftteekfxycm.supabase.co/storage/v1/object/public/question-images/${img.file_path}`}
+                      src={img.storage_url || `https://vamhucbxdftteekfxycm.supabase.co/storage/v1/object/public/question-images${img.file_path.startsWith('/') ? '' : '/'}${img.file_path.replace(/^\/question-images/, '')}`}
                       alt={`Question image ${idx + 1}`} 
                       className="max-w-full h-auto rounded-lg border border-border shadow-sm"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
                   ))
                 }
@@ -704,6 +707,7 @@ const PracticeTestWithData = () => {
                       src={currentQuestion.explanation_image_url} 
                       alt="Explanation diagram" 
                       className="max-w-full h-auto rounded-lg border border-border shadow-md"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
                   </div>
                 )}
@@ -716,9 +720,10 @@ const PracticeTestWithData = () => {
                       .map((img, idx) => (
                         <img 
                           key={img.id}
-                          src={`https://vamhucbxdftteekfxycm.supabase.co/storage/v1/object/public/question-images/${img.file_path}`}
+                          src={img.storage_url || `https://vamhucbxdftteekfxycm.supabase.co/storage/v1/object/public/question-images${img.file_path.startsWith('/') ? '' : '/'}${img.file_path.replace(/^\/question-images/, '')}`}
                           alt={`Explanation ${idx + 1}`} 
                           className="max-w-full h-auto rounded-lg border border-border shadow-md"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                         />
                       ))
                     }
