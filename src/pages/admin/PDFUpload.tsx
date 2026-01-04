@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, FileText, ArrowRight, Lock, CheckCircle, AlertCircle, Loader2, RotateCcw, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface PDFFile {
-  file: File;
+  file: File | null; // null for loaded from DB
   id: string;
   orderIndex: number;
   uploadStatus: 'pending' | 'uploading' | 'uploaded' | 'error';
@@ -19,14 +19,72 @@ interface PDFFile {
   questionsExtracted?: number;
   error?: string;
   retryable?: boolean;
+  filename?: string; // For DB-loaded PDFs
 }
 
 const PDFUpload = () => {
   const [pdfFiles, setPdfFiles] = useState<PDFFile[]>([]);
   const [batchId] = useState(() => crypto.randomUUID());
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  // Load existing PDFs from database on mount
+  useEffect(() => {
+    const loadExistingPdfs = async () => {
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const { data: pdfs, error } = await supabase
+          .from('pdfs')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('order_index', { ascending: true });
+
+        if (error) throw error;
+
+        if (pdfs && pdfs.length > 0) {
+          const loadedFiles: PDFFile[] = pdfs.map(pdf => ({
+            file: null,
+            id: pdf.id,
+            orderIndex: pdf.order_index,
+            uploadStatus: 'uploaded' as const,
+            processingStatus: mapDbStatus(pdf.status),
+            progress: pdf.status === 'completed' ? 100 : pdf.status === 'in_progress' ? 60 : 50,
+            questionsExtracted: pdf.processed_questions || undefined,
+            filename: pdf.filename,
+            retryable: pdf.status === 'error' || pdf.status === 'pending',
+            error: pdf.status === 'error' ? 'Processing failed - click Retry' : undefined
+          }));
+          setPdfFiles(loadedFiles);
+        }
+      } catch (error) {
+        console.error('Error loading PDFs:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadExistingPdfs();
+  }, [user]);
+
+  const mapDbStatus = (status: string): PDFFile['processingStatus'] => {
+    switch (status) {
+      case 'completed':
+      case 'verified':
+        return 'completed';
+      case 'in_progress':
+        return 'processing';
+      case 'error':
+        return 'failed';
+      default:
+        return 'pending';
+    }
+  };
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -152,8 +210,45 @@ const PDFUpload = () => {
     ));
 
     try {
-      // Convert to base64 for processing
-      const pdfBase64 = await fileToBase64(pdf.file);
+      let pdfBase64: string;
+      let fileName: string;
+
+      // Check if we have the file object or need to fetch from storage
+      if (pdf.file) {
+        pdfBase64 = await fileToBase64(pdf.file);
+        fileName = pdf.file.name;
+      } else {
+        // PDF loaded from DB - need to fetch from storage
+        const { data: pdfRecord } = await supabase
+          .from('pdfs')
+          .select('upload_batch_id, filename')
+          .eq('id', pdf.id)
+          .single();
+
+        if (!pdfRecord) throw new Error('PDF record not found');
+
+        fileName = pdf.filename || pdfRecord.filename;
+        const storagePath = `pdfs/${pdfRecord.upload_batch_id}/${pdf.id}_${pdfRecord.filename}`;
+        
+        const { data: fileData, error: downloadError } = await supabase.storage
+          .from('question-images')
+          .download(storagePath);
+
+        if (downloadError || !fileData) {
+          throw new Error('Cannot retry: PDF file not found in storage. Please re-upload the file.');
+        }
+
+        // Convert blob to base64
+        const reader = new FileReader();
+        pdfBase64 = await new Promise((resolve, reject) => {
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(fileData);
+        });
+      }
       
       setPdfFiles(prev => prev.map(p => 
         p.id === pdf.id ? { ...p, progress: 70 } : p
@@ -163,14 +258,21 @@ const PDFUpload = () => {
       const { data, error } = await supabase.functions.invoke('parse-pdf-questions', {
         body: { 
           pdfBase64,
-          pdfFileName: pdf.file.name,
+          pdfFileName: fileName,
           pdfId: pdf.id,
           subject: 'General',
           system: 'General'
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        // Check for specific error types
+        const errorMessage = error.message || String(error);
+        if (errorMessage.includes('timeout') || errorMessage.includes('504')) {
+          throw new Error('Processing timed out - PDF may be too large. Try a smaller file.');
+        }
+        throw new Error(errorMessage || 'Failed to send a request to the Edge Function');
+      }
 
       setPdfFiles(prev => prev.map(p => 
         p.id === pdf.id ? { ...p, progress: 85 } : p
@@ -257,9 +359,10 @@ const PDFUpload = () => {
         } : p
       ));
 
+      const filename = pdf.file?.name || pdf.filename || 'PDF';
       toast({
         title: "Processing failed",
-        description: `${pdf.file.name}: ${error instanceof Error ? error.message : 'Unknown error'}. You can retry.`,
+        description: `${filename}: ${error instanceof Error ? error.message : 'Unknown error'}. You can retry.`,
         variant: "destructive"
       });
     }
@@ -378,6 +481,17 @@ const PDFUpload = () => {
     return <Badge variant="outline">Pending</Badge>;
   };
 
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-6 max-w-4xl">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <span className="ml-2 text-muted-foreground">Loading PDFs...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-6 max-w-4xl">
       <div className="mb-8">
@@ -454,7 +568,7 @@ const PDFUpload = () => {
                       {pdf.orderIndex}
                     </div>
                     <FileText className="w-5 h-5 text-muted-foreground" />
-                    <span className="flex-1 font-medium truncate">{pdf.file.name}</span>
+                    <span className="flex-1 font-medium truncate">{pdf.file?.name || pdf.filename}</span>
                     {getStatusBadge(pdf)}
                     {pdf.questionsExtracted !== undefined && (
                       <Badge variant="outline" className="text-primary">
