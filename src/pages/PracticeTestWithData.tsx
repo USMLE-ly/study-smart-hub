@@ -45,8 +45,16 @@ import { FeedbackModal } from "@/components/practice-test/FeedbackModal";
 import { useTestTimer } from "@/components/practice-test/TestTimer";
 import { usePracticeTestKeyboard } from "@/hooks/usePracticeTestKeyboard";
 
+interface QuestionImage {
+  id: string;
+  file_path: string;
+  position: string;
+  image_order: number;
+}
+
 interface QuestionWithOptions extends Question {
   options: QuestionOption[];
+  images?: QuestionImage[];
 }
 
 interface AnswerState {
@@ -98,13 +106,14 @@ const PracticeTestWithData = () => {
       // Quick mode - load random questions directly
       const { data: questionsData } = await supabase
         .from("questions")
-        .select("*, question_options(*)")
+        .select("*, question_options(*), question_images(*)")
         .limit(10);
 
       if (questionsData) {
         const formatted = questionsData.map((q: any) => ({
           ...q,
           options: q.question_options || [],
+          images: (q.question_images || []).sort((a: QuestionImage, b: QuestionImage) => a.image_order - b.image_order),
         }));
         setQuestions(formatted);
       }
@@ -123,13 +132,14 @@ const PracticeTestWithData = () => {
       
       const { data: questionsData } = await supabase
         .from("questions")
-        .select("*, question_options(*)")
+        .select("*, question_options(*), question_images(*)")
         .in("id", questionIds);
 
       if (questionsData) {
         const formatted = questionsData.map((q: any) => ({
           ...q,
           options: q.question_options || [],
+          images: (q.question_images || []).sort((a: QuestionImage, b: QuestionImage) => a.image_order - b.image_order),
         }));
         
         // Order by test answers
@@ -540,12 +550,14 @@ const PracticeTestWithData = () => {
                 return (
                   <div
                     key={option.id}
+                    onClick={() => !isAnswered && !currentStrikethroughs.includes(option.id) && handleSelectAnswer(option.id)}
                     className={cn(
-                      "flex items-center gap-3 py-3 px-3 border-b border-gray-100 last:border-b-0 transition-all",
+                      "flex items-center gap-3 py-3 px-3 border-b border-gray-100 last:border-b-0 transition-all cursor-pointer",
                       !showResult && isSelected && "bg-blue-50",
                       showResult && isCorrectOpt && "bg-green-50",
                       showResult && isSelected && !isCorrectOpt && "bg-red-50",
-                      isStruck && "opacity-50"
+                      isStruck && "opacity-50",
+                      isAnswered && "cursor-default"
                     )}
                   >
                     {showResult && isCorrectOpt && (
@@ -649,7 +661,7 @@ const PracticeTestWithData = () => {
           )}
 
           {/* Explanation Section - Always show after answering */}
-          {isAnswered && (currentQuestion.explanation || currentQuestion.explanation_image_url) && (
+          {isAnswered && (currentQuestion.explanation || currentQuestion.explanation_image_url || (currentQuestion.images && currentQuestion.images.some(img => img.position === 'explanation'))) && (
             <div className="border-t border-border pt-6 mt-6">
               <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-primary"></span>
@@ -658,7 +670,7 @@ const PracticeTestWithData = () => {
               
               {/* Explanation Card with better contrast */}
               <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-                {/* Explanation Image */}
+                {/* Explanation Image from explanation_image_url */}
                 {currentQuestion.explanation_image_url && (
                   <div className="mb-5">
                     <img 
@@ -669,9 +681,28 @@ const PracticeTestWithData = () => {
                   </div>
                 )}
                 
-                <div className="prose prose-slate dark:prose-invert max-w-none">
-                  <p className="text-foreground leading-relaxed whitespace-pre-line text-base">{currentQuestion.explanation}</p>
-                </div>
+                {/* Explanation Images from question_images table */}
+                {currentQuestion.images && currentQuestion.images.filter(img => img.position === 'explanation').length > 0 && (
+                  <div className="space-y-4 mb-5">
+                    {currentQuestion.images
+                      .filter(img => img.position === 'explanation')
+                      .map((img, idx) => (
+                        <img 
+                          key={img.id}
+                          src={img.file_path} 
+                          alt={`Explanation ${idx + 1}`} 
+                          className="max-w-full h-auto rounded-lg border border-border shadow-md"
+                        />
+                      ))
+                    }
+                  </div>
+                )}
+                
+                {currentQuestion.explanation && (
+                  <div className="prose prose-slate dark:prose-invert max-w-none">
+                    <p className="text-foreground leading-relaxed whitespace-pre-line text-base">{currentQuestion.explanation}</p>
+                  </div>
+                )}
               </div>
               
               {/* Show all option explanations */}
