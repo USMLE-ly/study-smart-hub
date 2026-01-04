@@ -521,7 +521,7 @@ const PracticeTestWithData = () => {
               {currentQuestion.question_text}
             </p>
             
-            {/* Question Image */}
+            {/* Question Image from question_image_url */}
             {currentQuestion.question_image_url && (
               <div className="mt-4">
                 <img 
@@ -529,6 +529,23 @@ const PracticeTestWithData = () => {
                   alt="Question diagram" 
                   className="max-w-full h-auto rounded-lg border border-border shadow-sm"
                 />
+              </div>
+            )}
+            
+            {/* Inline Question Images from question_images table */}
+            {currentQuestion.images && currentQuestion.images.filter(img => img.position === 'inline').length > 0 && (
+              <div className="mt-4 space-y-3">
+                {currentQuestion.images
+                  .filter(img => img.position === 'inline')
+                  .map((img, idx) => (
+                    <img 
+                      key={img.id}
+                      src={`https://vamhucbxdftteekfxycm.supabase.co/storage/v1/object/public/question-images/${img.file_path}`}
+                      alt={`Question image ${idx + 1}`} 
+                      className="max-w-full h-auto rounded-lg border border-border shadow-sm"
+                    />
+                  ))
+                }
               </div>
             )}
           </div>
@@ -607,7 +624,7 @@ const PracticeTestWithData = () => {
                 disabled={!selectedAnswer}
                 className="px-8 py-2.5 bg-[#005BAC] hover:bg-[#004A8C] text-white font-medium"
               >
-                Proceed To Next Item
+                Submit Answer
               </Button>
             </div>
           )}
@@ -689,7 +706,7 @@ const PracticeTestWithData = () => {
                       .map((img, idx) => (
                         <img 
                           key={img.id}
-                          src={img.file_path} 
+                          src={`https://vamhucbxdftteekfxycm.supabase.co/storage/v1/object/public/question-images/${img.file_path}`}
                           alt={`Explanation ${idx + 1}`} 
                           className="max-w-full h-auto rounded-lg border border-border shadow-md"
                         />
