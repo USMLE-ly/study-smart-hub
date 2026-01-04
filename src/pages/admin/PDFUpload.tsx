@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, FileText, ArrowRight, Lock, CheckCircle, AlertCircle, Loader2, RotateCcw, Play } from 'lucide-react';
+import { Upload, FileText, ArrowRight, Lock, CheckCircle, AlertCircle, Loader2, RotateCcw, Play, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -376,6 +376,59 @@ const PDFUpload = () => {
     }
   };
 
+  // Delete PDF from queue and database
+  const deletePDF = async (pdfId: string) => {
+    const pdf = pdfFiles.find(p => p.id === pdfId);
+    if (!pdf) return;
+
+    // Don't allow deleting while processing
+    if (pdf.processingStatus === 'processing' || pdf.uploadStatus === 'uploading') {
+      toast({
+        title: "Cannot delete",
+        description: "Please wait for the current operation to complete",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('pdfs')
+        .delete()
+        .eq('id', pdfId);
+
+      if (dbError) throw dbError;
+
+      // Try to delete from storage (non-fatal if fails)
+      const { data: pdfRecord } = await supabase
+        .from('pdfs')
+        .select('upload_batch_id, filename')
+        .eq('id', pdfId)
+        .single();
+
+      if (pdfRecord) {
+        const storagePath = `pdfs/${pdfRecord.upload_batch_id}/${pdfId}_${pdfRecord.filename}`;
+        await supabase.storage.from('question-images').remove([storagePath]);
+      }
+
+      // Remove from local state
+      setPdfFiles(prev => prev.filter(p => p.id !== pdfId));
+
+      toast({
+        title: "PDF deleted",
+        description: `${pdf.file?.name || pdf.filename} has been removed`
+      });
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast({
+        title: "Delete failed",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive"
+      });
+    }
+  };
+
   // Start processing for all uploaded PDFs that are pending
   const startProcessing = async () => {
     const pendingPdfs = pdfFiles.filter(p => 
@@ -631,6 +684,15 @@ const PDFUpload = () => {
                         Retry
                       </Button>
                     )}
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => deletePDF(pdf.id)}
+                      disabled={pdf.processingStatus === 'processing' || pdf.uploadStatus === 'uploading'}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
                   </div>
                   
                   {(pdf.uploadStatus === 'uploading' || pdf.processingStatus === 'processing') && (
