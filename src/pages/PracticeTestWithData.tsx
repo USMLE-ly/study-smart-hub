@@ -539,15 +539,23 @@ const PracticeTestWithData = () => {
               <div className="mt-4 space-y-3">
                 {currentQuestion.images
                   .filter(img => img.position === 'inline')
-                  .map((img, idx) => (
-                    <img 
-                      key={img.id}
-                      src={img.storage_url || `https://vamhucbxdftteekfxycm.supabase.co/storage/v1/object/public/question-images${img.file_path.startsWith('/') ? '' : '/'}${img.file_path.replace(/^\/question-images/, '')}`}
-                      alt={`Question image ${idx + 1}`} 
-                      className="max-w-full h-auto rounded-lg border border-border shadow-sm"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                  ))
+                  .sort((a, b) => a.image_order - b.image_order)
+                  .map((img, idx) => {
+                    const getImageUrl = () => {
+                      if (img.storage_url?.startsWith('/')) return img.storage_url;
+                      if (img.file_path.startsWith('/question-images/')) return img.file_path;
+                      return `https://vamhucbxdftteekfxycm.supabase.co/storage/v1/object/public/question-images${img.file_path.startsWith('/') ? '' : '/'}${img.file_path.replace(/^\/question-images/, '')}`;
+                    };
+                    return (
+                      <img 
+                        key={img.id}
+                        src={getImageUrl()}
+                        alt={`Question image ${idx + 1}`} 
+                        className="max-w-full h-auto rounded-lg border border-border shadow-sm"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    );
+                  })
                 }
               </div>
             )}
@@ -712,20 +720,40 @@ const PracticeTestWithData = () => {
                   </div>
                 )}
                 
-                {/* Explanation Images from question_images table */}
+                {/* Explanation Images from question_images table - UWorld screenshots */}
                 {currentQuestion.images && currentQuestion.images.filter(img => img.position === 'explanation').length > 0 && (
                   <div className="space-y-4 mb-5">
                     {currentQuestion.images
                       .filter(img => img.position === 'explanation')
-                      .map((img, idx) => (
-                        <img 
-                          key={img.id}
-                          src={img.storage_url || `https://vamhucbxdftteekfxycm.supabase.co/storage/v1/object/public/question-images${img.file_path.startsWith('/') ? '' : '/'}${img.file_path.replace(/^\/question-images/, '')}`}
-                          alt={`Explanation ${idx + 1}`} 
-                          className="max-w-full h-auto rounded-lg border border-border shadow-md"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                        />
-                      ))
+                      .sort((a, b) => a.image_order - b.image_order)
+                      .map((img, idx) => {
+                        // Determine the correct image URL
+                        const getImageUrl = () => {
+                          if (img.storage_url) {
+                            // If storage_url starts with /, it's a public path
+                            if (img.storage_url.startsWith('/')) {
+                              return img.storage_url;
+                            }
+                            return img.storage_url;
+                          }
+                          // For file_path, check if it's a public path
+                          if (img.file_path.startsWith('/question-images/')) {
+                            return img.file_path;
+                          }
+                          // Otherwise, assume Supabase storage
+                          return `https://vamhucbxdftteekfxycm.supabase.co/storage/v1/object/public/question-images${img.file_path.startsWith('/') ? '' : '/'}${img.file_path.replace(/^\/question-images/, '')}`;
+                        };
+                        
+                        return (
+                          <img 
+                            key={img.id}
+                            src={getImageUrl()}
+                            alt={`UWorld Explanation ${idx + 1}`} 
+                            className="max-w-full h-auto rounded-lg border border-border shadow-md"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        );
+                      })
                     }
                   </div>
                 )}
