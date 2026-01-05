@@ -37,44 +37,63 @@ interface ImportProgress {
 }
 
 // PDF category detection based on filename
-const detectCategory = (filename: string): { subject: string; system: string } => {
+// PDF category detection based on filename - maps to medical topics
+const detectCategory = (filename: string): { subject: string; system: string; category: string } => {
   const lower = filename.toLowerCase();
   
   if (lower.includes('genetic')) {
-    return { subject: 'Biochemistry', system: 'Genetics' };
+    return { subject: 'Biochemistry', system: 'Genetics', category: 'Genetics' };
   }
   if (lower.includes('biostat')) {
-    return { subject: 'Behavioral Science', system: 'General Principles' };
+    return { subject: 'Behavioral Science', system: 'General Principles', category: 'Biostatistics' };
   }
   if (lower.includes('ent')) {
-    return { subject: 'Anatomy', system: 'Nervous System' };
+    return { subject: 'Anatomy', system: 'Nervous System', category: 'ENT/Otolaryngology' };
   }
   if (lower.includes('cardio')) {
-    return { subject: 'Physiology', system: 'Cardiovascular' };
+    return { subject: 'Physiology', system: 'Cardiovascular', category: 'Cardiology' };
   }
   if (lower.includes('renal') || lower.includes('kidney')) {
-    return { subject: 'Physiology', system: 'Renal' };
+    return { subject: 'Physiology', system: 'Renal', category: 'Nephrology' };
   }
   if (lower.includes('gi') || lower.includes('gastro')) {
-    return { subject: 'Physiology', system: 'Gastrointestinal' };
+    return { subject: 'Physiology', system: 'Gastrointestinal', category: 'Gastroenterology' };
   }
   if (lower.includes('neuro')) {
-    return { subject: 'Anatomy', system: 'Nervous System' };
+    return { subject: 'Anatomy', system: 'Nervous System', category: 'Neurology' };
   }
   if (lower.includes('immuno')) {
-    return { subject: 'Immunology', system: 'Immune System' };
+    return { subject: 'Immunology', system: 'Immune System', category: 'Immunology' };
   }
   if (lower.includes('micro')) {
-    return { subject: 'Microbiology', system: 'General Principles' };
+    return { subject: 'Microbiology', system: 'General Principles', category: 'Microbiology' };
   }
   if (lower.includes('pharm')) {
-    return { subject: 'Pharmacology', system: 'General Principles' };
+    return { subject: 'Pharmacology', system: 'General Principles', category: 'Pharmacology' };
   }
   if (lower.includes('path')) {
-    return { subject: 'Pathology', system: 'General Principles' };
+    return { subject: 'Pathology', system: 'General Principles', category: 'Pathology' };
+  }
+  if (lower.includes('derm')) {
+    return { subject: 'Pathology', system: 'Skin', category: 'Dermatology' };
+  }
+  if (lower.includes('onco') || lower.includes('cancer')) {
+    return { subject: 'Pathology', system: 'General Principles', category: 'Oncology' };
+  }
+  if (lower.includes('repro') || lower.includes('ob') || lower.includes('gyn')) {
+    return { subject: 'Physiology', system: 'Reproductive', category: 'Reproductive' };
+  }
+  if (lower.includes('endo')) {
+    return { subject: 'Physiology', system: 'Endocrine', category: 'Endocrinology' };
+  }
+  if (lower.includes('pulm') || lower.includes('resp')) {
+    return { subject: 'Physiology', system: 'Respiratory', category: 'Pulmonology' };
+  }
+  if (lower.includes('heme') || lower.includes('blood')) {
+    return { subject: 'Pathology', system: 'Hematology', category: 'Hematology' };
   }
   
-  return { subject: 'Biochemistry', system: 'General Principles' };
+  return { subject: 'Biochemistry', system: 'General Principles', category: 'General' };
 };
 
 const BulkPDFImport = () => {
@@ -301,36 +320,69 @@ const BulkPDFImport = () => {
     });
     setIsPaused(false);
 
+    await processMultiplePDFs(pendingPDFs);
+  };
+
+  // Process only genetics PDFs
+  const processGeneticsOnly = async () => {
+    const geneticsPDFs = publicPDFs.filter(p => 
+      p.status === 'pending' && p.name.toLowerCase().includes('genetic')
+    );
+    
+    if (geneticsPDFs.length === 0) {
+      toast.error("No pending genetics PDFs to process");
+      return;
+    }
+
+    setProgress({
+      status: 'processing',
+      currentFile: '',
+      totalFiles: geneticsPDFs.length,
+      processedFiles: 0,
+      totalQuestionsImported: 0,
+      totalDuplicatesSkipped: 0,
+      percent: 0
+    });
+    setIsPaused(false);
+
+    await processMultiplePDFs(geneticsPDFs);
+  };
+
+  // Shared processing function
+  const processMultiplePDFs = async (pdfsToProcess: PublicPDF[]) => {
     let totalImported = 0;
     let totalSkipped = 0;
+    let pauseRef = false;
+    let skipRef = false;
 
-    for (let i = 0; i < publicPDFs.length; i++) {
+    for (let i = 0; i < pdfsToProcess.length; i++) {
       // Check if paused
-      while (isPaused && progress.status === 'processing') {
+      while (pauseRef) {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       // Check if should skip current
-      if (skipCurrent) {
-        setSkipCurrent(false);
+      if (skipRef) {
+        skipRef = false;
+        const pdfIndex = publicPDFs.findIndex(p => p.name === pdfsToProcess[i].name);
         setPublicPDFs(prev => prev.map((p, idx) => 
-          idx === i ? { ...p, status: 'skipped' as const } : p
+          idx === pdfIndex ? { ...p, status: 'skipped' as const } : p
         ));
         continue;
       }
 
-      const pdf = publicPDFs[i];
-      if (pdf.status !== 'pending') continue;
+      const pdf = pdfsToProcess[i];
+      const pdfIndex = publicPDFs.findIndex(p => p.name === pdf.name);
 
       setProgress(prev => ({
         ...prev,
         currentFile: pdf.name,
         processedFiles: i,
-        percent: Math.round((i / prev.totalFiles) * 100)
+        percent: Math.round((i / pdfsToProcess.length) * 100)
       }));
 
       setPublicPDFs(prev => prev.map((p, idx) => 
-        idx === i ? { ...p, status: 'processing' as const } : p
+        idx === pdfIndex ? { ...p, status: 'processing' as const } : p
       ));
 
       try {
@@ -339,7 +391,7 @@ const BulkPDFImport = () => {
         totalSkipped += skipped;
 
         setPublicPDFs(prev => prev.map((p, idx) => 
-          idx === i ? { ...p, status: 'complete' as const, questionsImported: imported } : p
+          idx === pdfIndex ? { ...p, status: 'complete' as const, questionsImported: imported } : p
         ));
 
         setProgress(prev => ({
@@ -348,13 +400,13 @@ const BulkPDFImport = () => {
           totalDuplicatesSkipped: totalSkipped
         }));
 
-        // Small delay between PDFs to avoid rate limiting
+        // Delay between PDFs to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 2000));
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         setPublicPDFs(prev => prev.map((p, idx) => 
-          idx === i ? { ...p, status: 'error' as const, error: errorMessage } : p
+          idx === pdfIndex ? { ...p, status: 'error' as const, error: errorMessage } : p
         ));
       }
     }
@@ -362,7 +414,7 @@ const BulkPDFImport = () => {
     setProgress(prev => ({
       ...prev,
       status: 'complete',
-      processedFiles: prev.totalFiles,
+      processedFiles: pdfsToProcess.length,
       percent: 100
     }));
 
@@ -501,6 +553,15 @@ const BulkPDFImport = () => {
               <SelectItem value="ent">ENT</SelectItem>
             </SelectContent>
           </Select>
+
+          <Button 
+            onClick={processGeneticsOnly} 
+            disabled={progress.status === 'processing'}
+            variant="secondary"
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Process Genetics Only ({publicPDFs.filter(p => p.status === 'pending' && p.name.toLowerCase().includes('genetic')).length})
+          </Button>
 
           <Button 
             onClick={startBulkImport} 
