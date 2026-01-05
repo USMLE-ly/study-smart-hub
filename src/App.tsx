@@ -36,7 +36,7 @@ import PDFList from "./pages/admin/PDFList";
 import PDFProcess from "./pages/admin/PDFProcess";
 import QuestionReviewAdmin from "./pages/admin/QuestionReviewAdmin";
 import BulkPDFImport from "./pages/admin/BulkPDFImport";
-
+import UWorldImageImport from "./pages/admin/UWorldImageImport";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -325,6 +325,16 @@ const App = () => (
                     <ProtectedRoute>
                       <PageTransition>
                         <BulkPDFImport />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/uworld-images"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <UWorldImageImport />
                       </PageTransition>
                     </ProtectedRoute>
                   }
