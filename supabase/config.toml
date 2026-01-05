@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.parse-pdf-questions]
 verify_jwt = false
+
+[functions.extract-uworld-images]
+verify_jwt = false
+
+[functions.extract-questions-strict]
+verify_jwt = false
