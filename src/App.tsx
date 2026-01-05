@@ -35,6 +35,7 @@ import PDFUpload from "./pages/admin/PDFUpload";
 import PDFList from "./pages/admin/PDFList";
 import PDFProcess from "./pages/admin/PDFProcess";
 import QuestionReviewAdmin from "./pages/admin/QuestionReviewAdmin";
+import BulkPDFImport from "./pages/admin/BulkPDFImport";
 
 const queryClient = new QueryClient();
 
@@ -313,7 +314,17 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <PageTransition>
-                        <QuestionReviewAdmin />
+                      <QuestionReviewAdmin />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/bulk-import"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <BulkPDFImport />
                       </PageTransition>
                     </ProtectedRoute>
                   }
