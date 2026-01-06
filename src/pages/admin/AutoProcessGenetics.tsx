@@ -39,118 +39,55 @@ export default function AutoProcessGenetics() {
     setIsProcessing(true);
     setTotalQuestions(0);
 
-    for (let i = 0; i < GENETICS_PDFS.length; i++) {
-      const pdfName = GENETICS_PDFS[i];
-      setCurrentPdf(pdfName);
-      
-      // Update status to processing
-      setResults(prev => prev.map((r, idx) => 
-        idx === i ? { ...r, status: 'processing' } : r
-      ));
+    // Update all to processing
+    setResults(prev => prev.map(r => ({ ...r, status: 'processing' as const })));
+    setCurrentPdf('All PDFs');
 
-      try {
-        // Fetch PDF from public folder
-        const response = await fetch(`/pdfs/${pdfName}`);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch ${pdfName}`);
+    try {
+      // Call the new automated edge function that handles everything
+      const { data, error } = await supabase.functions.invoke('process-genetics-automated', {
+        body: {
+          startFromIndex: 0,
+          generateImages: true,
+          skipExisting: true
         }
+      });
 
-        const blob = await response.blob();
-        const arrayBuffer = await blob.arrayBuffer();
-        const base64 = btoa(
-          new Uint8Array(arrayBuffer).reduce(
-            (data, byte) => data + String.fromCharCode(byte), ''
-          )
-        );
-
-        console.log(`Processing ${pdfName}, size: ${arrayBuffer.byteLength} bytes`);
-
-        // Call parsing function
-        const { data, error } = await supabase.functions.invoke('parse-pdf-questions', {
-          body: {
-            pdfBase64: base64,
-            pdfFileName: pdfName,
-            pdfId: `genetics_${i}`,
-            pdfOrderIndex: i,
-            subject: 'Genetics',
-            system: 'General'
-          }
-        });
-
-        if (error) {
-          throw new Error(error.message);
-        }
-
-        // Insert extracted questions into database
-        const questions = data?.questions || data?.legacy_format?.questions || [];
-        let insertedCount = 0;
-
-        for (const q of questions) {
-          try {
-            // Insert question
-            const { data: questionData, error: qError } = await supabase
-              .from('questions')
-              .insert({
-                question_text: q.question_text || q.text,
-                subject: 'Genetics',
-                system: 'General',
-                explanation: q.explanation_text || q.explanation,
-                category: q.category || 'Genetics',
-                has_image: q.images?.length > 0 || q.has_image,
-                image_description: q.images?.[0]?.description || q.image_description,
-                source_pdf: pdfName,
-                difficulty: 'Medium'
-              })
-              .select('id')
-              .single();
-
-            if (qError) {
-              console.error('Question insert error:', qError);
-              continue;
-            }
-
-            // Insert options
-            const options = q.answer_choices || q.options || [];
-            if (options.length > 0) {
-              const optionsToInsert = options.map((opt: any) => ({
-                question_id: questionData.id,
-                option_letter: opt.choice_id?.split('_').pop() || opt.letter || 'A',
-                option_text: opt.choice_text || opt.text,
-                is_correct: opt.is_correct || false,
-                explanation: opt.explanation || null
-              }));
-
-              await supabase.from('question_options').insert(optionsToInsert);
-            }
-
-            insertedCount++;
-          } catch (insertErr) {
-            console.error('Insert error:', insertErr);
-          }
-        }
-
-        setTotalQuestions(prev => prev + insertedCount);
-        setResults(prev => prev.map((r, idx) => 
-          idx === i ? { ...r, status: 'success', questionsExtracted: insertedCount } : r
-        ));
-
-        toast.success(`${pdfName}: ${insertedCount} questions extracted`);
-
-      } catch (err: any) {
-        console.error(`Error processing ${pdfName}:`, err);
-        setResults(prev => prev.map((r, idx) => 
-          idx === i ? { ...r, status: 'error', error: err.message } : r
-        ));
-        toast.error(`${pdfName}: ${err.message}`);
+      if (error) {
+        throw new Error(error.message);
       }
 
-      // Small delay between PDFs
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('Processing results:', data);
+
+      // Update results from response
+      if (data?.results) {
+        const updatedResults = GENETICS_PDFS.map(pdfName => {
+          const result = data.results.find((r: any) => r.pdf_name === pdfName);
+          if (result) {
+            return {
+              pdf: pdfName,
+              status: result.status === 'success' ? 'success' as const : 
+                      result.status === 'skipped' ? 'success' as const : 'error' as const,
+              questionsExtracted: result.questions_extracted,
+              error: result.error
+            };
+          }
+          return { pdf: pdfName, status: 'pending' as const };
+        });
+        setResults(updatedResults);
+        setTotalQuestions(data.summary?.total_questions_inserted || 0);
+      }
+
+      toast.success(`Complete! ${data.summary?.total_questions_inserted || 0} questions extracted`);
+
+    } catch (err: any) {
+      console.error('Processing error:', err);
+      toast.error(`Error: ${err.message}`);
+      setResults(prev => prev.map(r => ({ ...r, status: 'error' as const, error: err.message })));
     }
 
     setIsProcessing(false);
     setCurrentPdf(null);
-    toast.success(`Complete! Total: ${totalQuestions} questions extracted`);
   };
 
   const completedCount = results.filter(r => r.status === 'success').length;
