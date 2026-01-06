@@ -9,6 +9,12 @@ const corsHeaders = {
 
 const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/USMLE-ly/study-smart-hub/main/public/pdfs';
 
+interface ExplanationScreenshot {
+  section: string; // e.g., "main_concept", "diagram", "choice_explanations", "educational_objective"
+  description: string;
+  content_summary: string;
+}
+
 interface ExtractedQuestion {
   question_number: number;
   question_text: string;
@@ -17,8 +23,8 @@ interface ExtractedQuestion {
   educational_objective: string;
   has_question_image: boolean;
   question_image_description?: string;
-  has_explanation_image: boolean;
-  explanation_image_description?: string;
+  // 4 explanation screenshots per question
+  explanation_screenshots: ExplanationScreenshot[];
   choice_explanations?: { [key: string]: string };
 }
 
@@ -226,18 +232,14 @@ CRITICAL: For EVERY question, you must capture:
 1. The COMPLETE question text with full clinical vignette
 2. ALL answer options (A-E) with complete text
 3. Which option is CORRECT
-4. If there's an IMAGE in the question, describe it in FULL DETAIL (anatomy, labels, structures, appearance)
-5. The COMPLETE explanation text - capture EVERYTHING word for word
-6. If the explanation has an IMAGE/DIAGRAM, describe it in FULL DETAIL with all labels
-7. Individual choice explanations (Choice A, Choice B, etc.)
-8. The Educational Objective
+4. If there's an IMAGE in the question, describe it in FULL DETAIL
+5. The COMPLETE explanation - capture EVERYTHING
 
-For images, describe:
-- Type of image (electron microscopy, histology, pedigree, chart, diagram)
-- All visible structures with labels
-- Arrows and their targets
-- Any annotations or text in the image
-- The key finding or abnormality shown
+FOR EACH QUESTION'S EXPLANATION, provide EXACTLY 4 "screenshots" that capture different parts:
+- Screenshot 1: Main concept/mechanism explanation
+- Screenshot 2: Any diagram, image, or visual content in the explanation (describe in detail)
+- Screenshot 3: Individual choice explanations (why each choice is right/wrong)
+- Screenshot 4: Educational objective and key takeaway
 
 Return ONLY valid JSON, no markdown.`
           },
@@ -260,10 +262,30 @@ For each question, return this JSON structure:
         ...
       ],
       "has_question_image": true/false,
-      "question_image_description": "Detailed description: Electron microscopy image showing cellular organelles. Labeled structures include: A - rough endoplasmic reticulum with ribosomes, B - nucleolus (dark round structure), C - nucleus with euchromatin, D - mitochondria with cristae. Scale bar shows 2 micrometers.",
-      "main_explanation": "COMPLETE explanation text - every word",
-      "has_explanation_image": true/false,
-      "explanation_image_description": "Detailed description of the explanation diagram with ALL labels, arrows, and annotations",
+      "question_image_description": "Detailed description of question image if present",
+      "main_explanation": "COMPLETE explanation text - every word from the PDF",
+      "explanation_screenshots": [
+        {
+          "section": "main_concept",
+          "description": "The main mechanism/concept being tested",
+          "content_summary": "Full text explaining the core concept, pathophysiology, or mechanism"
+        },
+        {
+          "section": "diagram",
+          "description": "Visual/diagram content - describe ALL labels, structures, arrows in detail",
+          "content_summary": "Detailed description: Type of image, labeled structures A-B-C-D, key findings"
+        },
+        {
+          "section": "choice_explanations",
+          "description": "Why each answer choice is correct or incorrect",
+          "content_summary": "(Choice A) explanation... (Choice B) explanation... etc."
+        },
+        {
+          "section": "educational_objective",
+          "description": "The key learning point",
+          "content_summary": "Educational Objective: The specific learning goal"
+        }
+      ],
       "choice_explanations": {
         "A": "Why A is wrong/right...",
         "B": "Why B is wrong/right...",
@@ -276,7 +298,7 @@ For each question, return this JSON structure:
   ]
 }
 
-IMPORTANT: Capture image descriptions in extreme detail - describe every label, structure, arrow, and annotation visible.`
+IMPORTANT: Capture 4 explanation screenshots per question with detailed content.`
               },
               {
                 type: 'image_url',
@@ -357,20 +379,33 @@ IMPORTANT: Capture image descriptions in extreme detail - describe every label, 
         }
       }
 
-      // Generate explanation image if needed
-      let explanationImageUrl: string | null = null;
-      if (generateImages && q.has_explanation_image && q.explanation_image_description) {
-        const imageData = await generateEducationalImage(
-          apiKey,
-          q.explanation_image_description,
-          `Explanation diagram for: ${q.question_text.substring(0, 150)}`
-        );
-        if (imageData) {
-          const fileName = `${pdfName.replace('.pdf', '')}-q${q.question_number || inserted + 1}-explanation-${Date.now()}`;
-          explanationImageUrl = await uploadImageToStorage(supabase, imageData, fileName);
-          if (explanationImageUrl) imagesGenerated++;
+      // Generate 4 explanation screenshots
+      const explanationImageUrls: string[] = [];
+      if (generateImages && q.explanation_screenshots && q.explanation_screenshots.length > 0) {
+        for (let i = 0; i < Math.min(4, q.explanation_screenshots.length); i++) {
+          const screenshot = q.explanation_screenshots[i];
+          if (screenshot.description && screenshot.content_summary) {
+            const imageData = await generateEducationalImage(
+              apiKey,
+              `${screenshot.section}: ${screenshot.description}. Content: ${screenshot.content_summary}`,
+              `USMLE ${category} explanation for: ${q.question_text.substring(0, 100)}`
+            );
+            if (imageData) {
+              const fileName = `${pdfName.replace('.pdf', '')}-q${q.question_number || inserted + 1}-exp${i + 1}-${Date.now()}`;
+              const url = await uploadImageToStorage(supabase, imageData, fileName);
+              if (url) {
+                explanationImageUrls.push(url);
+                imagesGenerated++;
+              }
+            }
+            // Small delay between image generations
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
         }
       }
+
+      // Use first explanation image as the main explanation_image_url
+      const explanationImageUrl = explanationImageUrls.length > 0 ? explanationImageUrls[0] : null;
 
       const { data: qData, error: qError } = await supabase
         .from('questions')
@@ -409,10 +444,25 @@ IMPORTANT: Capture image descriptions in extreme detail - describe every label, 
         if (optErr) console.error(`[DB ERROR] Options:`, optErr.message);
       }
 
+      // Store additional explanation image URLs in question_images table
+      if (explanationImageUrls.length > 1) {
+        const imageRecords = explanationImageUrls.slice(1).map((url, idx) => ({
+          question_id: qData.id,
+          file_path: url,
+          storage_url: url,
+          position: 'explanation',
+          source_type: 'generated',
+          image_order: idx + 2
+        }));
+        
+        const { error: imgErr } = await supabase.from('question_images').insert(imageRecords);
+        if (imgErr) console.error(`[DB ERROR] Question images:`, imgErr.message);
+      }
+
       inserted++;
       
-      // Small delay between questions to avoid rate limits on image generation
-      if (generateImages && (q.has_question_image || q.has_explanation_image)) {
+      // Small delay between questions
+      if (generateImages && (q.has_question_image || (q.explanation_screenshots && q.explanation_screenshots.length > 0))) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }

@@ -8,18 +8,23 @@ import { Loader2, CheckCircle, XCircle, Play, RefreshCw, FileText, Zap } from "l
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/badge";
 
-// PDFs are in the local public folder
+// PDFs organized by topic - capturing 4 explanation screenshots per question
 const GENETICS_PDFS = [
+  // DNA Structure, Replication and Repair - 19 questions
   { name: 'genetics-1-5.pdf', category: 'DNA Structure, Replication and Repair', expectedQuestions: 5 },
   { name: 'genetics-1-8.pdf', category: 'DNA Structure, Replication and Repair', expectedQuestions: 8 },
+  { name: 'genetics-1-6.pdf', category: 'DNA Structure, Replication and Repair', expectedQuestions: 6 },
+  // DNA Structure, Synthesis and Processing - 13 questions
   { name: 'genetics-2-6.pdf', category: 'DNA Structure, Synthesis and Processing', expectedQuestions: 6 },
-  { name: 'genetics-3-6.pdf', category: 'Gene Expression and Regulation', expectedQuestions: 6 },
-  { name: 'genetics-3-8.pdf', category: 'Gene Expression and Regulation', expectedQuestions: 2 },
+  { name: 'genetics-2-7.pdf', category: 'DNA Structure, Synthesis and Processing', expectedQuestions: 7 },
+  // Gene Expression and Regulation - 8 questions
+  { name: 'genetics-3-8.pdf', category: 'Gene Expression and Regulation', expectedQuestions: 8 },
+  // Clinical Genetics - 20 questions
   { name: 'genetics-4-6.pdf', category: 'Clinical Genetics', expectedQuestions: 6 },
-  { name: 'genetics-5-7.pdf', category: 'Clinical Genetics', expectedQuestions: 7 },
-  { name: 'genetics-6-7.pdf', category: 'Clinical Genetics', expectedQuestions: 7 },
-  { name: 'genetics-7-5.pdf', category: 'Miscellaneous', expectedQuestions: 3 },
-  { name: 'genetics-8-5.pdf', category: 'Miscellaneous', expectedQuestions: 5 },
+  { name: 'genetics-4-7.pdf', category: 'Clinical Genetics', expectedQuestions: 7 },
+  { name: 'genetics-4-7b.pdf', category: 'Clinical Genetics', expectedQuestions: 7 },
+  // Miscellaneous - 3 questions
+  { name: 'genetics-5-3.pdf', category: 'Miscellaneous', expectedQuestions: 3 },
 ];
 
 // Expected totals
