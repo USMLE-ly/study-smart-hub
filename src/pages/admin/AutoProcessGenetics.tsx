@@ -35,21 +35,82 @@ export default function AutoProcessGenetics() {
   const [currentPdf, setCurrentPdf] = useState<string | null>(null);
   const [totalQuestions, setTotalQuestions] = useState(0);
 
+  // Helper to convert ArrayBuffer to base64
+  const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  };
+
+  // Load PDFs from public folder and create a data map
+  const loadPdfsAsBase64 = async (): Promise<Record<string, string>> => {
+    const pdfDataMap: Record<string, string> = {};
+    
+    for (const pdfName of GENETICS_PDFS) {
+      try {
+        setCurrentPdf(`Loading ${pdfName}...`);
+        const response = await fetch(`/pdfs/${pdfName}`);
+        if (response.ok) {
+          const buffer = await response.arrayBuffer();
+          pdfDataMap[pdfName] = arrayBufferToBase64(buffer);
+          console.log(`Loaded ${pdfName}: ${buffer.byteLength} bytes`);
+        } else {
+          console.warn(`Failed to load ${pdfName}: ${response.status}`);
+        }
+      } catch (err) {
+        console.error(`Error loading ${pdfName}:`, err);
+      }
+    }
+    
+    return pdfDataMap;
+  };
+
   const processAllPdfs = async () => {
     setIsProcessing(true);
     setTotalQuestions(0);
 
-    // Update all to processing
-    setResults(prev => prev.map(r => ({ ...r, status: 'processing' as const })));
-    setCurrentPdf('All PDFs');
+    // Update all to uploading
+    setResults(prev => prev.map(r => ({ ...r, status: 'uploading' as const })));
+    setCurrentPdf('Loading PDFs from public folder...');
 
     try {
-      // Call the new automated edge function that handles everything
+      // Load all PDFs as base64
+      const pdfDataMap = await loadPdfsAsBase64();
+      
+      if (Object.keys(pdfDataMap).length === 0) {
+        throw new Error('No PDFs could be loaded from public folder');
+      }
+      
+      console.log(`Loaded ${Object.keys(pdfDataMap).length} PDFs`);
+      
+      // Step 1: Upload PDFs to storage first
+      setCurrentPdf('Uploading PDFs to storage...');
+      const pdfsToUpload = Object.entries(pdfDataMap).map(([name, data]) => ({ name, data }));
+      
+      const { data: uploadData, error: uploadError } = await supabase.functions.invoke('upload-genetics-pdfs', {
+        body: { pdfs: pdfsToUpload }
+      });
+      
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        // Continue anyway - PDFs might already be in storage
+      } else {
+        console.log('Upload results:', uploadData);
+      }
+      
+      // Update all to processing
+      setResults(prev => prev.map(r => ({ ...r, status: 'processing' as const })));
+      setCurrentPdf('Processing with AI...');
+
+      // Step 2: Call the edge function to process from storage
       const { data, error } = await supabase.functions.invoke('process-genetics-automated', {
         body: {
           startFromIndex: 0,
           generateImages: true,
-          skipExisting: true
+          skipExisting: false // Force reprocessing
         }
       });
 

@@ -21,7 +21,8 @@ const GENETICS_PDFS = [
   'genetics-8-5.pdf'
 ];
 
-const GITHUB_BASE_URL = 'https://raw.githubusercontent.com/USMLE-ly/study-smart-hub/main/public/pdfs';
+// PDFs will be read from Supabase Storage bucket
+const STORAGE_BUCKET = 'pdf-uploads';
 
 interface ExtractedQuestion {
   question_text: string;
@@ -70,7 +71,9 @@ serve(async (req) => {
       startFromIndex = 0, 
       singlePdf = null,
       generateImages = true,
-      skipExisting = true 
+      skipExisting = true,
+      pdfBaseUrl = null, // Optional: base URL to fetch PDFs from (e.g., deployed app URL)
+      pdfDataMap = null  // Optional: { pdfName: base64Data } for direct PDF data
     } = body;
 
     const results: ProcessingResult[] = [];
@@ -111,16 +114,42 @@ serve(async (req) => {
           }
         }
 
-        // Step 1: Fetch PDF from GitHub
-        const pdfUrl = `${GITHUB_BASE_URL}/${pdfName}`;
-        console.log(`[STEP 1] Fetching PDF from: ${pdfUrl}`);
+        // Step 1: Get PDF data
+        let pdfBuffer: ArrayBuffer;
         
-        const pdfResponse = await fetch(pdfUrl);
-        if (!pdfResponse.ok) {
-          throw new Error(`Failed to fetch PDF: HTTP ${pdfResponse.status}`);
+        // Option 1: Direct PDF data provided in request
+        if (pdfDataMap && pdfDataMap[pdfName]) {
+          console.log(`[STEP 1] Using provided PDF data for: ${pdfName}`);
+          const binaryString = atob(pdfDataMap[pdfName]);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          pdfBuffer = bytes.buffer;
         }
-
-        const pdfBuffer = await pdfResponse.arrayBuffer();
+        // Option 2: Fetch from provided base URL
+        else if (pdfBaseUrl) {
+          const pdfUrl = `${pdfBaseUrl}/pdfs/${pdfName}`;
+          console.log(`[STEP 1] Fetching PDF from URL: ${pdfUrl}`);
+          const pdfResponse = await fetch(pdfUrl);
+          if (!pdfResponse.ok) {
+            throw new Error(`Failed to fetch PDF: HTTP ${pdfResponse.status}`);
+          }
+          pdfBuffer = await pdfResponse.arrayBuffer();
+        }
+        // Option 3: Fetch from Supabase Storage
+        else {
+          console.log(`[STEP 1] Fetching PDF from storage: ${pdfName}`);
+          const { data: pdfData, error: pdfError } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .download(`genetics/${pdfName}`);
+          
+          if (pdfError || !pdfData) {
+            throw new Error(`Failed to fetch PDF from storage: ${pdfError?.message || 'No data'}`);
+          }
+          pdfBuffer = await pdfData.arrayBuffer();
+        }
+        
         const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfBuffer)));
         console.log(`PDF size: ${pdfBuffer.byteLength} bytes`);
 
