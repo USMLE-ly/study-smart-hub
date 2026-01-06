@@ -1,116 +1,100 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Loader2, CheckCircle, XCircle, Upload, Play } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Play, Github, RefreshCw, FileText } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { Badge } from "@/components/ui/badge";
+
+// GitHub raw URLs for genetics PDFs
+const GITHUB_BASE_URL = 'https://raw.githubusercontent.com/USMLE-ly/study-smart-hub/main/public/pdfs';
 
 const GENETICS_PDFS = [
-  'genetics-1-5.pdf',
-  'genetics-1-8.pdf',
-  'genetics-2-6.pdf',
-  'genetics-3-6.pdf',
-  'genetics-3-8.pdf',
-  'genetics-4-6.pdf',
-  'genetics-5-7.pdf',
-  'genetics-6-7.pdf',
-  'genetics-7-5.pdf',
-  'genetics-8-5.pdf'
+  { name: 'genetics-1-5.pdf', category: 'DNA Structure, Replication and Repair', expectedQuestions: 5 },
+  { name: 'genetics-1-8.pdf', category: 'DNA Structure, Replication and Repair', expectedQuestions: 8 },
+  { name: 'genetics-2-6.pdf', category: 'DNA Structure, Synthesis and Processing', expectedQuestions: 6 },
+  { name: 'genetics-3-6.pdf', category: 'Gene Expression and Regulation', expectedQuestions: 6 },
+  { name: 'genetics-3-8.pdf', category: 'Gene Expression and Regulation', expectedQuestions: 2 },
+  { name: 'genetics-4-6.pdf', category: 'Clinical Genetics', expectedQuestions: 6 },
+  { name: 'genetics-5-7.pdf', category: 'Clinical Genetics', expectedQuestions: 7 },
+  { name: 'genetics-6-7.pdf', category: 'Clinical Genetics', expectedQuestions: 7 },
+  { name: 'genetics-7-5.pdf', category: 'Miscellaneous', expectedQuestions: 3 },
+  { name: 'genetics-8-5.pdf', category: 'Miscellaneous', expectedQuestions: 5 },
 ];
+
+// Expected totals
+const EXPECTED_TOTALS = {
+  'DNA Structure, Replication and Repair': 19,
+  'DNA Structure, Synthesis and Processing': 13,
+  'Gene Expression and Regulation': 8,
+  'Clinical Genetics': 20,
+  'Miscellaneous': 3,
+};
 
 interface ProcessResult {
   pdf: string;
-  status: 'pending' | 'uploading' | 'processing' | 'success' | 'error';
+  category: string;
+  status: 'pending' | 'downloading' | 'processing' | 'success' | 'error';
   questionsExtracted?: number;
   error?: string;
 }
 
 export default function AutoProcessGenetics() {
   const [results, setResults] = useState<ProcessResult[]>(
-    GENETICS_PDFS.map(pdf => ({ pdf, status: 'pending' }))
+    GENETICS_PDFS.map(pdf => ({ pdf: pdf.name, category: pdf.category, status: 'pending' }))
   );
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentPdf, setCurrentPdf] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState<string>('');
   const [totalQuestions, setTotalQuestions] = useState(0);
+  const [processingIndex, setProcessingIndex] = useState(-1);
 
   // Helper to convert ArrayBuffer to base64
   const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
     const bytes = new Uint8Array(buffer);
     let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode.apply(null, Array.from(chunk));
     }
     return btoa(binary);
   };
 
-  // Load PDFs from public folder and create a data map
-  const loadPdfsAsBase64 = async (): Promise<Record<string, string>> => {
-    const pdfDataMap: Record<string, string> = {};
+  // Process a single PDF
+  const processSinglePdf = async (pdfInfo: typeof GENETICS_PDFS[0], index: number): Promise<ProcessResult> => {
+    const { name, category } = pdfInfo;
     
-    for (const pdfName of GENETICS_PDFS) {
-      try {
-        setCurrentPdf(`Loading ${pdfName}...`);
-        const response = await fetch(`/pdfs/${pdfName}`);
-        if (response.ok) {
-          const buffer = await response.arrayBuffer();
-          pdfDataMap[pdfName] = arrayBufferToBase64(buffer);
-          console.log(`Loaded ${pdfName}: ${buffer.byteLength} bytes`);
-        } else {
-          console.warn(`Failed to load ${pdfName}: ${response.status}`);
-        }
-      } catch (err) {
-        console.error(`Error loading ${pdfName}:`, err);
-      }
-    }
-    
-    return pdfDataMap;
-  };
-
-  const processAllPdfs = async () => {
-    setIsProcessing(true);
-    setTotalQuestions(0);
-
-    // Update all to uploading
-    setResults(prev => prev.map(r => ({ ...r, status: 'uploading' as const })));
-    setCurrentPdf('Loading PDFs from public folder...');
+    // Update status to downloading
+    setResults(prev => prev.map((r, i) => 
+      i === index ? { ...r, status: 'downloading' as const } : r
+    ));
+    setCurrentStep(`Downloading ${name} from GitHub...`);
 
     try {
-      // Load all PDFs as base64
-      const pdfDataMap = await loadPdfsAsBase64();
-      
-      if (Object.keys(pdfDataMap).length === 0) {
-        throw new Error('No PDFs could be loaded from public folder');
+      // Download PDF from GitHub
+      const response = await fetch(`${GITHUB_BASE_URL}/${name}`);
+      if (!response.ok) {
+        throw new Error(`Failed to download: ${response.status}`);
       }
       
-      console.log(`Loaded ${Object.keys(pdfDataMap).length} PDFs`);
-      
-      // Step 1: Upload PDFs to storage first
-      setCurrentPdf('Uploading PDFs to storage...');
-      const pdfsToUpload = Object.entries(pdfDataMap).map(([name, data]) => ({ name, data }));
-      
-      const { data: uploadData, error: uploadError } = await supabase.functions.invoke('upload-genetics-pdfs', {
-        body: { pdfs: pdfsToUpload }
-      });
-      
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        // Continue anyway - PDFs might already be in storage
-      } else {
-        console.log('Upload results:', uploadData);
-      }
-      
-      // Update all to processing
-      setResults(prev => prev.map(r => ({ ...r, status: 'processing' as const })));
-      setCurrentPdf('Processing with AI...');
+      const buffer = await response.arrayBuffer();
+      const base64Data = arrayBufferToBase64(buffer);
+      console.log(`Downloaded ${name}: ${buffer.byteLength} bytes`);
 
-      // Step 2: Call the edge function to process from storage
-      const { data, error } = await supabase.functions.invoke('process-genetics-automated', {
-        body: {
-          startFromIndex: 0,
-          generateImages: true,
-          skipExisting: false // Force reprocessing
+      // Update status to processing
+      setResults(prev => prev.map((r, i) => 
+        i === index ? { ...r, status: 'processing' as const } : r
+      ));
+      setCurrentStep(`Processing ${name} with AI...`);
+
+      // Call the edge function
+      const { data, error } = await supabase.functions.invoke('process-single-genetics-pdf', {
+        body: { 
+          pdfName: name, 
+          pdfBase64: base64Data,
+          skipExisting: false
         }
       });
 
@@ -118,124 +102,251 @@ export default function AutoProcessGenetics() {
         throw new Error(error.message);
       }
 
-      console.log('Processing results:', data);
-
-      // Update results from response
-      if (data?.results) {
-        const updatedResults = GENETICS_PDFS.map(pdfName => {
-          const result = data.results.find((r: any) => r.pdf_name === pdfName);
-          if (result) {
-            return {
-              pdf: pdfName,
-              status: result.status === 'success' ? 'success' as const : 
-                      result.status === 'skipped' ? 'success' as const : 'error' as const,
-              questionsExtracted: result.questions_extracted,
-              error: result.error
-            };
-          }
-          return { pdf: pdfName, status: 'pending' as const };
-        });
-        setResults(updatedResults);
-        setTotalQuestions(data.summary?.total_questions_inserted || 0);
+      if (data?.error) {
+        throw new Error(data.error);
       }
 
-      toast.success(`Complete! ${data.summary?.total_questions_inserted || 0} questions extracted`);
+      const extracted = data?.inserted || data?.extracted || 0;
+      
+      return {
+        pdf: name,
+        category,
+        status: 'success',
+        questionsExtracted: extracted
+      };
 
     } catch (err: any) {
-      console.error('Processing error:', err);
-      toast.error(`Error: ${err.message}`);
-      setResults(prev => prev.map(r => ({ ...r, status: 'error' as const, error: err.message })));
+      console.error(`Error processing ${name}:`, err);
+      return {
+        pdf: name,
+        category,
+        status: 'error',
+        error: err.message
+      };
+    }
+  };
+
+  const processAllPdfs = async () => {
+    setIsProcessing(true);
+    setTotalQuestions(0);
+    setProcessingIndex(0);
+
+    // Reset all to pending
+    setResults(GENETICS_PDFS.map(pdf => ({ pdf: pdf.name, category: pdf.category, status: 'pending' })));
+
+    let totalExtracted = 0;
+    const newResults: ProcessResult[] = [];
+
+    // Process PDFs one at a time to avoid memory issues
+    for (let i = 0; i < GENETICS_PDFS.length; i++) {
+      setProcessingIndex(i);
+      
+      const result = await processSinglePdf(GENETICS_PDFS[i], i);
+      newResults.push(result);
+      
+      // Update the results array
+      setResults(prev => {
+        const updated = [...prev];
+        updated[i] = result;
+        return updated;
+      });
+
+      if (result.status === 'success' && result.questionsExtracted) {
+        totalExtracted += result.questionsExtracted;
+        setTotalQuestions(totalExtracted);
+      }
+
+      // Small delay between PDFs to avoid rate limiting
+      if (i < GENETICS_PDFS.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
+    const successCount = newResults.filter(r => r.status === 'success').length;
+    const errorCount = newResults.filter(r => r.status === 'error').length;
+
+    if (errorCount === 0) {
+      toast.success(`Complete! ${totalExtracted} questions extracted from ${successCount} PDFs`);
+    } else {
+      toast.warning(`Completed with ${errorCount} errors. ${totalExtracted} questions extracted.`);
     }
 
     setIsProcessing(false);
-    setCurrentPdf(null);
+    setCurrentStep('');
+    setProcessingIndex(-1);
   };
 
   const completedCount = results.filter(r => r.status === 'success').length;
   const errorCount = results.filter(r => r.status === 'error').length;
   const progress = ((completedCount + errorCount) / GENETICS_PDFS.length) * 100;
 
+  // Group results by category
+  const categorizedResults = Object.entries(EXPECTED_TOTALS).map(([category, expected]) => ({
+    category,
+    expected,
+    pdfs: results.filter(r => r.category === category),
+    total: results.filter(r => r.category === category).reduce((sum, r) => sum + (r.questionsExtracted || 0), 0)
+  }));
+
   return (
     <AppLayout title="Auto Process Genetics PDFs">
-      <div className="container mx-auto p-6 max-w-4xl">
+      <div className="container mx-auto p-6 max-w-5xl space-y-6">
+        {/* Header Card */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Play className="h-5 w-5" />
-              Automatic Genetics PDF Processing
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-muted-foreground">
-                  Process all {GENETICS_PDFS.length} Genetics PDFs automatically
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Questions will be extracted and uploaded to the database
-                </p>
+                <CardTitle className="flex items-center gap-2">
+                  <Github className="h-5 w-5" />
+                  Automated Genetics PDF Processing
+                </CardTitle>
+                <CardDescription className="mt-2">
+                  Downloads PDFs from GitHub and extracts USMLE-style questions automatically
+                </CardDescription>
               </div>
               <Button 
                 onClick={processAllPdfs} 
                 disabled={isProcessing}
                 size="lg"
+                className="gap-2"
               >
                 {isProcessing ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                     Processing...
                   </>
                 ) : (
                   <>
-                    <Play className="mr-2 h-4 w-4" />
+                    <Play className="h-4 w-4" />
                     Start Processing
                   </>
                 )}
               </Button>
             </div>
+          </CardHeader>
+          <CardContent>
+            {/* Expected Questions Summary */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+              {Object.entries(EXPECTED_TOTALS).map(([category, count]) => (
+                <div key={category} className="text-center p-3 bg-muted/50 rounded-lg">
+                  <div className="text-2xl font-bold text-primary">{count}</div>
+                  <div className="text-xs text-muted-foreground line-clamp-2">{category}</div>
+                </div>
+              ))}
+            </div>
 
+            {/* Progress */}
             {isProcessing && (
-              <div className="space-y-2">
+              <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-sm">
-                  <span>Progress: {completedCount + errorCount}/{GENETICS_PDFS.length}</span>
-                  <span>{totalQuestions} questions extracted</span>
+                  <span className="flex items-center gap-2">
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                    {currentStep}
+                  </span>
+                  <span className="font-medium">{totalQuestions} questions extracted</span>
                 </div>
                 <Progress value={progress} className="h-2" />
-                {currentPdf && (
-                  <p className="text-sm text-muted-foreground">
-                    Currently processing: {currentPdf}
-                  </p>
-                )}
+                <div className="text-xs text-muted-foreground text-center">
+                  {completedCount + errorCount} / {GENETICS_PDFS.length} PDFs processed
+                </div>
               </div>
             )}
 
-            <div className="space-y-2">
-              {results.map((result, idx) => (
-                <div 
-                  key={result.pdf}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                >
-                  <div className="flex items-center gap-3">
-                    {result.status === 'pending' && (
-                      <div className="h-4 w-4 rounded-full bg-muted-foreground/30" />
-                    )}
-                    {result.status === 'processing' && (
-                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    )}
-                    {result.status === 'success' && (
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                    )}
-                    {result.status === 'error' && (
-                      <XCircle className="h-4 w-4 text-destructive" />
-                    )}
-                    <span className="font-medium">{result.pdf}</span>
+            {/* Total extracted after processing */}
+            {!isProcessing && totalQuestions > 0 && (
+              <div className="text-center p-4 bg-green-500/10 border border-green-500/20 rounded-lg mb-6">
+                <div className="text-3xl font-bold text-green-600">{totalQuestions}</div>
+                <div className="text-sm text-green-700">Total Questions Extracted</div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Results by Category */}
+        {categorizedResults.map(({ category, expected, pdfs, total }) => (
+          <Card key={category}>
+            <CardHeader className="py-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  {category}
+                </CardTitle>
+                <Badge variant={total >= expected ? "default" : "secondary"}>
+                  {total} / {expected} questions
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="py-2">
+              <div className="space-y-2">
+                {pdfs.map((result) => (
+                  <div 
+                    key={result.pdf}
+                    className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      {result.status === 'pending' && (
+                        <div className="h-4 w-4 rounded-full bg-muted-foreground/30" />
+                      )}
+                      {result.status === 'downloading' && (
+                        <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                      )}
+                      {result.status === 'processing' && (
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      )}
+                      {result.status === 'success' && (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      )}
+                      {result.status === 'error' && (
+                        <XCircle className="h-4 w-4 text-destructive" />
+                      )}
+                      <span className="font-mono text-sm">{result.pdf}</span>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {result.status === 'downloading' && 'Downloading...'}
+                      {result.status === 'processing' && 'Extracting questions...'}
+                      {result.status === 'success' && (
+                        <span className="text-green-600 font-medium">
+                          {result.questionsExtracted} questions
+                        </span>
+                      )}
+                      {result.status === 'error' && (
+                        <span className="text-destructive">{result.error}</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    {result.status === 'success' && `${result.questionsExtracted} questions`}
-                    {result.status === 'error' && result.error}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+        {/* Workflow Info */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Automated Workflow</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="text-2xl mb-2">📥</div>
+                <div className="font-medium text-sm">1. Download</div>
+                <div className="text-xs text-muted-foreground">Fetch PDFs from GitHub</div>
+              </div>
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="text-2xl mb-2">🤖</div>
+                <div className="font-medium text-sm">2. AI Extraction</div>
+                <div className="text-xs text-muted-foreground">Parse questions & answers</div>
+              </div>
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="text-2xl mb-2">🖼️</div>
+                <div className="font-medium text-sm">3. Image Detection</div>
+                <div className="text-xs text-muted-foreground">Identify embedded images</div>
+              </div>
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="text-2xl mb-2">💾</div>
+                <div className="font-medium text-sm">4. Database Upload</div>
+                <div className="text-xs text-muted-foreground">Store in question bank</div>
+              </div>
             </div>
           </CardContent>
         </Card>
