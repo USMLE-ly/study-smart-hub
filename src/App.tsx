@@ -38,6 +38,7 @@ import QuestionReviewAdmin from "./pages/admin/QuestionReviewAdmin";
 import BulkPDFImport from "./pages/admin/BulkPDFImport";
 import UWorldImageImport from "./pages/admin/UWorldImageImport";
 import AutoProcessGenetics from "./pages/admin/AutoProcessGenetics";
+import ProcessGeneticsPDFs from "./pages/admin/ProcessGeneticsPDFs";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -346,6 +347,16 @@ const App = () => (
                     <ProtectedRoute>
                       <PageTransition>
                         <AutoProcessGenetics />
+                      </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/process-genetics"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <ProcessGeneticsPDFs />
                       </PageTransition>
                     </ProtectedRoute>
                   }
