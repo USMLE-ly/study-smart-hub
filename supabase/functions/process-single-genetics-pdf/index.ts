@@ -1,12 +1,13 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/USMLE-ly/study-smart-hub/main/public/pdfs';
 
 interface ExtractedQuestion {
   question_text: string;
@@ -36,7 +37,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { pdfName, pdfBase64, category, subject = 'Genetics', skipExisting = false } = body;
+    const { pdfName, category, subject = 'Genetics', skipExisting = false } = body;
 
     if (!pdfName) {
       return new Response(
@@ -63,15 +64,36 @@ serve(async (req) => {
       }
     }
 
-    if (!pdfBase64) {
+    // Fetch PDF from GitHub
+    const pdfUrl = `${GITHUB_RAW_BASE}/${pdfName}`;
+    console.log(`[FETCH] Downloading from: ${pdfUrl}`);
+    
+    const pdfResponse = await fetch(pdfUrl);
+    if (!pdfResponse.ok) {
+      console.error(`[FETCH ERROR] ${pdfResponse.status}: ${pdfResponse.statusText}`);
       return new Response(
-        JSON.stringify({ error: 'pdfBase64 data is required' }),
+        JSON.stringify({ error: `Failed to fetch PDF: ${pdfResponse.status}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Limit base64 size to avoid memory issues (take first 400KB of base64 = ~300KB PDF)
-    const truncatedBase64 = pdfBase64.substring(0, 400000);
+    const pdfBuffer = await pdfResponse.arrayBuffer();
+    const uint8Array = new Uint8Array(pdfBuffer);
+    
+    // Convert to base64 using btoa approach
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
+      for (let j = 0; j < chunk.length; j++) {
+        binary += String.fromCharCode(chunk[j]);
+      }
+    }
+    const pdfBase64 = btoa(binary);
+    console.log(`[FETCH] Downloaded ${pdfBuffer.byteLength} bytes, base64 length: ${pdfBase64.length}`);
+
+    // Limit base64 size to avoid memory issues (take first 500KB of base64)
+    const truncatedBase64 = pdfBase64.substring(0, 500000);
     console.log(`[AI] Sending ${truncatedBase64.length} chars of base64 to AI...`);
 
     // Use AI to extract questions
@@ -101,7 +123,7 @@ Return ONLY valid JSON, no markdown code blocks.`
             content: [
               { 
                 type: 'text', 
-                text: `Extract ALL questions from this ${category} (Genetics) PDF named "${pdfName}". Return this exact JSON structure with NO markdown:
+                text: `Extract ALL questions from this ${category} PDF named "${pdfName}". Return this exact JSON structure with NO markdown:
 {"questions": [{"question_text": "full question here", "options": [{"letter": "A", "text": "option text", "is_correct": true}, {"letter": "B", "text": "...", "is_correct": false}, {"letter": "C", "text": "...", "is_correct": false}, {"letter": "D", "text": "...", "is_correct": false}, {"letter": "E", "text": "...", "is_correct": false}], "main_explanation": "full explanation", "educational_objective": "objective if any", "has_image": false, "image_description": ""}]}`
               },
               {

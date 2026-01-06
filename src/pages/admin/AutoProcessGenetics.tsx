@@ -55,52 +55,23 @@ export default function AutoProcessGenetics() {
       setAutoStart(true);
       setTimeout(() => processAllPdfs(), 1000);
     }
-  }, []);
+  }, [isProcessing, autoStart]);
 
-  // Helper to convert ArrayBuffer to base64 in chunks
-  const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    const chunkSize = 8192;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      const chunk = bytes.subarray(i, i + chunkSize);
-      binary += String.fromCharCode.apply(null, Array.from(chunk));
-    }
-    return btoa(binary);
-  };
-
-  // Process a single PDF
+  // Process a single PDF - edge function fetches from GitHub directly
   const processSinglePdf = async (pdfInfo: typeof GENETICS_PDFS[0], index: number): Promise<ProcessResult> => {
     const { name, category } = pdfInfo;
     
-    // Update status to downloading
+    // Update status to processing (edge function handles fetching)
     setResults(prev => prev.map((r, i) => 
-      i === index ? { ...r, status: 'downloading' as const } : r
+      i === index ? { ...r, status: 'processing' as const } : r
     ));
-    setCurrentStep(`Downloading ${name}...`);
+    setCurrentStep(`Processing ${name} (fetching from GitHub + AI extraction)...`);
 
     try {
-      // Download PDF from local public folder
-      const response = await fetch(`/pdfs/${name}`);
-      if (!response.ok) {
-        throw new Error(`Failed to download: ${response.status}`);
-      }
-      
-      const buffer = await response.arrayBuffer();
-      const base64Data = arrayBufferToBase64(buffer);
-      console.log(`Downloaded ${name}: ${buffer.byteLength} bytes, base64: ${base64Data.length} chars`);
-
-      // Update status to processing
-      setResults(prev => prev.map((r, i) => 
-        i === index ? { ...r, status: 'processing' as const } : r
-      ));
-      setCurrentStep(`Extracting questions from ${name} with AI...`);
-
-      // Call the edge function
+      // Call the edge function - it fetches PDF from GitHub directly
       const { data, error } = await supabase.functions.invoke('process-single-genetics-pdf', {
         body: { 
           pdfName: name, 
-          pdfBase64: base64Data,
           category: category,
           subject: 'Genetics',
           skipExisting: false
