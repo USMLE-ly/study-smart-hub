@@ -1,22 +1,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-// Categories based on PDF naming convention
-const CATEGORY_MAP: Record<string, string> = {
-  'genetics-1': 'DNA Structure, Replication and Repair',
-  'genetics-2': 'DNA Structure, Synthesis and Processing',
-  'genetics-3': 'Gene Expression and Regulation',
-  'genetics-4': 'Gene Expression and Regulation',
-  'genetics-5': 'Clinical Genetics',
-  'genetics-6': 'Clinical Genetics',
-  'genetics-7': 'Clinical Genetics',
-  'genetics-8': 'Miscellaneous',
 };
 
 interface ExtractedQuestion {
@@ -47,7 +36,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { pdfName, pdfBase64, skipExisting = false } = body;
+    const { pdfName, pdfBase64, category, subject = 'Genetics', skipExisting = false } = body;
 
     if (!pdfName) {
       return new Response(
@@ -56,7 +45,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[PROCESS] Starting: ${pdfName}`);
+    console.log(`[PROCESS] Starting: ${pdfName}, category: ${category}`);
 
     // Check if already processed
     if (skipExisting) {
@@ -74,11 +63,6 @@ serve(async (req) => {
       }
     }
 
-    // Determine category from PDF name
-    const pdfPrefix = pdfName.replace(/-\d+\.pdf$/, '');
-    const category = CATEGORY_MAP[pdfPrefix] || 'Genetics';
-    console.log(`[CATEGORY] ${pdfPrefix} -> ${category}`);
-
     if (!pdfBase64) {
       return new Response(
         JSON.stringify({ error: 'pdfBase64 data is required' }),
@@ -86,10 +70,11 @@ serve(async (req) => {
       );
     }
 
-    // Use AI to extract questions - send smaller chunks to avoid memory issues
-    // We'll send just a description request first, then individual question extraction
-    console.log(`[AI] Analyzing PDF structure...`);
-    
+    // Limit base64 size to avoid memory issues (take first 400KB of base64 = ~300KB PDF)
+    const truncatedBase64 = pdfBase64.substring(0, 400000);
+    console.log(`[AI] Sending ${truncatedBase64.length} chars of base64 to AI...`);
+
+    // Use AI to extract questions
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -101,37 +86,27 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `Extract USMLE-style medical questions from PDFs. For each question extract:
-1. Full question text including clinical vignette
-2. All answer options (A-E) with correct answer marked
-3. Complete explanation
-4. Educational objective
-5. Whether there's an image/diagram
+            content: `You are a medical education expert. Extract USMLE-style questions from PDFs. For each question:
+1. Extract the COMPLETE question text including the full clinical vignette
+2. Extract ALL answer options (A through E) with the text
+3. Identify which option is CORRECT
+4. Extract the COMPLETE explanation
+5. Extract the educational objective if present
+6. Note if there are images/diagrams
 
-Return as JSON array of questions.`
+Return ONLY valid JSON, no markdown code blocks.`
           },
           {
             role: 'user',
             content: [
               { 
                 type: 'text', 
-                text: `Extract ALL questions from this ${category} genetics PDF (${pdfName}). Return valid JSON with structure:
-{
-  "questions": [
-    {
-      "question_text": "...",
-      "options": [{"letter": "A", "text": "...", "is_correct": false}, ...],
-      "main_explanation": "...",
-      "educational_objective": "...",
-      "has_image": false,
-      "image_description": ""
-    }
-  ]
-}`
+                text: `Extract ALL questions from this ${category} (Genetics) PDF named "${pdfName}". Return this exact JSON structure with NO markdown:
+{"questions": [{"question_text": "full question here", "options": [{"letter": "A", "text": "option text", "is_correct": true}, {"letter": "B", "text": "...", "is_correct": false}, {"letter": "C", "text": "...", "is_correct": false}, {"letter": "D", "text": "...", "is_correct": false}, {"letter": "E", "text": "...", "is_correct": false}], "main_explanation": "full explanation", "educational_objective": "objective if any", "has_image": false, "image_description": ""}]}`
               },
               {
                 type: 'image_url',
-                image_url: { url: `data:application/pdf;base64,${pdfBase64.substring(0, 500000)}` }
+                image_url: { url: `data:application/pdf;base64,${truncatedBase64}` }
               }
             ]
           }
@@ -147,27 +122,30 @@ Return as JSON array of questions.`
 
     const result = await response.json();
     const content = result.choices?.[0]?.message?.content || '';
-    console.log(`[AI] Response received, parsing...`);
+    console.log(`[AI] Response received, length: ${content.length}`);
 
     // Parse JSON from response
     let questions: ExtractedQuestion[] = [];
     try {
       let jsonStr = content;
+      // Remove markdown code blocks if present
       const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonMatch) jsonStr = jsonMatch[1];
+      // Find JSON object
       const directMatch = jsonStr.match(/\{[\s\S]*\}/);
       if (directMatch) jsonStr = directMatch[0];
       const parsed = JSON.parse(jsonStr);
       questions = parsed.questions || [];
     } catch (e) {
       console.error('[PARSE ERROR]', e);
+      console.log('[RAW CONTENT]', content.substring(0, 500));
       return new Response(
-        JSON.stringify({ error: 'Failed to parse AI response', raw: content.substring(0, 1000) }),
+        JSON.stringify({ error: 'Failed to parse AI response', raw: content.substring(0, 300) }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[EXTRACTED] ${questions.length} questions`);
+    console.log(`[EXTRACTED] ${questions.length} questions from ${pdfName}`);
 
     // Insert questions into database
     let inserted = 0;
@@ -183,7 +161,7 @@ Return as JSON array of questions.`
         .from('questions')
         .insert({
           question_text: q.question_text,
-          subject: 'Genetics',
+          subject: subject,
           system: 'General',
           category: category,
           explanation: fullExplanation,
@@ -217,7 +195,7 @@ Return as JSON array of questions.`
       inserted++;
     }
 
-    console.log(`[COMPLETE] Inserted ${inserted}/${questions.length} questions`);
+    console.log(`[COMPLETE] Inserted ${inserted}/${questions.length} questions for ${pdfName}`);
 
     return new Response(
       JSON.stringify({

@@ -1,16 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Loader2, CheckCircle, XCircle, Play, Github, RefreshCw, FileText } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Play, RefreshCw, FileText, Zap } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/badge";
 
-// GitHub raw URLs for genetics PDFs
-const GITHUB_BASE_URL = 'https://raw.githubusercontent.com/USMLE-ly/study-smart-hub/main/public/pdfs';
-
+// PDFs are in the local public folder
 const GENETICS_PDFS = [
   { name: 'genetics-1-5.pdf', category: 'DNA Structure, Replication and Repair', expectedQuestions: 5 },
   { name: 'genetics-1-8.pdf', category: 'DNA Structure, Replication and Repair', expectedQuestions: 8 },
@@ -25,7 +23,7 @@ const GENETICS_PDFS = [
 ];
 
 // Expected totals
-const EXPECTED_TOTALS = {
+const EXPECTED_TOTALS: Record<string, number> = {
   'DNA Structure, Replication and Repair': 19,
   'DNA Structure, Synthesis and Processing': 13,
   'Gene Expression and Regulation': 8,
@@ -36,7 +34,7 @@ const EXPECTED_TOTALS = {
 interface ProcessResult {
   pdf: string;
   category: string;
-  status: 'pending' | 'downloading' | 'processing' | 'success' | 'error';
+  status: 'pending' | 'downloading' | 'processing' | 'success' | 'error' | 'skipped';
   questionsExtracted?: number;
   error?: string;
 }
@@ -46,11 +44,20 @@ export default function AutoProcessGenetics() {
     GENETICS_PDFS.map(pdf => ({ pdf: pdf.name, category: pdf.category, status: 'pending' }))
   );
   const [isProcessing, setIsProcessing] = useState(false);
+  const [autoStart, setAutoStart] = useState(false);
   const [currentStep, setCurrentStep] = useState<string>('');
   const [totalQuestions, setTotalQuestions] = useState(0);
-  const [processingIndex, setProcessingIndex] = useState(-1);
 
-  // Helper to convert ArrayBuffer to base64
+  // Auto-start on mount (triggered by AI)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('autostart') === 'true' && !isProcessing && !autoStart) {
+      setAutoStart(true);
+      setTimeout(() => processAllPdfs(), 1000);
+    }
+  }, []);
+
+  // Helper to convert ArrayBuffer to base64 in chunks
   const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
     const bytes = new Uint8Array(buffer);
     let binary = '';
@@ -70,30 +77,32 @@ export default function AutoProcessGenetics() {
     setResults(prev => prev.map((r, i) => 
       i === index ? { ...r, status: 'downloading' as const } : r
     ));
-    setCurrentStep(`Downloading ${name} from GitHub...`);
+    setCurrentStep(`Downloading ${name}...`);
 
     try {
-      // Download PDF from GitHub
-      const response = await fetch(`${GITHUB_BASE_URL}/${name}`);
+      // Download PDF from local public folder
+      const response = await fetch(`/pdfs/${name}`);
       if (!response.ok) {
         throw new Error(`Failed to download: ${response.status}`);
       }
       
       const buffer = await response.arrayBuffer();
       const base64Data = arrayBufferToBase64(buffer);
-      console.log(`Downloaded ${name}: ${buffer.byteLength} bytes`);
+      console.log(`Downloaded ${name}: ${buffer.byteLength} bytes, base64: ${base64Data.length} chars`);
 
       // Update status to processing
       setResults(prev => prev.map((r, i) => 
         i === index ? { ...r, status: 'processing' as const } : r
       ));
-      setCurrentStep(`Processing ${name} with AI...`);
+      setCurrentStep(`Extracting questions from ${name} with AI...`);
 
       // Call the edge function
       const { data, error } = await supabase.functions.invoke('process-single-genetics-pdf', {
         body: { 
           pdfName: name, 
           pdfBase64: base64Data,
+          category: category,
+          subject: 'Genetics',
           skipExisting: false
         }
       });
@@ -104,6 +113,15 @@ export default function AutoProcessGenetics() {
 
       if (data?.error) {
         throw new Error(data.error);
+      }
+
+      if (data?.skipped) {
+        return {
+          pdf: name,
+          category,
+          status: 'skipped',
+          questionsExtracted: 0
+        };
       }
 
       const extracted = data?.inserted || data?.extracted || 0;
@@ -129,7 +147,6 @@ export default function AutoProcessGenetics() {
   const processAllPdfs = async () => {
     setIsProcessing(true);
     setTotalQuestions(0);
-    setProcessingIndex(0);
 
     // Reset all to pending
     setResults(GENETICS_PDFS.map(pdf => ({ pdf: pdf.name, category: pdf.category, status: 'pending' })));
@@ -137,10 +154,8 @@ export default function AutoProcessGenetics() {
     let totalExtracted = 0;
     const newResults: ProcessResult[] = [];
 
-    // Process PDFs one at a time to avoid memory issues
+    // Process PDFs one at a time
     for (let i = 0; i < GENETICS_PDFS.length; i++) {
-      setProcessingIndex(i);
-      
       const result = await processSinglePdf(GENETICS_PDFS[i], i);
       newResults.push(result);
       
@@ -156,9 +171,9 @@ export default function AutoProcessGenetics() {
         setTotalQuestions(totalExtracted);
       }
 
-      // Small delay between PDFs to avoid rate limiting
+      // Small delay between PDFs
       if (i < GENETICS_PDFS.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
 
@@ -173,10 +188,9 @@ export default function AutoProcessGenetics() {
 
     setIsProcessing(false);
     setCurrentStep('');
-    setProcessingIndex(-1);
   };
 
-  const completedCount = results.filter(r => r.status === 'success').length;
+  const completedCount = results.filter(r => r.status === 'success' || r.status === 'skipped').length;
   const errorCount = results.filter(r => r.status === 'error').length;
   const progress = ((completedCount + errorCount) / GENETICS_PDFS.length) * 100;
 
@@ -197,11 +211,11 @@ export default function AutoProcessGenetics() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  <Github className="h-5 w-5" />
+                  <Zap className="h-5 w-5 text-yellow-500" />
                   Automated Genetics PDF Processing
                 </CardTitle>
                 <CardDescription className="mt-2">
-                  Downloads PDFs from GitHub and extracts USMLE-style questions automatically
+                  Extracts USMLE-style questions from local PDFs using AI
                 </CardDescription>
               </div>
               <Button 
@@ -296,6 +310,9 @@ export default function AutoProcessGenetics() {
                       {result.status === 'success' && (
                         <CheckCircle className="h-4 w-4 text-green-500" />
                       )}
+                      {result.status === 'skipped' && (
+                        <CheckCircle className="h-4 w-4 text-yellow-500" />
+                      )}
                       {result.status === 'error' && (
                         <XCircle className="h-4 w-4 text-destructive" />
                       )}
@@ -308,6 +325,9 @@ export default function AutoProcessGenetics() {
                         <span className="text-green-600 font-medium">
                           {result.questionsExtracted} questions
                         </span>
+                      )}
+                      {result.status === 'skipped' && (
+                        <span className="text-yellow-600">Already processed</span>
                       )}
                       {result.status === 'error' && (
                         <span className="text-destructive">{result.error}</span>
@@ -330,7 +350,7 @@ export default function AutoProcessGenetics() {
               <div className="p-4 bg-muted/30 rounded-lg">
                 <div className="text-2xl mb-2">📥</div>
                 <div className="font-medium text-sm">1. Download</div>
-                <div className="text-xs text-muted-foreground">Fetch PDFs from GitHub</div>
+                <div className="text-xs text-muted-foreground">Fetch PDFs locally</div>
               </div>
               <div className="p-4 bg-muted/30 rounded-lg">
                 <div className="text-2xl mb-2">🤖</div>
