@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.upload-genetics-pdfs]
 verify_jwt = false
+
+[functions.process-single-genetics-pdf]
+verify_jwt = false
