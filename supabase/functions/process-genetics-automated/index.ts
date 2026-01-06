@@ -7,18 +7,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Complete list of genetics PDFs in the repository
+// GitHub raw URL for the public repository
+const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/USMLE-ly/study-smart-hub/main/public/pdfs';
+
+// Complete list of genetics PDFs with their categories
 const GENETICS_PDFS = [
-  'genetics-1-5.pdf',
-  'genetics-1-8.pdf',
-  'genetics-2-6.pdf',
-  'genetics-3-6.pdf',
-  'genetics-3-8.pdf',
-  'genetics-4-6.pdf',
-  'genetics-5-7.pdf',
-  'genetics-6-7.pdf',
-  'genetics-7-5.pdf',
-  'genetics-8-5.pdf'
+  { name: 'genetics-1-5.pdf', category: 'DNA Structure, Replication and Repair' },
+  { name: 'genetics-1-8.pdf', category: 'DNA Structure, Replication and Repair' },
+  { name: 'genetics-2-6.pdf', category: 'DNA Structure, Synthesis and Processing' },
+  { name: 'genetics-3-6.pdf', category: 'DNA Structure, Synthesis and Processing' },
+  { name: 'genetics-3-8.pdf', category: 'Gene Expression and Regulation' },
+  { name: 'genetics-4-6.pdf', category: 'Gene Expression and Regulation' },
+  { name: 'genetics-5-7.pdf', category: 'Clinical Genetics' },
+  { name: 'genetics-6-7.pdf', category: 'Clinical Genetics' },
+  { name: 'genetics-7-5.pdf', category: 'Clinical Genetics' },
+  { name: 'genetics-8-5.pdf', category: 'Miscellaneous' }
 ];
 
 // PDFs will be read from Supabase Storage bucket
@@ -82,15 +85,18 @@ serve(async (req) => {
 
     // Determine which PDFs to process
     const pdfsToProcess = singlePdf 
-      ? [singlePdf] 
+      ? GENETICS_PDFS.filter(p => p.name === singlePdf)
       : GENETICS_PDFS.slice(startFromIndex);
 
     console.log(`[AUTO-GENETICS] Starting automated processing of ${pdfsToProcess.length} PDFs`);
     console.log(`Settings: generateImages=${generateImages}, skipExisting=${skipExisting}`);
 
-    for (const pdfName of pdfsToProcess) {
+    for (const pdfInfo of pdfsToProcess) {
+      const pdfName = pdfInfo.name;
+      const pdfCategory = pdfInfo.category;
+      
       console.log(`\n========================================`);
-      console.log(`[PROCESSING] ${pdfName}`);
+      console.log(`[PROCESSING] ${pdfName} - Category: ${pdfCategory}`);
       console.log(`========================================`);
 
       try {
@@ -114,40 +120,56 @@ serve(async (req) => {
           }
         }
 
-        // Step 1: Get PDF data
+        // Step 1: Get PDF data - prioritize GitHub, then fallback options
         let pdfBuffer: ArrayBuffer;
         
-        // Option 1: Direct PDF data provided in request
-        if (pdfDataMap && pdfDataMap[pdfName]) {
-          console.log(`[STEP 1] Using provided PDF data for: ${pdfName}`);
-          const binaryString = atob(pdfDataMap[pdfName]);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
+        // Option 1: Fetch from GitHub (primary method)
+        const githubUrl = `${GITHUB_RAW_BASE}/${pdfName}`;
+        console.log(`[STEP 1] Fetching PDF from GitHub: ${githubUrl}`);
+        
+        try {
+          const githubResponse = await fetch(githubUrl);
+          if (githubResponse.ok) {
+            pdfBuffer = await githubResponse.arrayBuffer();
+            console.log(`[SUCCESS] Fetched from GitHub: ${pdfBuffer.byteLength} bytes`);
+          } else {
+            throw new Error(`GitHub fetch failed: ${githubResponse.status}`);
           }
-          pdfBuffer = bytes.buffer;
-        }
-        // Option 2: Fetch from provided base URL
-        else if (pdfBaseUrl) {
-          const pdfUrl = `${pdfBaseUrl}/pdfs/${pdfName}`;
-          console.log(`[STEP 1] Fetching PDF from URL: ${pdfUrl}`);
-          const pdfResponse = await fetch(pdfUrl);
-          if (!pdfResponse.ok) {
-            throw new Error(`Failed to fetch PDF: HTTP ${pdfResponse.status}`);
-          }
-          pdfBuffer = await pdfResponse.arrayBuffer();
-        }
-        // Option 3: Fetch from Supabase Storage
-        else {
-          console.log(`[STEP 1] Fetching PDF from storage: ${pdfName}`);
-          const { data: pdfData, error: pdfError } = await supabase.storage
-            .from(STORAGE_BUCKET)
-            .download(`genetics/${pdfName}`);
+        } catch (githubError) {
+          console.log(`[FALLBACK] GitHub failed, trying other sources...`);
           
-          if (pdfError || !pdfData) {
-            throw new Error(`Failed to fetch PDF from storage: ${pdfError?.message || 'No data'}`);
+          // Fallback: Direct PDF data provided in request
+          if (pdfDataMap && pdfDataMap[pdfName]) {
+            console.log(`[STEP 1] Using provided PDF data for: ${pdfName}`);
+            const binaryString = atob(pdfDataMap[pdfName]);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            pdfBuffer = bytes.buffer;
           }
-          pdfBuffer = await pdfData.arrayBuffer();
+          // Fallback: Fetch from provided base URL
+          else if (pdfBaseUrl) {
+            const pdfUrl = `${pdfBaseUrl}/pdfs/${pdfName}`;
+            console.log(`[STEP 1] Fetching PDF from URL: ${pdfUrl}`);
+            const pdfResponse = await fetch(pdfUrl);
+            if (!pdfResponse.ok) {
+              throw new Error(`Failed to fetch PDF: HTTP ${pdfResponse.status}`);
+            }
+            pdfBuffer = await pdfResponse.arrayBuffer();
+          }
+          // Fallback: Fetch from Supabase Storage
+          else {
+            console.log(`[STEP 1] Fetching PDF from storage: ${pdfName}`);
+            const { data: pdfData, error: pdfError } = await supabase.storage
+              .from(STORAGE_BUCKET)
+              .download(`genetics/${pdfName}`);
+            
+            if (pdfError || !pdfData) {
+              throw new Error(`Failed to fetch PDF from storage: ${pdfError?.message || 'No data'}`);
+            }
+            pdfBuffer = await pdfData.arrayBuffer();
+          }
         }
         
         const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfBuffer)));
@@ -172,7 +194,7 @@ serve(async (req) => {
             // Combine all explanation parts
             const fullExplanation = buildFullExplanation(q);
 
-            // Insert question
+            // Insert question with the PDF's category
             const { data: questionData, error: questionError } = await supabase
               .from('questions')
               .insert({
@@ -180,7 +202,7 @@ serve(async (req) => {
                 subject: 'Genetics',
                 system: 'General',
                 explanation: fullExplanation,
-                category: q.category || 'Genetics',
+                category: pdfCategory,
                 has_image: q.has_image || false,
                 image_description: q.image_description || null,
                 source_pdf: pdfName,
