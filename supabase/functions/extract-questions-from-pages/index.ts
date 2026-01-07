@@ -42,13 +42,22 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const { pageImages, pdfName, category, subject, system } = await req.json();
+    const { pageImages, pdfName, category, subject, system, batchSize = 15 } = await req.json();
 
     if (!pageImages || !Array.isArray(pageImages) || pageImages.length === 0) {
       throw new Error("pageImages array is required");
     }
 
-    console.log(`Processing ${pageImages.length} pages from ${pdfName}`);
+    console.log(`Processing ${pageImages.length} pages from ${pdfName} (batch size: ${batchSize})`);
+
+    // Process pages in batches to avoid overwhelming the AI
+    const effectiveBatchSize = Math.min(batchSize, pageImages.length);
+    const batches: PageImage[][] = [];
+    for (let i = 0; i < pageImages.length; i += effectiveBatchSize) {
+      batches.push(pageImages.slice(i, i + effectiveBatchSize));
+    }
+
+    console.log(`Split into ${batches.length} batches`);
 
     // Build the prompt with all page image URLs
     const pageDescriptions = pageImages.map((p: PageImage) => 
