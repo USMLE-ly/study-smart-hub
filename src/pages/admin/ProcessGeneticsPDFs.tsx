@@ -141,6 +141,10 @@ export default function ProcessGeneticsPDFs() {
   const clearSavedProgress = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setHasSavedProgress(false);
+    setResults([]);
+    setOverallProgress(0);
+    setTotalRetries(0);
+    setLastSaved(null);
   }, []);
 
   const updateResult = useCallback((pdfName: string, updates: Partial<ProcessingResult>) => {
@@ -549,6 +553,9 @@ export default function ProcessGeneticsPDFs() {
                   <Button onClick={() => { clearSavedProgress(); processAllPdfs(0); }} size="lg" variant="outline">
                     <Play className="mr-2 h-4 w-4" />
                     Start Fresh
+                  </Button>
+                  <Button onClick={clearSavedProgress} size="lg" variant="ghost">
+                    Clear Progress
                   </Button>
                 </>
               )}
