@@ -283,7 +283,17 @@ ONLY return JSON, no other text.`;
     } catch (parseError) {
       console.error("Parse error:", parseError);
       console.error("Raw content (first 1000 chars):", content.substring(0, 1000));
-      throw new Error(`Failed to parse AI response: ${parseError}`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Failed to parse AI response: ${parseError}`,
+          rawAiResponse: content.substring(0, 5000), // Return raw response for debugging
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const questions = parsedQuestions.questions || [];

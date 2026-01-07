@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { FileText, CheckCircle, XCircle, Loader2, Image, Upload, Save, RefreshCw, Pause, Play, ExternalLink, Database, AlertTriangle, Trash2 } from "lucide-react";
+import { FileText, CheckCircle, XCircle, Loader2, Image, Upload, Save, RefreshCw, Pause, Play, ExternalLink, Database, AlertTriangle, Trash2, Copy, ChevronDown, ChevronUp } from "lucide-react";
 
 declare global {
   interface Window {
@@ -56,6 +56,7 @@ interface ProcessingResult {
   currentBatch?: number;
   totalBatches?: number;
   failedStep?: "rendering" | "uploading" | "extracting";
+  rawAiResponse?: string;
 }
 
 interface SavedProgress {
@@ -77,6 +78,7 @@ export default function ProcessGeneticsPDFs() {
   const [dbQuestionCount, setDbQuestionCount] = useState<number>(0);
   const [displayedCount, setDisplayedCount] = useState<number>(0);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'mismatch' | 'checking' | 'idle'>('idle');
+  const [expandedDebug, setExpandedDebug] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState<string | null>(null);
   const pdfjsLibRef = useRef<any>(null);
   const pauseRef = useRef(false);
@@ -403,6 +405,10 @@ export default function ProcessGeneticsPDFs() {
               allQuestions += data.questionsInserted;
               success = true;
             } else {
+              // Capture raw AI response for debugging
+              if (data.rawAiResponse) {
+                updateResult(config.name, { rawAiResponse: data.rawAiResponse });
+              }
               throw new Error(data.error || "Unknown error");
             }
           } catch (error) {
@@ -588,6 +594,10 @@ export default function ProcessGeneticsPDFs() {
           if (data.success) {
             allQuestions += data.questionsInserted;
           } else {
+            // Capture raw AI response for debugging
+            if (data.rawAiResponse) {
+              updateResult(pdfName, { rawAiResponse: data.rawAiResponse });
+            }
             throw new Error(data.error || "Unknown error");
           }
         }
@@ -899,11 +909,52 @@ export default function ProcessGeneticsPDFs() {
                               </div>
                             </div>
                             
-                            {/* Error details */}
+                            {/* Error details with debug panel */}
                             {result.status === "error" && result.error && (
-                              <div className="text-xs text-destructive bg-destructive/10 p-2 rounded">
-                                <strong>Failed at:</strong> {result.failedStep || "unknown"} step<br/>
-                                <strong>Error:</strong> {result.error}
+                              <div className="space-y-2">
+                                <div className="text-xs text-destructive bg-destructive/10 p-2 rounded">
+                                  <strong>Failed at:</strong> {result.failedStep || "unknown"} step<br/>
+                                  <strong>Error:</strong> {result.error}
+                                </div>
+                                
+                                {/* Expandable raw AI response debug panel */}
+                                {result.rawAiResponse && (
+                                  <div className="border border-border rounded">
+                                    <button
+                                      onClick={() => setExpandedDebug(
+                                        expandedDebug === pdf.name ? null : pdf.name
+                                      )}
+                                      className="w-full flex items-center justify-between p-2 text-xs font-medium bg-muted/50 hover:bg-muted transition-colors"
+                                    >
+                                      <span>🔍 Debug: Raw AI Response</span>
+                                      {expandedDebug === pdf.name ? (
+                                        <ChevronUp className="h-3 w-3" />
+                                      ) : (
+                                        <ChevronDown className="h-3 w-3" />
+                                      )}
+                                    </button>
+                                    {expandedDebug === pdf.name && (
+                                      <div className="p-2 space-y-2">
+                                        <div className="flex justify-end">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(result.rawAiResponse || "");
+                                              toast.success("Copied to clipboard!");
+                                            }}
+                                          >
+                                            <Copy className="h-3 w-3 mr-1" />
+                                            Copy
+                                          </Button>
+                                        </div>
+                                        <pre className="text-xs font-mono bg-background p-2 rounded max-h-[300px] overflow-auto whitespace-pre-wrap break-all border">
+                                          {result.rawAiResponse}
+                                        </pre>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             )}
                             
