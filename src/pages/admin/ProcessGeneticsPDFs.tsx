@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -7,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { FileText, CheckCircle, XCircle, Loader2, Image, Upload, Save, RefreshCw, Pause, Play } from "lucide-react";
+import { FileText, CheckCircle, XCircle, Loader2, Image, Upload, Save, RefreshCw, Pause, Play, ExternalLink, Database } from "lucide-react";
 
 declare global {
   interface Window {
@@ -71,9 +72,23 @@ export default function ProcessGeneticsPDFs() {
   const [hasSavedProgress, setHasSavedProgress] = useState(false);
   const [totalRetries, setTotalRetries] = useState(0);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [dbQuestionCount, setDbQuestionCount] = useState<number>(0);
   const pdfjsLibRef = useRef<any>(null);
   const pauseRef = useRef(false);
   const abortRef = useRef(false);
+
+  // Fetch actual question count from database
+  const fetchDbCount = useCallback(async () => {
+    const { count } = await supabase
+      .from("questions")
+      .select("*", { count: "exact", head: true })
+      .eq("subject", "Genetics");
+    setDbQuestionCount(count || 0);
+  }, []);
+
+  useEffect(() => {
+    fetchDbCount();
+  }, [fetchDbCount]);
 
   // Load PDF.js from CDN
   useEffect(() => {
@@ -445,6 +460,9 @@ export default function ProcessGeneticsPDFs() {
     setIsProcessing(false);
     setCurrentPdf("");
     
+    // Refresh actual DB count
+    await fetchDbCount();
+    
     if (!abortRef.current) {
       clearSavedProgress();
       toast.success(`Processing complete! Extracted ${totalExtracted} questions from ${GENETICS_PDFS.length} PDFs`);
@@ -595,6 +613,25 @@ export default function ProcessGeneticsPDFs() {
                 </div>
               </div>
             )}
+
+            {/* Database count and link to Create Test */}
+            <div className="flex items-center gap-4 pt-2 border-t">
+              <Badge variant="outline" className="flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                {dbQuestionCount} in database
+              </Badge>
+              <Button onClick={fetchDbCount} variant="ghost" size="sm">
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              {dbQuestionCount > 0 && (
+                <Button asChild variant="default" size="sm">
+                  <Link to="/create-test">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Create Test with Questions
+                  </Link>
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
 
