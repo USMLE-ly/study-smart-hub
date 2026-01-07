@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -80,6 +81,7 @@ export default function ProcessGeneticsPDFs() {
   const [syncStatus, setSyncStatus] = useState<'synced' | 'mismatch' | 'checking' | 'idle'>('idle');
   const [expandedDebug, setExpandedDebug] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>("google/gemini-2.5-flash");
   const pdfjsLibRef = useRef<any>(null);
   const pauseRef = useRef(false);
   const abortRef = useRef(false);
@@ -396,6 +398,7 @@ export default function ProcessGeneticsPDFs() {
                 subject: "Genetics",
                 system: "General",
                 batchSize: retryBatchSize,
+                model: selectedModel,
               },
             });
 
@@ -587,6 +590,7 @@ export default function ProcessGeneticsPDFs() {
               subject: "Genetics",
               system: "General",
               batchSize: BATCH_SIZE,
+              model: selectedModel,
             },
           });
 
@@ -700,7 +704,17 @@ export default function ProcessGeneticsPDFs() {
               and 2-4 explanation screenshots. Progress saves automatically for offline resume.
             </p>
 
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-4 items-center">
+              <Select value={selectedModel} onValueChange={setSelectedModel} disabled={isProcessing}>
+                <SelectTrigger className="w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="google/gemini-2.5-flash">Gemini 2.5 Flash (Fast)</SelectItem>
+                  <SelectItem value="google/gemini-2.5-pro">Gemini 2.5 Pro (Accurate)</SelectItem>
+                </SelectContent>
+              </Select>
+
               {!isProcessing && !hasSavedProgress && (
                 <Button 
                   onClick={() => processAllPdfs(0)} 

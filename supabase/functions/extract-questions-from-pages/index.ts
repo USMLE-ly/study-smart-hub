@@ -42,7 +42,8 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const { pageImages, pdfName, category, subject, system, batchSize = 15 } = await req.json();
+    const { pageImages, pdfName, category, subject, system, batchSize = 15, model = "google/gemini-2.5-flash" } = await req.json();
+    console.log("Using AI model:", model);
 
     if (!pageImages || !Array.isArray(pageImages) || pageImages.length === 0) {
       throw new Error("pageImages array is required");
@@ -144,7 +145,7 @@ ONLY return JSON, no other text.`;
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+            model: model,
             messages: [
               { role: "system", content: systemPrompt },
               { 
@@ -207,10 +208,19 @@ ONLY return JSON, no other text.`;
     try {
       // First strip markdown code blocks if present (handles ```json ... ``` wrapping)
       let cleanedContent = content.trim();
+      
+      // Remove BOM and invisible Unicode characters FIRST
+      cleanedContent = cleanedContent
+        .replace(/^\uFEFF/, '')                              // BOM
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')               // Zero-width chars
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '') // Control chars
+        .replace(/\r\n/g, '\n')                              // Normalize line endings
+        .replace(/\r/g, '\n');
+      
       console.log("Content starts with:", cleanedContent.substring(0, 20));
       
-      // Remove leading markdown code fence
-      const codeBlockMatch = cleanedContent.match(/^```(?:json)?\s*\n?([\s\S]*?)```$/);
+      // Handle ```json ... ``` wrapper (greedy match for content)
+      const codeBlockMatch = cleanedContent.match(/^```(?:json)?\s*\n([\s\S]+)\n?```\s*$/);
       if (codeBlockMatch) {
         cleanedContent = codeBlockMatch[1].trim();
         console.log("Stripped markdown code block wrapper");
@@ -230,6 +240,17 @@ ONLY return JSON, no other text.`;
         console.log("Stripped ``` prefix");
       }
       
+      // Also try without newline requirement (for single-line responses)
+      if (cleanedContent.startsWith('```')) {
+        const singleLineMatch = cleanedContent.match(/^```(?:json)?\s*([\s\S]+?)```\s*$/);
+        if (singleLineMatch) {
+          cleanedContent = singleLineMatch[1].trim();
+          console.log("Stripped single-line markdown wrapper");
+        }
+      }
+      
+      // Log char codes for debugging invisible characters
+      console.log("First 10 char codes:", [...cleanedContent.slice(0, 10)].map(c => c.charCodeAt(0)));
       console.log("Cleaned content starts with:", cleanedContent.substring(0, 50));
       
       // Try to extract JSON from the response
