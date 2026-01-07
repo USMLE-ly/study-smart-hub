@@ -72,6 +72,8 @@ export default function ProcessGeneticsPDFs() {
   const [overallProgress, setOverallProgress] = useState(0);
   const [pdfLibLoaded, setPdfLibLoaded] = useState(false);
   const [hasSavedProgress, setHasSavedProgress] = useState(false);
+  const [totalRetries, setTotalRetries] = useState(0);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const pdfjsLibRef = useRef<any>(null);
   const pauseRef = useRef(false);
   const abortRef = useRef(false);
@@ -124,6 +126,7 @@ export default function ProcessGeneticsPDFs() {
       lastUpdated: new Date().toISOString(),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    setLastSaved(new Date());
   }, []);
 
   const loadSavedProgress = useCallback((): SavedProgress | null => {
@@ -310,6 +313,9 @@ export default function ProcessGeneticsPDFs() {
 
         while (!success && attempts < maxAttempts) {
           attempts++;
+          if (attempts > 1) {
+            setTotalRetries(prev => prev + 1);
+          }
           updateResult(config.name, { retryAttempt: attempts });
 
           try {
@@ -561,8 +567,14 @@ export default function ProcessGeneticsPDFs() {
                   </Button>
                   <Badge variant="secondary" className="flex items-center gap-2 px-4 py-2">
                     <Save className="h-4 w-4" />
-                    Auto-saving progress
+                    {lastSaved ? `Saved ${lastSaved.toLocaleTimeString()}` : "Auto-saving..."}
                   </Badge>
+                  {totalRetries > 0 && (
+                    <Badge variant="outline" className="flex items-center gap-2 px-4 py-2">
+                      <RefreshCw className="h-4 w-4" />
+                      {totalRetries} retries
+                    </Badge>
+                  )}
                 </>
               )}
             </div>
@@ -620,18 +632,35 @@ export default function ProcessGeneticsPDFs() {
                         return (
                           <div 
                             key={pdf.name}
-                            className="flex items-center justify-between p-3 rounded-lg border"
+                            className="p-3 rounded-lg border space-y-2"
                           >
-                            <div className="flex items-center gap-3">
-                              {getStatusIcon(result.status)}
-                              <span className="font-medium text-sm">{pdf.name}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {pdf.expectedQuestions}Q
-                              </Badge>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                {getStatusIcon(result.status)}
+                                <span className="font-medium text-sm">{pdf.name}</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {pdf.expectedQuestions}Q
+                                </Badge>
+                              </div>
+                              <span className="text-sm text-muted-foreground">
+                                {getStatusText(result)}
+                              </span>
                             </div>
-                            <span className="text-sm text-muted-foreground">
-                              {getStatusText(result)}
-                            </span>
+                            {/* Batch progress bar */}
+                            {result.status === "extracting" && result.currentBatch && result.totalBatches && (
+                              <div className="space-y-1">
+                                <Progress 
+                                  value={(result.currentBatch / result.totalBatches) * 100} 
+                                  className="h-1.5" 
+                                />
+                                <div className="flex justify-between text-xs text-muted-foreground">
+                                  <span>Batch {result.currentBatch}/{result.totalBatches}</span>
+                                  {result.retryAttempt && result.retryAttempt > 1 && (
+                                    <span className="text-yellow-500">Retry {result.retryAttempt}/3</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
