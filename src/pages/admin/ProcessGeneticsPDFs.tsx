@@ -82,6 +82,7 @@ export default function ProcessGeneticsPDFs() {
   const [expandedDebug, setExpandedDebug] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>("google/gemini-2.5-flash");
+  const [selectedBatchSize, setSelectedBatchSize] = useState<number>(5);
   const pdfjsLibRef = useRef<any>(null);
   const pauseRef = useRef(false);
   const abortRef = useRef(false);
@@ -356,7 +357,7 @@ export default function ProcessGeneticsPDFs() {
       }
 
       // Step 3: Process in batches for better reliability
-      const BATCH_SIZE = 5; // Reduced from 10 to avoid MAX_TOKENS errors
+      const BATCH_SIZE = selectedBatchSize;
       const totalBatches = Math.ceil(uploadedPages.length / BATCH_SIZE);
       let allQuestions = 0;
 
@@ -376,10 +377,10 @@ export default function ProcessGeneticsPDFs() {
           retryAttempt: 1
         });
 
-        // Retry logic with smaller batch on failure
+        // Retry logic with automatic batch size reduction on MAX_TOKENS/RECITATION
         let retryBatchSize = BATCH_SIZE;
         let attempts = 0;
-        const maxAttempts = 3;
+        const maxAttempts = 4; // Increased to allow more reduction attempts
         let success = false;
 
         while (!success && attempts < maxAttempts) {
@@ -412,17 +413,49 @@ export default function ProcessGeneticsPDFs() {
               if (data.rawAiResponse) {
                 updateResult(config.name, { rawAiResponse: data.rawAiResponse });
               }
-              throw new Error(data.error || "Unknown error");
+              
+              // Check for specific error types that need smaller batches
+              const errorType = data.errorType || '';
+              const errorMsg = data.error || '';
+              const needsSmallerBatch = 
+                errorType === 'MAX_TOKENS' || 
+                errorType === 'RECITATION' ||
+                errorMsg.includes('MAX_TOKENS') ||
+                errorMsg.includes('RECITATION') ||
+                errorMsg.includes('truncated');
+              
+              if (needsSmallerBatch && attempts < maxAttempts) {
+                console.log(`${errorType || 'Error'} detected, reducing batch size from ${retryBatchSize} to ${Math.max(1, Math.floor(retryBatchSize / 2))}`);
+                retryBatchSize = Math.max(1, Math.floor(retryBatchSize / 2));
+                const waitTime = Math.pow(2, attempts) * 1500;
+                await new Promise(r => setTimeout(r, waitTime));
+                continue; // Retry with smaller batch
+              }
+              
+              throw new Error(errorMsg || "Unknown error");
             }
-          } catch (error) {
+          } catch (error: any) {
             console.error(`Batch ${batchIdx + 1} attempt ${attempts} failed:`, error);
+            
+            // Check error message for MAX_TOKENS/RECITATION
+            const errorMsg = error?.message || '';
+            const needsSmallerBatch = 
+              errorMsg.includes('MAX_TOKENS') || 
+              errorMsg.includes('RECITATION') ||
+              errorMsg.includes('truncated');
+            
             if (attempts < maxAttempts) {
-              // Wait with exponential backoff
               const waitTime = Math.pow(2, attempts) * 2000;
               console.log(`Waiting ${waitTime}ms before retry...`);
               await new Promise(r => setTimeout(r, waitTime));
-              // Reduce batch size on retry
-              retryBatchSize = Math.max(3, Math.floor(retryBatchSize / 2));
+              
+              // Aggressively reduce batch size for token/recitation errors
+              if (needsSmallerBatch) {
+                retryBatchSize = Math.max(1, Math.floor(retryBatchSize / 2));
+                console.log(`Reduced batch size to ${retryBatchSize} for retry`);
+              } else {
+                retryBatchSize = Math.max(2, Math.floor(retryBatchSize / 2));
+              }
             } else {
               throw error;
             }
@@ -569,40 +602,86 @@ export default function ProcessGeneticsPDFs() {
       if (result.uploadedPages && result.uploadedPages.length > 0 && result.failedStep === "extracting") {
         updateResult(pdfName, { status: 'extracting', error: undefined, retryAttempt: 1 });
         
-        const BATCH_SIZE = 10;
-        const totalBatches = Math.ceil(result.uploadedPages.length / BATCH_SIZE);
+        let currentBatchSize = selectedBatchSize;
+        const totalBatches = Math.ceil(result.uploadedPages.length / currentBatchSize);
         let allQuestions = 0;
 
         for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const batchStart = batchIdx * BATCH_SIZE;
-          const batchPages = result.uploadedPages.slice(batchStart, batchStart + BATCH_SIZE);
+          const batchStart = batchIdx * currentBatchSize;
+          const batchPages = result.uploadedPages.slice(batchStart, batchStart + currentBatchSize);
           
           updateResult(pdfName, { 
             currentBatch: batchIdx + 1,
             totalBatches,
           });
 
-          const { data, error } = await supabase.functions.invoke("extract-questions-from-pages", {
-            body: {
-              pageImages: batchPages,
-              pdfName: pdfName,
-              category: config.category,
-              subject: "Genetics",
-              system: "General",
-              batchSize: BATCH_SIZE,
-              model: selectedModel,
-            },
-          });
+          // Retry with automatic batch reduction on MAX_TOKENS/RECITATION
+          let attempts = 0;
+          const maxAttempts = 4;
+          let success = false;
+          
+          while (!success && attempts < maxAttempts) {
+            attempts++;
+            updateResult(pdfName, { retryAttempt: attempts });
+            
+            try {
+              const { data, error } = await supabase.functions.invoke("extract-questions-from-pages", {
+                body: {
+                  pageImages: batchPages,
+                  pdfName: pdfName,
+                  category: config.category,
+                  subject: "Genetics",
+                  system: "General",
+                  batchSize: currentBatchSize,
+                  model: selectedModel,
+                },
+              });
 
-          if (error) throw error;
-          if (data.success) {
-            allQuestions += data.questionsInserted;
-          } else {
-            // Capture raw AI response for debugging
-            if (data.rawAiResponse) {
-              updateResult(pdfName, { rawAiResponse: data.rawAiResponse });
+              if (error) throw error;
+              
+              if (data.success) {
+                allQuestions += data.questionsInserted;
+                success = true;
+              } else {
+                // Capture raw AI response for debugging
+                if (data.rawAiResponse) {
+                  updateResult(pdfName, { rawAiResponse: data.rawAiResponse });
+                }
+                
+                // Check for specific error types that need smaller batches
+                const errorType = data.errorType || '';
+                const errorMsg = data.error || '';
+                const needsSmallerBatch = 
+                  errorType === 'MAX_TOKENS' || 
+                  errorType === 'RECITATION' ||
+                  errorMsg.includes('MAX_TOKENS') ||
+                  errorMsg.includes('RECITATION');
+                
+                if (needsSmallerBatch && attempts < maxAttempts) {
+                  currentBatchSize = Math.max(1, Math.floor(currentBatchSize / 2));
+                  console.log(`${errorType} detected in retry, reducing batch to ${currentBatchSize}`);
+                  await new Promise(r => setTimeout(r, 2000 * attempts));
+                  continue;
+                }
+                
+                throw new Error(errorMsg || "Unknown error");
+              }
+            } catch (err: any) {
+              const errorMsg = err?.message || '';
+              const needsSmallerBatch = 
+                errorMsg.includes('MAX_TOKENS') || 
+                errorMsg.includes('RECITATION');
+              
+              if (attempts < maxAttempts) {
+                await new Promise(r => setTimeout(r, 2000 * attempts));
+                if (needsSmallerBatch) {
+                  currentBatchSize = Math.max(1, Math.floor(currentBatchSize / 2));
+                  console.log(`Error in retry, reducing batch to ${currentBatchSize}`);
+                }
+              } else {
+                throw err;
+              }
             }
-            throw new Error(data.error || "Unknown error");
           }
         }
 
@@ -712,6 +791,21 @@ export default function ProcessGeneticsPDFs() {
                 <SelectContent>
                   <SelectItem value="google/gemini-2.5-flash">Gemini 2.5 Flash (Fast)</SelectItem>
                   <SelectItem value="google/gemini-2.5-pro">Gemini 2.5 Pro (Accurate)</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select 
+                value={String(selectedBatchSize)} 
+                onValueChange={(v) => setSelectedBatchSize(Number(v))} 
+                disabled={isProcessing}
+              >
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Batch size" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="3">3 pages (Safe)</SelectItem>
+                  <SelectItem value="5">5 pages (Default)</SelectItem>
+                  <SelectItem value="10">10 pages (Fast)</SelectItem>
                 </SelectContent>
               </Select>
 
