@@ -96,38 +96,49 @@ Subject: ${subject}
 Page URLs:
 ${pageDescriptions}
 
-Return JSON with this structure:
-{
-  "questions": [
-    {
-      "questionNumber": 1,
-      "questionPageNumbers": [1],
-      "explanationPageNumbers": [2, 3, 4],
-      "questionText": "A 45-year-old woman presents with...",
-      "options": [
-        {"letter": "A", "text": "Option A text", "isCorrect": false},
-        {"letter": "B", "text": "Option B text", "isCorrect": true},
-        {"letter": "C", "text": "Option C text", "isCorrect": false},
-        {"letter": "D", "text": "Option D text", "isCorrect": false},
-        {"letter": "E", "text": "Option E text", "isCorrect": false}
-      ],
-      "correctAnswer": "B",
-      "difficulty": "medium",
-      "hasQuestionImage": true
-    }
-  ]
-}
-
 RULES FOR questionPageNumbers:
 - ONLY include page numbers that have IMAGES or DIAGRAMS
-- If question page is text-only (no image), use empty array: "questionPageNumbers": []
-- This prevents text duplication since we store questionText separately
+- If question page is text-only (no image), use empty array: []
+- This prevents text duplication since we store questionText separately`;
 
-STRICT JSON OUTPUT:
-- Use DOUBLE QUOTES for all keys and string values
-- Do NOT use backticks, single quotes, comments, or trailing commas
-
-ONLY return JSON, no other text.`;
+    // JSON Schema for structured output - guarantees valid JSON
+    const questionsSchema = {
+      type: "object",
+      properties: {
+        questions: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["questionNumber", "questionPageNumbers", "explanationPageNumbers", "questionText", "options", "correctAnswer", "difficulty", "hasQuestionImage"],
+            properties: {
+              questionNumber: { type: "number" },
+              questionPageNumbers: { type: "array", items: { type: "number" } },
+              explanationPageNumbers: { type: "array", items: { type: "number" } },
+              questionText: { type: "string" },
+              options: {
+                type: "array",
+                items: {
+                  type: "object",
+                  required: ["letter", "text", "isCorrect"],
+                  properties: {
+                    letter: { type: "string" },
+                    text: { type: "string" },
+                    isCorrect: { type: "boolean" }
+                  },
+                  additionalProperties: false
+                }
+              },
+              correctAnswer: { type: "string" },
+              difficulty: { type: "string", enum: ["easy", "medium", "hard"] },
+              hasQuestionImage: { type: "boolean" }
+            },
+            additionalProperties: false
+          }
+        }
+      },
+      required: ["questions"],
+      additionalProperties: false
+    };
 
     // Retry logic with exponential backoff for transient errors
     const maxRetries = 3;
@@ -160,6 +171,18 @@ ONLY return JSON, no other text.`;
               }
             ],
             max_tokens: 8000,
+            // Use tool calling for guaranteed structured JSON output
+            tools: [
+              {
+                type: "function",
+                function: {
+                  name: "extract_questions",
+                  description: "Extract all questions from the PDF pages with their options and metadata",
+                  parameters: questionsSchema
+                }
+              }
+            ],
+            tool_choice: { type: "function", function: { name: "extract_questions" } }
           }),
         });
 
@@ -195,120 +218,48 @@ ONLY return JSON, no other text.`;
       throw lastError || new Error("AI API failed after all retries");
     }
 
-    const content = aiData.choices?.[0]?.message?.content;
-
-    if (!content) {
-      throw new Error("No content in AI response");
-    }
-
-    console.log("AI Response received, parsing... [v2-markdown-fix]");
-
-    // Parse the JSON response
+    // Extract structured output from tool call response
+    console.log("AI Response received, parsing tool call... [v3-structured-output]");
+    
     let parsedQuestions: { questions: ExtractedQuestion[] };
     try {
-      // First strip markdown code blocks if present (handles ```json ... ``` wrapping)
-      let cleanedContent = content.trim();
+      const message = aiData.choices?.[0]?.message;
       
-      // Remove BOM and invisible Unicode characters FIRST
-      cleanedContent = cleanedContent
-        .replace(/^\uFEFF/, '')                              // BOM
-        .replace(/[\u200B-\u200D\uFEFF]/g, '')               // Zero-width chars
-        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '') // Control chars
-        .replace(/\r\n/g, '\n')                              // Normalize line endings
-        .replace(/\r/g, '\n');
-      
-      console.log("Content starts with:", cleanedContent.substring(0, 20));
-      
-      // Handle ```json ... ``` wrapper (greedy match for content)
-      const codeBlockMatch = cleanedContent.match(/^```(?:json)?\s*\n([\s\S]+)\n?```\s*$/);
-      if (codeBlockMatch) {
-        cleanedContent = codeBlockMatch[1].trim();
-        console.log("Stripped markdown code block wrapper");
-      } else if (cleanedContent.startsWith('```json')) {
-        cleanedContent = cleanedContent.slice(7);
-        if (cleanedContent.endsWith('```')) {
-          cleanedContent = cleanedContent.slice(0, -3);
+      // Check for tool call response (structured output)
+      if (message?.tool_calls?.[0]?.function?.arguments) {
+        const args = message.tool_calls[0].function.arguments;
+        console.log("Got tool call response, parsing arguments...");
+        parsedQuestions = typeof args === 'string' ? JSON.parse(args) : args;
+      } 
+      // Fallback: check for regular content (shouldn't happen with tool_choice)
+      else if (message?.content) {
+        console.log("Fallback: parsing content (no tool call)");
+        const content = message.content.trim();
+        
+        // Strip markdown fences if present
+        let cleanedContent = content
+          .replace(/^```(?:json)?\s*/i, "")
+          .replace(/\s*```$/i, "")
+          .trim();
+        
+        // Check for truncation
+        if (!cleanedContent.endsWith("}")) {
+          throw new Error("AI response was truncated - incomplete JSON");
         }
-        cleanedContent = cleanedContent.trim();
-        console.log("Stripped ```json prefix");
-      } else if (cleanedContent.startsWith('```')) {
-        cleanedContent = cleanedContent.slice(3);
-        if (cleanedContent.endsWith('```')) {
-          cleanedContent = cleanedContent.slice(0, -3);
-        }
-        cleanedContent = cleanedContent.trim();
-        console.log("Stripped ``` prefix");
+        
+        parsedQuestions = JSON.parse(cleanedContent);
+      } else {
+        console.error("Unexpected AI response structure:", JSON.stringify(aiData).substring(0, 500));
+        throw new Error("No tool call or content in AI response");
       }
-      
-      // Also try without newline requirement (for single-line responses)
-      if (cleanedContent.startsWith('```')) {
-        const singleLineMatch = cleanedContent.match(/^```(?:json)?\s*([\s\S]+?)```\s*$/);
-        if (singleLineMatch) {
-          cleanedContent = singleLineMatch[1].trim();
-          console.log("Stripped single-line markdown wrapper");
-        }
-      }
-      
-      // Log char codes for debugging invisible characters
-      console.log("First 10 char codes:", [...cleanedContent.slice(0, 10)].map(c => c.charCodeAt(0)));
-      console.log("Cleaned content starts with:", cleanedContent.substring(0, 50));
-      
-      // Try to extract JSON from the response
-      const jsonMatch = cleanedContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error("No JSON found in response");
-      }
-
-      // Sanitize JSON string to fix common escape issues
-      let jsonStr = jsonMatch[0];
-      // Fix invalid escape sequences by replacing them
-      jsonStr = jsonStr
-        .replace(/\\(?!["\\/bfnrtu])/g, "\\\\") // Escape backslashes not followed by valid escape chars
-        .replace(/[\x00-\x1F\x7F]/g, (char: string) => {
-          // Replace control characters with their escaped equivalents
-          const code = char.charCodeAt(0);
-          if (code === 0x09) return "\\t";
-          if (code === 0x0A) return "\\n";
-          if (code === 0x0D) return "\\r";
-          return ""; // Remove other control characters
-        });
-
-      const parseJsonWithFixes = (input: string) => {
-        try {
-          return JSON.parse(input);
-        } catch (_e1) {
-          let fixed = input.trim().replace(/^\uFEFF/, "");
-
-          // Some models occasionally wrap JSON in double braces
-          if (fixed.startsWith("{{") && fixed.endsWith("}}")) {
-            fixed = fixed.slice(1, -1);
-          }
-
-          fixed = fixed
-            // Curly quotes → straight quotes (breaks JSON if used for keys)
-            .replace(/[“”]/g, '"')
-            // Backtick/single-quote keys → JSON keys
-            .replace(/`([^`]+)`\s*:/g, '"$1":')
-            .replace(/'([^']+)'\s*:/g, '"$1":')
-            // Quote unquoted keys (JSON5-style)
-            .replace(/([\{,]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)/g, '$1"$2"$3')
-            // Remove trailing commas
-            .replace(/,\s*([\}\]])/g, '$1');
-
-          console.log("JSON parse retry; starts with:", JSON.stringify(fixed.slice(0, 30)));
-          return JSON.parse(fixed);
-        }
-      };
-
-      parsedQuestions = parseJsonWithFixes(jsonStr);
     } catch (parseError) {
       console.error("Parse error:", parseError);
-      console.error("Raw content (first 1000 chars):", content.substring(0, 1000));
+      console.error("AI response structure:", JSON.stringify(aiData).substring(0, 1000));
       return new Response(
         JSON.stringify({
           success: false,
           error: `Failed to parse AI response: ${parseError}`,
-          rawAiResponse: content.substring(0, 5000), // Return raw response for debugging
+          rawAiResponse: JSON.stringify(aiData).substring(0, 5000),
         }),
         {
           status: 500,
