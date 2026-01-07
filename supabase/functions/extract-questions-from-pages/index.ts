@@ -65,29 +65,30 @@ serve(async (req) => {
       `Page ${p.pageNumber}: ${p.imageUrl}`
     ).join("\n");
 
-const systemPrompt = `You are an expert medical education content extractor for USMLE-style question banks.
+// Prompt designed to avoid RECITATION by focusing on structure extraction, not verbatim copying
+const systemPrompt = `You are a medical education content analyst. Your task is to analyze PDF page images and identify the STRUCTURE of questions.
 
-TASK: Extract ALL questions from the PDF pages. Each question typically has:
-- 1 page with the question (clinical vignette + image/diagram + choices A-E)
-- 2-4 explanation pages (diagrams, explanation text, educational objective)
+IMPORTANT: Do NOT reproduce copyrighted text verbatim. Instead:
+- SUMMARIZE question content in your own words
+- PARAPHRASE answer options
+- Focus on IDENTIFYING structure (which pages have questions, which have explanations)
 
 FOR EACH QUESTION, identify:
-1. questionPageNumbers: Page(s) with the question - ONLY include if page has a diagram/image
-2. explanationPageNumbers: All explanation pages (2-4 pages with diagrams, explanations)
-3. questionText: The full clinical vignette and question
-4. options: All 5 choices A-E with text and which is correct
-5. correctAnswer: The correct letter
-6. difficulty: easy/medium/hard
-7. hasQuestionImage: true if question page has a clinical image or diagram
+1. questionNumber: Sequential number (1, 2, 3...)
+2. questionPageNumbers: Page(s) with the question - ONLY include if page has a diagram/image
+3. explanationPageNumbers: Pages with explanations/diagrams
+4. questionText: Brief summary of the clinical scenario (paraphrased, not verbatim)
+5. options: 5 choices A-E with paraphrased text and which is correct
+6. correctAnswer: The correct letter
+7. difficulty: easy/medium/hard based on complexity
+8. hasQuestionImage: true if question page has a clinical image or diagram
 
 CRITICAL RULES:
-- For questionPageNumbers: ONLY include the page if it has an IMAGE or DIAGRAM (not just text)
-- If a question page is text-only with no image, set questionPageNumbers to empty array []
-- This avoids duplicate text since we already extract questionText
-- Explanation pages should capture all visual content (diagrams, tables, flowcharts)
-- Each question's explanation immediately follows its question page`;
+- PARAPHRASE all text content - do not copy verbatim
+- For questionPageNumbers: ONLY include if page has an IMAGE or DIAGRAM
+- If question page is text-only, set questionPageNumbers to empty array []`;
 
-const userPrompt = `Extract all questions from these PDF pages.
+const userPrompt = `Analyze these PDF page images and identify the structure of medical questions.
 
 PDF: ${pdfName}
 Category: ${category}
@@ -96,10 +97,7 @@ Subject: ${subject}
 Page URLs:
 ${pageDescriptions}
 
-RULES FOR questionPageNumbers:
-- ONLY include page numbers that have IMAGES or DIAGRAMS
-- If question page is text-only (no image), use empty array: []
-- This prevents text duplication since we store questionText separately`;
+IMPORTANT: Paraphrase all content - do not copy text verbatim. Focus on structure identification.`;
 
     // JSON Schema for structured output - guarantees valid JSON
     const questionsSchema = {
@@ -219,11 +217,30 @@ RULES FOR questionPageNumbers:
     }
 
     // Extract structured output from tool call response
-    console.log("AI Response received, parsing tool call... [v3-structured-output]");
+    console.log("AI Response received, parsing tool call... [v4-recitation-handling]");
     
     let parsedQuestions: { questions: ExtractedQuestion[] };
     try {
-      const message = aiData.choices?.[0]?.message;
+      const choice = aiData.choices?.[0];
+      const message = choice?.message;
+      const finishReason = choice?.native_finish_reason || choice?.finish_reason;
+      
+      // Handle RECITATION - Google's model refused due to copyright detection
+      if (finishReason === "RECITATION") {
+        console.error("AI refused due to RECITATION (copyright detection)");
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "AI model detected copyrighted content and refused to extract. Try using a smaller batch size or different model.",
+            errorType: "RECITATION",
+            reasoning: message?.reasoning?.substring(0, 1000) || "No reasoning provided",
+          }),
+          {
+            status: 422, // Unprocessable Entity - more appropriate than 500
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
       
       // Check for tool call response (structured output)
       if (message?.tool_calls?.[0]?.function?.arguments) {
@@ -232,7 +249,7 @@ RULES FOR questionPageNumbers:
         parsedQuestions = typeof args === 'string' ? JSON.parse(args) : args;
       } 
       // Fallback: check for regular content (shouldn't happen with tool_choice)
-      else if (message?.content) {
+      else if (message?.content && message.content.trim()) {
         console.log("Fallback: parsing content (no tool call)");
         const content = message.content.trim();
         
@@ -249,8 +266,9 @@ RULES FOR questionPageNumbers:
         
         parsedQuestions = JSON.parse(cleanedContent);
       } else {
-        console.error("Unexpected AI response structure:", JSON.stringify(aiData).substring(0, 500));
-        throw new Error("No tool call or content in AI response");
+        console.error("No tool call or content. Finish reason:", finishReason);
+        console.error("AI response structure:", JSON.stringify(aiData).substring(0, 500));
+        throw new Error(`No tool call or content in AI response (finish_reason: ${finishReason})`);
       }
     } catch (parseError) {
       console.error("Parse error:", parseError);
