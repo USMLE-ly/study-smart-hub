@@ -5,10 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { FileText, CheckCircle, XCircle, Loader2, Image, Upload, Save, RefreshCw, Pause, Play, ExternalLink, Database } from "lucide-react";
+import { FileText, CheckCircle, XCircle, Loader2, Image, Upload, Save, RefreshCw, Pause, Play, ExternalLink, Database, AlertTriangle, Trash2 } from "lucide-react";
 
 declare global {
   interface Window {
@@ -54,6 +55,7 @@ interface ProcessingResult {
   retryAttempt?: number;
   currentBatch?: number;
   totalBatches?: number;
+  failedStep?: "rendering" | "uploading" | "extracting";
 }
 
 interface SavedProgress {
@@ -73,6 +75,9 @@ export default function ProcessGeneticsPDFs() {
   const [totalRetries, setTotalRetries] = useState(0);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [dbQuestionCount, setDbQuestionCount] = useState<number>(0);
+  const [displayedCount, setDisplayedCount] = useState<number>(0);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'mismatch' | 'checking' | 'idle'>('idle');
+  const [isRetrying, setIsRetrying] = useState<string | null>(null);
   const pdfjsLibRef = useRef<any>(null);
   const pauseRef = useRef(false);
   const abortRef = useRef(false);
@@ -84,10 +89,60 @@ export default function ProcessGeneticsPDFs() {
       .select("*", { count: "exact", head: true })
       .eq("subject", "Genetics");
     setDbQuestionCount(count || 0);
+    return count || 0;
   }, []);
 
+  // Verify sync between displayed and actual counts
+  const verifyDatabaseSync = useCallback(async () => {
+    setSyncStatus('checking');
+    const actualCount = await fetchDbCount();
+    const displayed = results.reduce((sum, r) => sum + r.questionsExtracted, 0);
+    setDisplayedCount(displayed);
+    
+    if (displayed === 0 && actualCount === 0) {
+      setSyncStatus('idle');
+    } else {
+      setSyncStatus(actualCount === displayed ? 'synced' : 'mismatch');
+    }
+    return { actualCount, displayed };
+  }, [results, fetchDbCount]);
+
+  // Clear all and reset
+  const clearAllAndReset = useCallback(async () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setHasSavedProgress(false);
+    setResults([]);
+    setOverallProgress(0);
+    setTotalRetries(0);
+    setLastSaved(null);
+    setDisplayedCount(0);
+    setSyncStatus('idle');
+    await fetchDbCount();
+    toast.success("Cleared all progress and verified database");
+  }, [fetchDbCount]);
+
   useEffect(() => {
-    fetchDbCount();
+    // On mount, verify database and check for stale cache
+    const checkOnMount = async () => {
+      const actualCount = await fetchDbCount();
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed: SavedProgress = JSON.parse(saved);
+          const cachedCount = parsed.results?.reduce((sum, r) => sum + r.questionsExtracted, 0) || 0;
+          setDisplayedCount(cachedCount);
+          if (cachedCount > 0 && actualCount === 0) {
+            toast.warning("Stale cache detected - displayed count doesn't match database");
+            setSyncStatus('mismatch');
+          } else if (cachedCount > 0) {
+            setSyncStatus(actualCount === cachedCount ? 'synced' : 'mismatch');
+          }
+        } catch (e) {
+          console.error("Error parsing saved progress:", e);
+        }
+      }
+    };
+    checkOnMount();
   }, [fetchDbCount]);
 
   // Load PDF.js from CDN
@@ -156,10 +211,6 @@ export default function ProcessGeneticsPDFs() {
   const clearSavedProgress = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setHasSavedProgress(false);
-    setResults([]);
-    setOverallProgress(0);
-    setTotalRetries(0);
-    setLastSaved(null);
   }, []);
 
   const updateResult = useCallback((pdfName: string, updates: Partial<ProcessingResult>) => {
@@ -380,9 +431,15 @@ export default function ProcessGeneticsPDFs() {
       return allQuestions;
     } catch (error) {
       console.error(`Error processing ${config.name}:`, error);
+      const result = results.find(r => r.pdfName === config.name);
+      let failedStep: "rendering" | "uploading" | "extracting" = "rendering";
+      if (result?.status === "uploading") failedStep = "uploading";
+      if (result?.status === "extracting") failedStep = "extracting";
+      
       updateResult(config.name, { 
         status: "error", 
-        error: error instanceof Error ? error.message : "Unknown error" 
+        error: error instanceof Error ? error.message : "Unknown error",
+        failedStep
       });
       return 0;
     }
@@ -486,6 +543,92 @@ export default function ProcessGeneticsPDFs() {
       pauseRef.current = true;
       setIsPaused(true);
       toast.info("Processing paused. Progress saved.");
+    }
+  };
+
+  // Retry a single failed PDF
+  const retrySinglePdf = async (pdfName: string) => {
+    const config = GENETICS_PDFS.find(p => p.name === pdfName);
+    const result = results.find(r => r.pdfName === pdfName);
+    
+    if (!config || !result) return;
+    
+    setIsRetrying(pdfName);
+    
+    try {
+      // If we have uploaded pages cached and failed at extraction, retry extraction only
+      if (result.uploadedPages && result.uploadedPages.length > 0 && result.failedStep === "extracting") {
+        updateResult(pdfName, { status: 'extracting', error: undefined, retryAttempt: 1 });
+        
+        const BATCH_SIZE = 10;
+        const totalBatches = Math.ceil(result.uploadedPages.length / BATCH_SIZE);
+        let allQuestions = 0;
+
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batchStart = batchIdx * BATCH_SIZE;
+          const batchPages = result.uploadedPages.slice(batchStart, batchStart + BATCH_SIZE);
+          
+          updateResult(pdfName, { 
+            currentBatch: batchIdx + 1,
+            totalBatches,
+          });
+
+          const { data, error } = await supabase.functions.invoke("extract-questions-from-pages", {
+            body: {
+              pageImages: batchPages,
+              pdfName: pdfName,
+              category: config.category,
+              subject: "Genetics",
+              system: "General",
+              batchSize: BATCH_SIZE,
+            },
+          });
+
+          if (error) throw error;
+          if (data.success) {
+            allQuestions += data.questionsInserted;
+          } else {
+            throw new Error(data.error || "Unknown error");
+          }
+        }
+
+        updateResult(pdfName, { 
+          status: "success", 
+          questionsExtracted: allQuestions,
+          currentBatch: undefined,
+          totalBatches: undefined,
+          retryAttempt: undefined,
+          failedStep: undefined
+        });
+        toast.success(`Retry successful! Extracted ${allQuestions} questions from ${pdfName}`);
+      } else {
+        // Full reprocess for this PDF
+        updateResult(pdfName, { 
+          status: "pending", 
+          error: undefined, 
+          questionsExtracted: 0,
+          pagesRendered: 0,
+          pagesUploaded: 0,
+          failedStep: undefined
+        });
+        const extracted = await processSinglePdf(config);
+        if (extracted > 0) {
+          toast.success(`Retry successful! Extracted ${extracted} questions from ${pdfName}`);
+        }
+      }
+      
+      await fetchDbCount();
+      await verifyDatabaseSync();
+    } catch (error) {
+      console.error(`Retry failed for ${pdfName}:`, error);
+      updateResult(pdfName, { 
+        status: "error", 
+        error: error instanceof Error ? error.message : "Retry failed",
+        failedStep: "extracting"
+      });
+      toast.error(`Retry failed for ${pdfName}`);
+    } finally {
+      setIsRetrying(null);
     }
   };
 
@@ -614,24 +757,74 @@ export default function ProcessGeneticsPDFs() {
               </div>
             )}
 
-            {/* Database count and link to Create Test */}
-            <div className="flex items-center gap-4 pt-2 border-t">
-              <Badge variant="outline" className="flex items-center gap-2">
-                <Database className="h-4 w-4" />
-                {dbQuestionCount} in database
-              </Badge>
-              <Button onClick={fetchDbCount} variant="ghost" size="sm">
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-              {dbQuestionCount > 0 && (
-                <Button asChild variant="default" size="sm">
-                  <Link to="/create-test">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Create Test with Questions
-                  </Link>
-                </Button>
-              )}
-            </div>
+            {/* Database Sync Verification */}
+            <Card className="border-2 border-dashed">
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium flex items-center gap-2">
+                        <Database className="h-4 w-4" />
+                        Database Verification
+                      </p>
+                      <div className="flex gap-4 text-sm">
+                        <span>Displayed: <strong>{displayedCount}</strong></span>
+                        <span>|</span>
+                        <span className={dbQuestionCount !== displayedCount && displayedCount > 0 ? 'text-destructive font-bold' : 'text-green-600 dark:text-green-400'}>
+                          Actual: <strong>{dbQuestionCount}</strong>
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <Button 
+                        onClick={verifyDatabaseSync} 
+                        variant="outline" 
+                        size="sm"
+                        disabled={syncStatus === 'checking'}
+                      >
+                        {syncStatus === 'checking' ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Database className="mr-2 h-4 w-4" />
+                        )}
+                        Verify Sync
+                      </Button>
+                      <Button onClick={clearAllAndReset} variant="destructive" size="sm">
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Clear All & Reset
+                      </Button>
+                      {dbQuestionCount > 0 && (
+                        <Button asChild variant="default" size="sm">
+                          <Link to="/create-test">
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            Create Test
+                          </Link>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {syncStatus === 'mismatch' && (
+                    <Alert variant="destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>
+                        Data mismatch detected! The displayed count ({displayedCount}) doesn't match the database ({dbQuestionCount}).
+                        Click "Clear All & Reset" to clear stale progress and start fresh.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  
+                  {syncStatus === 'synced' && displayedCount > 0 && (
+                    <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <AlertDescription className="text-green-700 dark:text-green-300">
+                        Database is in sync! All {dbQuestionCount} questions are properly saved.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </CardContent>
         </Card>
 
@@ -673,20 +866,47 @@ export default function ProcessGeneticsPDFs() {
                         return (
                           <div 
                             key={pdf.name}
-                            className="p-3 rounded-lg border space-y-2"
+                            className={`p-3 rounded-lg border space-y-2 ${result.status === 'error' ? 'border-destructive/50 bg-destructive/5' : ''}`}
                           >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
                                 {getStatusIcon(result.status)}
-                                <span className="font-medium text-sm">{pdf.name}</span>
-                                <Badge variant="outline" className="text-xs">
+                                <span className="font-medium text-sm truncate">{pdf.name}</span>
+                                <Badge variant="outline" className="text-xs shrink-0">
                                   {pdf.expectedQuestions}Q
                                 </Badge>
                               </div>
-                              <span className="text-sm text-muted-foreground">
-                                {getStatusText(result)}
-                              </span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-sm text-muted-foreground">
+                                  {getStatusText(result)}
+                                </span>
+                                {/* Retry button for failed PDFs */}
+                                {result.status === "error" && !isProcessing && (
+                                  <Button 
+                                    onClick={() => retrySinglePdf(pdf.name)} 
+                                    size="sm" 
+                                    variant="outline"
+                                    disabled={isRetrying === pdf.name}
+                                    className="ml-2"
+                                  >
+                                    {isRetrying === pdf.name ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <><RefreshCw className="mr-1 h-3 w-3" />Retry</>
+                                    )}
+                                  </Button>
+                                )}
+                              </div>
                             </div>
+                            
+                            {/* Error details */}
+                            {result.status === "error" && result.error && (
+                              <div className="text-xs text-destructive bg-destructive/10 p-2 rounded">
+                                <strong>Failed at:</strong> {result.failedStep || "unknown"} step<br/>
+                                <strong>Error:</strong> {result.error}
+                              </div>
+                            )}
+                            
                             {/* Batch progress bar */}
                             {result.status === "extracting" && result.currentBatch && result.totalBatches && (
                               <div className="space-y-1">
