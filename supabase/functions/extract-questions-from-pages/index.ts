@@ -13,8 +13,8 @@ interface PageImage {
 
 interface ExtractedQuestion {
   questionNumber: number;
-  questionPageNumbers: number[];
-  explanationPageNumbers: number[];
+  questionPageNumbers: number[]; // Only pages with images/diagrams
+  explanationPageNumbers: number[]; // 2-4 explanation pages
   questionText: string;
   options: {
     letter: string;
@@ -23,6 +23,7 @@ interface ExtractedQuestion {
   }[];
   correctAnswer: string;
   difficulty: string;
+  hasQuestionImage: boolean; // True if question has diagram/image
 }
 
 serve(async (req) => {
@@ -54,26 +55,29 @@ serve(async (req) => {
       `Page ${p.pageNumber}: ${p.imageUrl}`
     ).join("\n");
 
-    const systemPrompt = `You are an expert medical education content extractor. You analyze USMLE-style question bank pages.
+const systemPrompt = `You are an expert medical education content extractor for USMLE-style question banks.
 
-Your task is to extract ALL questions from the provided PDF pages. Each question typically spans:
-- 1 page for the question (with clinical vignette, image if any, and answer choices A-E)
-- 2-4 pages for the explanation (labeled diagrams, explanation text, choice explanations, educational objective)
+TASK: Extract ALL questions from the PDF pages. Each question typically has:
+- 1 page with the question (clinical vignette + image/diagram + choices A-E)
+- 2-4 explanation pages (diagrams, explanation text, educational objective)
 
-For each question, identify:
-1. Which page number(s) contain the question
-2. Which page number(s) contain the explanation
-3. The full question text
-4. All 5 answer options (A-E) with their text
-5. The correct answer letter
-6. Difficulty level (easy, medium, hard)
+FOR EACH QUESTION, identify:
+1. questionPageNumbers: Page(s) with the question - ONLY include if page has a diagram/image
+2. explanationPageNumbers: All explanation pages (2-4 pages with diagrams, explanations)
+3. questionText: The full clinical vignette and question
+4. options: All 5 choices A-E with text and which is correct
+5. correctAnswer: The correct letter
+6. difficulty: easy/medium/hard
+7. hasQuestionImage: true if question page has a clinical image or diagram
 
-IMPORTANT: 
-- Questions are numbered (1, 2, 3, etc.)
-- Each question's explanation immediately follows its question
-- The explanation pages contain diagrams, text explanations, and "Educational Objective" sections`;
+CRITICAL RULES:
+- For questionPageNumbers: ONLY include the page if it has an IMAGE or DIAGRAM (not just text)
+- If a question page is text-only with no image, set questionPageNumbers to empty array []
+- This avoids duplicate text since we already extract questionText
+- Explanation pages should capture all visual content (diagrams, tables, flowcharts)
+- Each question's explanation immediately follows its question page`;
 
-    const userPrompt = `Extract all questions from these PDF pages.
+const userPrompt = `Extract all questions from these PDF pages.
 
 PDF: ${pdfName}
 Category: ${category}
@@ -82,7 +86,7 @@ Subject: ${subject}
 Page URLs:
 ${pageDescriptions}
 
-Return a JSON array of questions with this exact structure:
+Return JSON with this structure:
 {
   "questions": [
     {
@@ -98,12 +102,18 @@ Return a JSON array of questions with this exact structure:
         {"letter": "E", "text": "Option E text", "isCorrect": false}
       ],
       "correctAnswer": "B",
-      "difficulty": "medium"
+      "difficulty": "medium",
+      "hasQuestionImage": true
     }
   ]
 }
 
-ONLY return the JSON, no other text.`;
+RULES FOR questionPageNumbers:
+- ONLY include page numbers that have IMAGES or DIAGRAMS
+- If question page is text-only (no image), use empty array: "questionPageNumbers": []
+- This prevents text duplication since we store questionText separately
+
+ONLY return JSON, no other text.`;
 
     // Call Lovable AI with all page images
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -179,7 +189,7 @@ ONLY return the JSON, no other text.`;
           category: category,
           difficulty: q.difficulty || "medium",
           source_pdf: pdfName,
-          has_image: true,
+          has_image: q.hasQuestionImage || q.questionPageNumbers.length > 0,
         })
         .select()
         .single();
