@@ -8,10 +8,10 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { FileText, CheckCircle, XCircle, Loader2, Image, Upload } from "lucide-react";
-import * as pdfjsLib from "pdfjs-dist";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 
 // Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs`;
 
 const GITHUB_RAW_BASE = "https://raw.githubusercontent.com/USMLE-ly/study-smart-hub/9d9f0e8453efd5866c7efaf69295f24c416394ae/public/pdfs";
 
