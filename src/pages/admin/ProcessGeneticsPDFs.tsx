@@ -53,6 +53,9 @@ interface ProcessingResult {
   questionsExtracted: number;
   error?: string;
   uploadedPages?: { pageNumber: number; imageUrl: string }[];
+  retryAttempt?: number;
+  currentBatch?: number;
+  totalBatches?: number;
 }
 
 interface SavedProgress {
@@ -278,30 +281,81 @@ export default function ProcessGeneticsPDFs() {
         return 0;
       }
 
-      // Step 3: Call edge function to extract questions
-      updateResult(config.name, { status: "extracting" });
-      
-      const { data, error } = await supabase.functions.invoke("extract-questions-from-pages", {
-        body: {
-          pageImages: uploadedPages,
-          pdfName: config.name,
-          category: config.category,
-          subject: "Genetics",
-          system: "General",
-        },
-      });
+      // Step 3: Process in batches for better reliability
+      const BATCH_SIZE = 10; // Process 10 pages at a time for AI
+      const totalBatches = Math.ceil(uploadedPages.length / BATCH_SIZE);
+      let allQuestions = 0;
 
-      if (error) throw error;
+      for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+        if (pauseRef.current || abortRef.current) {
+          updateResult(config.name, { status: "paused", uploadedPages });
+          return 0;
+        }
 
-      if (data.success) {
+        const batchStart = batchIdx * BATCH_SIZE;
+        const batchPages = uploadedPages.slice(batchStart, batchStart + BATCH_SIZE);
+        
         updateResult(config.name, { 
-          status: "success", 
-          questionsExtracted: data.questionsInserted 
+          status: "extracting",
+          currentBatch: batchIdx + 1,
+          totalBatches,
+          retryAttempt: 1
         });
-        return data.questionsInserted;
-      } else {
-        throw new Error(data.error || "Unknown error");
+
+        // Retry logic with smaller batch on failure
+        let retryBatchSize = BATCH_SIZE;
+        let attempts = 0;
+        const maxAttempts = 3;
+        let success = false;
+
+        while (!success && attempts < maxAttempts) {
+          attempts++;
+          updateResult(config.name, { retryAttempt: attempts });
+
+          try {
+            const { data, error } = await supabase.functions.invoke("extract-questions-from-pages", {
+              body: {
+                pageImages: batchPages,
+                pdfName: config.name,
+                category: config.category,
+                subject: "Genetics",
+                system: "General",
+                batchSize: retryBatchSize,
+              },
+            });
+
+            if (error) throw error;
+
+            if (data.success) {
+              allQuestions += data.questionsInserted;
+              success = true;
+            } else {
+              throw new Error(data.error || "Unknown error");
+            }
+          } catch (error) {
+            console.error(`Batch ${batchIdx + 1} attempt ${attempts} failed:`, error);
+            if (attempts < maxAttempts) {
+              // Wait with exponential backoff
+              const waitTime = Math.pow(2, attempts) * 2000;
+              console.log(`Waiting ${waitTime}ms before retry...`);
+              await new Promise(r => setTimeout(r, waitTime));
+              // Reduce batch size on retry
+              retryBatchSize = Math.max(5, Math.floor(retryBatchSize / 2));
+            } else {
+              throw error;
+            }
+          }
+        }
       }
+
+      updateResult(config.name, { 
+        status: "success", 
+        questionsExtracted: allQuestions,
+        currentBatch: undefined,
+        totalBatches: undefined,
+        retryAttempt: undefined
+      });
+      return allQuestions;
     } catch (error) {
       console.error(`Error processing ${config.name}:`, error);
       updateResult(config.name, { 
@@ -427,7 +481,16 @@ export default function ProcessGeneticsPDFs() {
       case "pending": return "Waiting...";
       case "rendering": return `Rendering (${result.pagesRendered}/${result.totalPages || "?"})`;
       case "uploading": return `Uploading (${result.pagesUploaded}/${result.totalPages})`;
-      case "extracting": return "AI extracting...";
+      case "extracting": {
+        let text = "AI extracting";
+        if (result.currentBatch && result.totalBatches) {
+          text += ` (batch ${result.currentBatch}/${result.totalBatches})`;
+        }
+        if (result.retryAttempt && result.retryAttempt > 1) {
+          text += ` [retry ${result.retryAttempt}/3]`;
+        }
+        return text + "...";
+      }
       case "success": return `✓ ${result.questionsExtracted} questions`;
       case "error": return `Error: ${result.error}`;
       case "paused": return "Paused";
