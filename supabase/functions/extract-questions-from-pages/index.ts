@@ -115,39 +115,72 @@ RULES FOR questionPageNumbers:
 
 ONLY return JSON, no other text.`;
 
-    // Call Lovable AI with all page images
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { 
-            role: "user", 
-            content: [
-              { type: "text", text: userPrompt },
-              ...pageImages.map((p: PageImage) => ({
-                type: "image_url",
-                image_url: { url: p.imageUrl }
-              }))
-            ]
-          }
-        ],
-        max_tokens: 8000,
-      }),
-    });
+    // Retry logic with exponential backoff for transient errors
+    const maxRetries = 3;
+    let lastError: Error | null = null;
+    let aiData: any = null;
 
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error("AI API error:", aiResponse.status, errorText);
-      throw new Error(`AI API error: ${aiResponse.status}`);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`AI API attempt ${attempt}/${maxRetries}`);
+        
+        const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { 
+                role: "user", 
+                content: [
+                  { type: "text", text: userPrompt },
+                  ...pageImages.map((p: PageImage) => ({
+                    type: "image_url",
+                    image_url: { url: p.imageUrl }
+                  }))
+                ]
+              }
+            ],
+            max_tokens: 8000,
+          }),
+        });
+
+        if (!aiResponse.ok) {
+          const errorText = await aiResponse.text();
+          console.error(`AI API error (attempt ${attempt}):`, aiResponse.status, errorText.substring(0, 200));
+          
+          // Retry on 503 (service unavailable) or 429 (rate limit)
+          if ((aiResponse.status === 503 || aiResponse.status === 429) && attempt < maxRetries) {
+            const waitTime = Math.pow(2, attempt) * 2000; // 4s, 8s, 16s
+            console.log(`Waiting ${waitTime}ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            continue;
+          }
+          
+          throw new Error(`AI API error: ${aiResponse.status}`);
+        }
+
+        aiData = await aiResponse.json();
+        break; // Success, exit retry loop
+        
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        if (attempt < maxRetries) {
+          const waitTime = Math.pow(2, attempt) * 2000;
+          console.log(`Error, waiting ${waitTime}ms before retry: ${lastError.message}`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+      }
     }
 
-    const aiData = await aiResponse.json();
+    if (!aiData) {
+      throw lastError || new Error("AI API failed after all retries");
+    }
+
     const content = aiData.choices?.[0]?.message?.content;
 
     if (!content) {
