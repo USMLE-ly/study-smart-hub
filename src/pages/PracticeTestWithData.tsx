@@ -44,6 +44,7 @@ import { NotesPanel } from "@/components/practice-test/NotesPanel";
 import { FeedbackModal } from "@/components/practice-test/FeedbackModal";
 import { useTestTimer } from "@/components/practice-test/TestTimer";
 import { usePracticeTestKeyboard } from "@/hooks/usePracticeTestKeyboard";
+import { ExplanationGallery } from "@/components/question/ExplanationGallery";
 
 interface QuestionImage {
   id: string;
@@ -51,6 +52,7 @@ interface QuestionImage {
   position: string;
   image_order: number;
   storage_url?: string | null;
+  source_type?: string;
 }
 
 interface QuestionWithOptions extends Question {
@@ -699,71 +701,100 @@ const PracticeTestWithData = () => {
           )}
 
           {/* Explanation Section - Always show after answering */}
-          {isAnswered && (currentQuestion.explanation || currentQuestion.explanation_image_url || (currentQuestion.images && currentQuestion.images.some(img => img.position === 'explanation'))) && (
+          {isAnswered && (currentQuestion.explanation || currentQuestion.explanation_image_url || (currentQuestion.images && currentQuestion.images.some(img => img.position === 'explanation' || img.source_type?.startsWith('explanation_')))) && (
             <div className="border-t border-border pt-6 mt-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-primary"></span>
-                Explanation
-              </h3>
+              {/* ExplanationGallery for UWorld-style screenshot explanations */}
+              {currentQuestion.images && currentQuestion.images.some(img => img.source_type?.startsWith('explanation_')) && (
+                <ExplanationGallery 
+                  images={currentQuestion.images
+                    .filter(img => img.source_type?.startsWith('explanation_'))
+                    .map(img => ({
+                      id: img.id,
+                      storage_url: img.storage_url || 
+                        (img.file_path.startsWith('/question-images/') 
+                          ? img.file_path 
+                          : `https://vamhucbxdftteekfxycm.supabase.co/storage/v1/object/public/question-images${img.file_path.startsWith('/') ? '' : '/'}${img.file_path.replace(/^\/question-images/, '')}`),
+                      source_type: img.source_type || 'explanation_1',
+                      image_order: img.image_order
+                    }))
+                  }
+                  className="mb-6"
+                />
+              )}
               
-              {/* Explanation Card with better contrast */}
-              <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-                {/* Explanation Image from explanation_image_url */}
-                {currentQuestion.explanation_image_url && (
-                  <div className="mb-5">
-                    <img 
-                      src={currentQuestion.explanation_image_url} 
-                      alt="Explanation diagram" 
-                      className="max-w-full h-auto rounded-lg border border-border shadow-md"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
+              {/* Fallback: Legacy explanation display for non-gallery images */}
+              {!currentQuestion.images?.some(img => img.source_type?.startsWith('explanation_')) && (
+                <>
+                  <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-primary"></span>
+                    Explanation
+                  </h3>
+                  
+                  {/* Explanation Card with better contrast */}
+                  <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+                    {/* Explanation Image from explanation_image_url */}
+                    {currentQuestion.explanation_image_url && (
+                      <div className="mb-5">
+                        <img 
+                          src={currentQuestion.explanation_image_url} 
+                          alt="Explanation diagram" 
+                          className="max-w-full h-auto rounded-lg border border-border shadow-md"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Explanation Images from question_images table - position-based */}
+                    {currentQuestion.images && currentQuestion.images.filter(img => img.position === 'explanation').length > 0 && (
+                      <div className="space-y-4 mb-5">
+                        {currentQuestion.images
+                          .filter(img => img.position === 'explanation')
+                          .sort((a, b) => a.image_order - b.image_order)
+                          .map((img, idx) => {
+                            const getImageUrl = () => {
+                              if (img.storage_url) {
+                                if (img.storage_url.startsWith('/')) {
+                                  return img.storage_url;
+                                }
+                                return img.storage_url;
+                              }
+                              if (img.file_path.startsWith('/question-images/')) {
+                                return img.file_path;
+                              }
+                              return `https://vamhucbxdftteekfxycm.supabase.co/storage/v1/object/public/question-images${img.file_path.startsWith('/') ? '' : '/'}${img.file_path.replace(/^\/question-images/, '')}`;
+                            };
+                            
+                            return (
+                              <img 
+                                key={img.id}
+                                src={getImageUrl()}
+                                alt={`UWorld Explanation ${idx + 1}`} 
+                                className="max-w-full h-auto rounded-lg border border-border shadow-md"
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                              />
+                            );
+                          })
+                        }
+                      </div>
+                    )}
+                    
+                    {currentQuestion.explanation && (
+                      <div className="prose prose-slate dark:prose-invert max-w-none">
+                        <p className="text-foreground leading-relaxed whitespace-pre-line text-base">{currentQuestion.explanation}</p>
+                      </div>
+                    )}
                   </div>
-                )}
-                
-                {/* Explanation Images from question_images table - UWorld screenshots */}
-                {currentQuestion.images && currentQuestion.images.filter(img => img.position === 'explanation').length > 0 && (
-                  <div className="space-y-4 mb-5">
-                    {currentQuestion.images
-                      .filter(img => img.position === 'explanation')
-                      .sort((a, b) => a.image_order - b.image_order)
-                      .map((img, idx) => {
-                        // Determine the correct image URL
-                        const getImageUrl = () => {
-                          if (img.storage_url) {
-                            // If storage_url starts with /, it's a public path
-                            if (img.storage_url.startsWith('/')) {
-                              return img.storage_url;
-                            }
-                            return img.storage_url;
-                          }
-                          // For file_path, check if it's a public path
-                          if (img.file_path.startsWith('/question-images/')) {
-                            return img.file_path;
-                          }
-                          // Otherwise, assume Supabase storage
-                          return `https://vamhucbxdftteekfxycm.supabase.co/storage/v1/object/public/question-images${img.file_path.startsWith('/') ? '' : '/'}${img.file_path.replace(/^\/question-images/, '')}`;
-                        };
-                        
-                        return (
-                          <img 
-                            key={img.id}
-                            src={getImageUrl()}
-                            alt={`UWorld Explanation ${idx + 1}`} 
-                            className="max-w-full h-auto rounded-lg border border-border shadow-md"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                          />
-                        );
-                      })
-                    }
-                  </div>
-                )}
-                
-                {currentQuestion.explanation && (
+                </>
+              )}
+              
+              {/* Text explanation below gallery if both exist */}
+              {currentQuestion.images?.some(img => img.source_type?.startsWith('explanation_')) && currentQuestion.explanation && (
+                <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
                   <div className="prose prose-slate dark:prose-invert max-w-none">
                     <p className="text-foreground leading-relaxed whitespace-pre-line text-base">{currentQuestion.explanation}</p>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
               
               {/* Show all option explanations */}
               {currentQuestion.options.some(opt => opt.explanation) && (
