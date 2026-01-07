@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -8,10 +8,13 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { FileText, CheckCircle, XCircle, Loader2, Image, Upload } from "lucide-react";
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs`;
+// We'll load PDF.js dynamically from CDN to avoid top-level await issues
+declare global {
+  interface Window {
+    pdfjsLib: any;
+  }
+}
 
 const GITHUB_RAW_BASE = "https://raw.githubusercontent.com/USMLE-ly/study-smart-hub/9d9f0e8453efd5866c7efaf69295f24c416394ae/public/pdfs";
 
@@ -55,6 +58,34 @@ export default function ProcessGeneticsPDFs() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentPdf, setCurrentPdf] = useState("");
   const [overallProgress, setOverallProgress] = useState(0);
+  const [pdfLibLoaded, setPdfLibLoaded] = useState(false);
+  const pdfjsLibRef = useRef<any>(null);
+
+  // Load PDF.js from CDN
+  useEffect(() => {
+    if (window.pdfjsLib) {
+      pdfjsLibRef.current = window.pdfjsLib;
+      setPdfLibLoaded(true);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    script.async = true;
+    script.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      pdfjsLibRef.current = window.pdfjsLib;
+      setPdfLibLoaded(true);
+    };
+    document.body.appendChild(script);
+
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, []);
 
   const updateResult = useCallback((pdfName: string, updates: Partial<ProcessingResult>) => {
     setResults(prev => prev.map(r => 
@@ -63,6 +94,9 @@ export default function ProcessGeneticsPDFs() {
   }, []);
 
   const renderPdfToImages = async (pdfUrl: string): Promise<Blob[]> => {
+    const pdfjsLib = pdfjsLibRef.current;
+    if (!pdfjsLib) throw new Error("PDF.js not loaded");
+
     const response = await fetch(pdfUrl);
     const arrayBuffer = await response.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -313,10 +347,15 @@ export default function ProcessGeneticsPDFs() {
             <div className="flex gap-4">
               <Button 
                 onClick={processAllPdfs} 
-                disabled={isProcessing}
+                disabled={isProcessing || !pdfLibLoaded}
                 size="lg"
               >
-                {isProcessing ? (
+                {!pdfLibLoaded ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Loading PDF.js...
+                  </>
+                ) : isProcessing ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Processing {currentPdf}...
