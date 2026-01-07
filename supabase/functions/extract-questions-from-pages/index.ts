@@ -204,13 +204,26 @@ ONLY return JSON, no other text.`;
       // Try to extract JSON from the response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        parsedQuestions = JSON.parse(jsonMatch[0]);
+        // Sanitize JSON string to fix common escape issues
+        let jsonStr = jsonMatch[0];
+        // Fix invalid escape sequences by replacing them
+        jsonStr = jsonStr
+          .replace(/\\(?!["\\/bfnrtu])/g, '\\\\') // Escape backslashes not followed by valid escape chars
+          .replace(/[\x00-\x1F\x7F]/g, (char: string) => {
+            // Replace control characters with their escaped equivalents
+            const code = char.charCodeAt(0);
+            if (code === 0x09) return '\\t';
+            if (code === 0x0A) return '\\n';
+            if (code === 0x0D) return '\\r';
+            return ''; // Remove other control characters
+          });
+        parsedQuestions = JSON.parse(jsonStr);
       } else {
         throw new Error("No JSON found in response");
       }
     } catch (parseError) {
       console.error("Parse error:", parseError);
-      console.error("Raw content:", content.substring(0, 500));
+      console.error("Raw content (first 1000 chars):", content.substring(0, 1000));
       throw new Error(`Failed to parse AI response: ${parseError}`);
     }
 

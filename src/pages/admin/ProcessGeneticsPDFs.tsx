@@ -24,18 +24,15 @@ interface PDFConfig {
   expectedQuestions: number;
 }
 
-// Total: 63 questions
+// Total: 42 questions (removed genetics-1-8.pdf, genetics-3-8.pdf, 2.pdf)
 const GENETICS_PDFS: PDFConfig[] = [
-  // DNA Structure, Replication and Repair (19 total)
+  // DNA Structure, Replication and Repair (11 total)
   { name: "genetics-1-5.pdf", category: "DNA Structure, Replication and Repair", expectedQuestions: 5 },
-  { name: "genetics-1-8.pdf", category: "DNA Structure, Replication and Repair", expectedQuestions: 8 },
   { name: "genetics-2-6.pdf", category: "DNA Structure, Replication and Repair", expectedQuestions: 6 },
-  // DNA Structure, Synthesis and Processing (13 total)
+  // DNA Structure, Synthesis and Processing (6 total)
   { name: "genetics-3-6.pdf", category: "DNA Structure, Synthesis and Processing", expectedQuestions: 6 },
-  { name: "genetics-3-8.pdf", category: "DNA Structure, Synthesis and Processing", expectedQuestions: 7 },
-  // Gene Expression and Regulation (8 total)
+  // Gene Expression and Regulation (6 total)
   { name: "genetics-4-6.pdf", category: "Gene Expression and Regulation", expectedQuestions: 6 },
-  { name: "2.pdf", category: "Gene Expression and Regulation", expectedQuestions: 2 },
   // Clinical Genetics (20 total)
   { name: "genetics-5-7.pdf", category: "Clinical Genetics", expectedQuestions: 7 },
   { name: "genetics-6-7.pdf", category: "Clinical Genetics", expectedQuestions: 7 },
