@@ -16,7 +16,7 @@ declare global {
   }
 }
 
-const GITHUB_RAW_BASE = "https://raw.githubusercontent.com/USMLE-ly/study-smart-hub/9d9f0e8453efd5866c7efaf69295f24c416394ae/public/pdfs";
+const GITHUB_RAW_BASE = "https://raw.githubusercontent.com/USMLE-ly/study-smart-hub/969ac5447c2b475b4fea7d5a2d9e94670508cc25/public/pdfs";
 
 interface PDFConfig {
   name: string;
@@ -24,22 +24,29 @@ interface PDFConfig {
   expectedQuestions: number;
 }
 
+// Total: 63 questions
+// DNA Structure, Replication and Repair: 19 questions
+// DNA Structure, Synthesis and Processing: 13 questions
+// Gene Expression and Regulation: 8 questions
+// Clinical Genetics: 20 questions
+// Miscellaneous: 3 questions
+
 const GENETICS_PDFS: PDFConfig[] = [
-  // DNA Structure, Replication and Repair
+  // DNA Structure, Replication and Repair (19 total)
   { name: "genetics-1-5.pdf", category: "DNA Structure, Replication and Repair", expectedQuestions: 5 },
   { name: "genetics-1-8.pdf", category: "DNA Structure, Replication and Repair", expectedQuestions: 8 },
   { name: "genetics-2-6.pdf", category: "DNA Structure, Replication and Repair", expectedQuestions: 6 },
-  // DNA Structure, Synthesis and Processing
+  // DNA Structure, Synthesis and Processing (13 total)
   { name: "genetics-3-6.pdf", category: "DNA Structure, Synthesis and Processing", expectedQuestions: 6 },
   { name: "genetics-3-8.pdf", category: "DNA Structure, Synthesis and Processing", expectedQuestions: 7 },
-  // Gene Expression and Regulation
+  // Gene Expression and Regulation (8 total)
   { name: "genetics-4-6.pdf", category: "Gene Expression and Regulation", expectedQuestions: 6 },
   { name: "2.pdf", category: "Gene Expression and Regulation", expectedQuestions: 2 },
-  // Clinical Genetics
+  // Clinical Genetics (20 total)
   { name: "genetics-5-7.pdf", category: "Clinical Genetics", expectedQuestions: 7 },
   { name: "genetics-6-7.pdf", category: "Clinical Genetics", expectedQuestions: 7 },
   { name: "genetics-7-5.pdf", category: "Clinical Genetics", expectedQuestions: 6 },
-  // Miscellaneous
+  // Miscellaneous (3 total)
   { name: "genetics-8-5.pdf", category: "Miscellaneous", expectedQuestions: 3 },
 ];
 
