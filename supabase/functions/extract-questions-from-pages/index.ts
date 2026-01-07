@@ -196,22 +196,37 @@ ONLY return JSON, no other text.`;
       throw new Error("No content in AI response");
     }
 
-    console.log("AI Response received, parsing...");
+    console.log("AI Response received, parsing... [v2-markdown-fix]");
 
     // Parse the JSON response
     let parsedQuestions: { questions: ExtractedQuestion[] };
     try {
-      // First strip markdown code blocks if present
+      // First strip markdown code blocks if present (handles ```json ... ``` wrapping)
       let cleanedContent = content.trim();
-      if (cleanedContent.startsWith('```json')) {
+      console.log("Content starts with:", cleanedContent.substring(0, 20));
+      
+      // Remove leading markdown code fence
+      const codeBlockMatch = cleanedContent.match(/^```(?:json)?\s*\n?([\s\S]*?)```$/);
+      if (codeBlockMatch) {
+        cleanedContent = codeBlockMatch[1].trim();
+        console.log("Stripped markdown code block wrapper");
+      } else if (cleanedContent.startsWith('```json')) {
         cleanedContent = cleanedContent.slice(7);
+        if (cleanedContent.endsWith('```')) {
+          cleanedContent = cleanedContent.slice(0, -3);
+        }
+        cleanedContent = cleanedContent.trim();
+        console.log("Stripped ```json prefix");
       } else if (cleanedContent.startsWith('```')) {
         cleanedContent = cleanedContent.slice(3);
+        if (cleanedContent.endsWith('```')) {
+          cleanedContent = cleanedContent.slice(0, -3);
+        }
+        cleanedContent = cleanedContent.trim();
+        console.log("Stripped ``` prefix");
       }
-      if (cleanedContent.endsWith('```')) {
-        cleanedContent = cleanedContent.slice(0, -3);
-      }
-      cleanedContent = cleanedContent.trim();
+      
+      console.log("Cleaned content starts with:", cleanedContent.substring(0, 50));
       
       // Try to extract JSON from the response
       const jsonMatch = cleanedContent.match(/\{[\s\S]*\}/);
