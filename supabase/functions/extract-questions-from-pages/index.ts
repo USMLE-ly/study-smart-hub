@@ -42,7 +42,7 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const { pageImages, pdfName, category, subject, system, batchSize = 5, model = "google/gemini-2.5-flash" } = await req.json();
+    const { pageImages, pdfName, category, subject, system, batchSize = 3, model = "google/gemini-2.5-flash-lite" } = await req.json();
     console.log("Using AI model:", model);
 
     if (!pageImages || !Array.isArray(pageImages) || pageImages.length === 0) {

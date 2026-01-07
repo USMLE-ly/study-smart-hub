@@ -81,8 +81,8 @@ export default function ProcessGeneticsPDFs() {
   const [syncStatus, setSyncStatus] = useState<'synced' | 'mismatch' | 'checking' | 'idle'>('idle');
   const [expandedDebug, setExpandedDebug] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string>("google/gemini-2.5-flash");
-  const [selectedBatchSize, setSelectedBatchSize] = useState<number>(5);
+  const [selectedModel, setSelectedModel] = useState<string>("google/gemini-2.5-flash-lite");
+  const [selectedBatchSize, setSelectedBatchSize] = useState<number>(3);
   const pdfjsLibRef = useRef<any>(null);
   const pauseRef = useRef(false);
   const abortRef = useRef(false);
@@ -785,12 +785,13 @@ export default function ProcessGeneticsPDFs() {
 
             <div className="flex flex-wrap gap-4 items-center">
               <Select value={selectedModel} onValueChange={setSelectedModel} disabled={isProcessing}>
-                <SelectTrigger className="w-56">
+                <SelectTrigger className="w-64">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="google/gemini-2.5-flash">Gemini 2.5 Flash (Fast)</SelectItem>
-                  <SelectItem value="google/gemini-2.5-pro">Gemini 2.5 Pro (Accurate)</SelectItem>
+                  <SelectItem value="google/gemini-2.5-flash-lite">Flash Lite (Cheapest)</SelectItem>
+                  <SelectItem value="google/gemini-2.5-flash">Flash (Balanced)</SelectItem>
+                  <SelectItem value="google/gemini-2.5-pro">Pro (Accurate)</SelectItem>
                 </SelectContent>
               </Select>
 
