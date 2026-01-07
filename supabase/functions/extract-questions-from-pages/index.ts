@@ -122,6 +122,10 @@ RULES FOR questionPageNumbers:
 - If question page is text-only (no image), use empty array: "questionPageNumbers": []
 - This prevents text duplication since we store questionText separately
 
+STRICT JSON OUTPUT:
+- Use DOUBLE QUOTES for all keys and string values
+- Do NOT use backticks, single quotes, comments, or trailing commas
+
 ONLY return JSON, no other text.`;
 
     // Retry logic with exponential backoff for transient errors
@@ -230,24 +234,52 @@ ONLY return JSON, no other text.`;
       
       // Try to extract JSON from the response
       const jsonMatch = cleanedContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        // Sanitize JSON string to fix common escape issues
-        let jsonStr = jsonMatch[0];
-        // Fix invalid escape sequences by replacing them
-        jsonStr = jsonStr
-          .replace(/\\(?!["\\/bfnrtu])/g, '\\\\') // Escape backslashes not followed by valid escape chars
-          .replace(/[\x00-\x1F\x7F]/g, (char: string) => {
-            // Replace control characters with their escaped equivalents
-            const code = char.charCodeAt(0);
-            if (code === 0x09) return '\\t';
-            if (code === 0x0A) return '\\n';
-            if (code === 0x0D) return '\\r';
-            return ''; // Remove other control characters
-          });
-        parsedQuestions = JSON.parse(jsonStr);
-      } else {
+      if (!jsonMatch) {
         throw new Error("No JSON found in response");
       }
+
+      // Sanitize JSON string to fix common escape issues
+      let jsonStr = jsonMatch[0];
+      // Fix invalid escape sequences by replacing them
+      jsonStr = jsonStr
+        .replace(/\\(?!["\\/bfnrtu])/g, "\\\\") // Escape backslashes not followed by valid escape chars
+        .replace(/[\x00-\x1F\x7F]/g, (char: string) => {
+          // Replace control characters with their escaped equivalents
+          const code = char.charCodeAt(0);
+          if (code === 0x09) return "\\t";
+          if (code === 0x0A) return "\\n";
+          if (code === 0x0D) return "\\r";
+          return ""; // Remove other control characters
+        });
+
+      const parseJsonWithFixes = (input: string) => {
+        try {
+          return JSON.parse(input);
+        } catch (_e1) {
+          let fixed = input.trim().replace(/^\uFEFF/, "");
+
+          // Some models occasionally wrap JSON in double braces
+          if (fixed.startsWith("{{") && fixed.endsWith("}}")) {
+            fixed = fixed.slice(1, -1);
+          }
+
+          fixed = fixed
+            // Curly quotes → straight quotes (breaks JSON if used for keys)
+            .replace(/[“”]/g, '"')
+            // Backtick/single-quote keys → JSON keys
+            .replace(/`([^`]+)`\s*:/g, '"$1":')
+            .replace(/'([^']+)'\s*:/g, '"$1":')
+            // Quote unquoted keys (JSON5-style)
+            .replace(/([\{,]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)/g, '$1"$2"$3')
+            // Remove trailing commas
+            .replace(/,\s*([\}\]])/g, '$1');
+
+          console.log("JSON parse retry; starts with:", JSON.stringify(fixed.slice(0, 30)));
+          return JSON.parse(fixed);
+        }
+      };
+
+      parsedQuestions = parseJsonWithFixes(jsonStr);
     } catch (parseError) {
       console.error("Parse error:", parseError);
       console.error("Raw content (first 1000 chars):", content.substring(0, 1000));
