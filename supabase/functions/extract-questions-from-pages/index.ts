@@ -42,7 +42,7 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const { pageImages, pdfName, category, subject, system, batchSize = 15, model = "google/gemini-2.5-flash" } = await req.json();
+    const { pageImages, pdfName, category, subject, system, batchSize = 5, model = "google/gemini-2.5-flash" } = await req.json();
     console.log("Using AI model:", model);
 
     if (!pageImages || !Array.isArray(pageImages) || pageImages.length === 0) {
@@ -168,7 +168,7 @@ IMPORTANT: Paraphrase all content - do not copy text verbatim. Focus on structur
                 ]
               }
             ],
-            max_tokens: 8000,
+            max_tokens: 16000,
             // Use tool calling for guaranteed structured JSON output
             tools: [
               {
@@ -237,6 +237,22 @@ IMPORTANT: Paraphrase all content - do not copy text verbatim. Focus on structur
           }),
           {
             status: 422, // Unprocessable Entity - more appropriate than 500
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+      
+      // Handle MAX_TOKENS - AI ran out of output tokens
+      if (finishReason === "MAX_TOKENS" || finishReason === "length") {
+        console.error("AI response truncated due to MAX_TOKENS");
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "AI response was truncated due to token limit. Try using a smaller batch size.",
+            errorType: "MAX_TOKENS",
+          }),
+          {
+            status: 422,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );

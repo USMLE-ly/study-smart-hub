@@ -356,7 +356,7 @@ export default function ProcessGeneticsPDFs() {
       }
 
       // Step 3: Process in batches for better reliability
-      const BATCH_SIZE = 10; // Process 10 pages at a time for AI
+      const BATCH_SIZE = 5; // Reduced from 10 to avoid MAX_TOKENS errors
       const totalBatches = Math.ceil(uploadedPages.length / BATCH_SIZE);
       let allQuestions = 0;
 
@@ -422,7 +422,7 @@ export default function ProcessGeneticsPDFs() {
               console.log(`Waiting ${waitTime}ms before retry...`);
               await new Promise(r => setTimeout(r, waitTime));
               // Reduce batch size on retry
-              retryBatchSize = Math.max(5, Math.floor(retryBatchSize / 2));
+              retryBatchSize = Math.max(3, Math.floor(retryBatchSize / 2));
             } else {
               throw error;
             }
