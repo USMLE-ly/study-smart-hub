@@ -315,6 +315,35 @@ export default function BatchProcessGenetics() {
     }
   };
 
+  // Retry a single failed PDF
+  const retrySinglePdf = async (pdfName: string) => {
+    const config = GENETICS_PDFS.find(p => p.name === pdfName);
+    if (!config) return;
+
+    setIsProcessing(true);
+    pauseRef.current = false;
+    abortRef.current = false;
+
+    updateResult(pdfName, { 
+      status: 'rendering', 
+      pagesRendered: 0, 
+      pagesUploaded: 0, 
+      error: undefined 
+    });
+
+    const extracted = await processSinglePdf(config);
+    
+    saveProgress();
+    await fetchDbCount();
+    setIsProcessing(false);
+
+    if (extracted > 0) {
+      toast.success(`Retried ${pdfName}: extracted ${extracted} questions`);
+    } else {
+      toast.error(`Retry failed for ${pdfName}`);
+    }
+  };
+
   // Start processing all PDFs
   const startProcessing = async (resumeFrom: number = 0) => {
     setIsProcessing(true);
@@ -576,6 +605,17 @@ export default function BatchProcessGenetics() {
                             {getStatusText(result)}
                           </span>
                         )}
+                        {result?.status === 'error' && !isProcessing && (
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => retrySinglePdf(pdf.name)}
+                            className="gap-1"
+                          >
+                            <RefreshCw className="h-3 w-3" />
+                            Retry
+                          </Button>
+                        )}
                         {isActive && (
                           <Loader2 className="h-4 w-4 animate-spin text-primary" />
                         )}
@@ -593,7 +633,7 @@ export default function BatchProcessGenetics() {
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              {errorCount} PDF(s) failed to process. You can retry by clicking "Resume" or "Start Processing All".
+              {errorCount} PDF(s) failed to process. Click "Retry" on individual PDFs or use "Resume" to retry all failed.
             </AlertDescription>
           </Alert>
         )}
