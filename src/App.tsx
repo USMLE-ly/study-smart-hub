@@ -40,6 +40,7 @@ import UWorldImageImport from "./pages/admin/UWorldImageImport";
 import AutoProcessGenetics from "./pages/admin/AutoProcessGenetics";
 import ProcessGeneticsPDFs from "./pages/admin/ProcessGeneticsPDFs";
 import PDFChat from "./pages/PDFChat";
+import BatchProcessGenetics from "./pages/admin/BatchProcessGenetics";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -367,6 +368,16 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <PDFChat />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/batch-genetics"
+                  element={
+                    <ProtectedRoute>
+                      <PageTransition>
+                        <BatchProcessGenetics />
+                      </PageTransition>
                     </ProtectedRoute>
                   }
                 />
