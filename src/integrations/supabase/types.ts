@@ -210,6 +210,98 @@ export type Database = {
           },
         ]
       }
+      pdf_chat_messages: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          role: string
+          session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          role: string
+          session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          role?: string
+          session_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdf_chat_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "pdf_processing_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pdf_processing_sessions: {
+        Row: {
+          category: string
+          created_at: string | null
+          current_question: number | null
+          error_message: string | null
+          extracted_questions: number | null
+          id: string
+          page_metadata: Json | null
+          pdf_name: string
+          processed_pages: number | null
+          status: string | null
+          subject: string | null
+          system: string | null
+          total_pages: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          current_question?: number | null
+          error_message?: string | null
+          extracted_questions?: number | null
+          id?: string
+          page_metadata?: Json | null
+          pdf_name: string
+          processed_pages?: number | null
+          status?: string | null
+          subject?: string | null
+          system?: string | null
+          total_pages?: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          current_question?: number | null
+          error_message?: string | null
+          extracted_questions?: number | null
+          id?: string
+          page_metadata?: Json | null
+          pdf_name?: string
+          processed_pages?: number | null
+          status?: string | null
+          subject?: string | null
+          system?: string | null
+          total_pages?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       pdfs: {
         Row: {
           created_at: string
