@@ -39,6 +39,7 @@ import BulkPDFImport from "./pages/admin/BulkPDFImport";
 import UWorldImageImport from "./pages/admin/UWorldImageImport";
 import AutoProcessGenetics from "./pages/admin/AutoProcessGenetics";
 import ProcessGeneticsPDFs from "./pages/admin/ProcessGeneticsPDFs";
+import PDFChat from "./pages/PDFChat";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -358,6 +359,14 @@ const App = () => (
                       <PageTransition>
                         <ProcessGeneticsPDFs />
                       </PageTransition>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/pdf-chat"
+                  element={
+                    <ProtectedRoute>
+                      <PDFChat />
                     </ProtectedRoute>
                   }
                 />
