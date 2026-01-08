@@ -16,6 +16,8 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
+    // Support top-level await for pdfjs-dist
+    target: 'esnext',
     // Code splitting and chunking for better caching
     rollupOptions: {
       output: {
